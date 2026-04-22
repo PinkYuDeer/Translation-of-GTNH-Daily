@@ -15,6 +15,28 @@ if (_repoPath) {
   NewlineRules.loadCache(join(_repoPath, '.github/data/lang-newline-cache.json'))
 }
 
+/**
+ * Rewrite upstream modpack-style lang paths into the game's packaged layout.
+ *
+ *   resources/<DisplayName>[<modid>]/lang/<file>
+ *     → config/txloader/forceload/<DisplayName>[<modid>]/lang/<file>
+ *
+ * The full `<DisplayName>[<modid>]` segment is preserved (not just `<modid>`)
+ * because multiple distinct resource packs share the same modid bracket in
+ * upstream daily-history (e.g. BiblioCraft + its BiblioWoods editions all
+ * tagged `[bibliocraft]`). Collapsing to just modid produced PT upload
+ * collisions; preserving the DisplayName keeps each source dir 1:1 with its
+ * PT file AND matches exactly what lands in the packaged 7z under
+ * `config/txloader/forceload/`.
+ */
+const RESOURCES_LANG_RE = /^resources\/(.+\/lang\/.+)$/
+function rewriteTargetRelpath(relpath: string): string {
+  const m = relpath.match(RESOURCES_LANG_RE)
+  if (!m)
+    return relpath
+  return `config/txloader/forceload/${m[1]}`
+}
+
 export class Converter {
   constructor(
     private readonly client: ClientWrapper,
@@ -83,7 +105,7 @@ export class Converter {
   }
 
   async toParatranzFile(file: Filetype): Promise<ParatranzFile> {
-    const targetRelpath = file.getTargetLanguageRelpath(this.targetLang)
+    const targetRelpath = rewriteTargetRelpath(file.getTargetLanguageRelpath(this.targetLang))
     const fileName = `${targetRelpath}.json`
 
     const stringItems: StringItem[] = Object.values(file.properties).map(p => ({

@@ -100,14 +100,18 @@ jobs:
           bun run src/index.ts from-paratranz:quest-book
           --repo-path='${{ env.REPO_PATH }}'
 
+      # Pulls every `*.lang.json` / `*.zs.json` from PT, including the
+      # top-level GregTech.lang.json (upstream CLI stores it with a `./`
+      # prefix due to path.dirname('GregTech.lang.json') === '.', which
+      # slips past the lang-zs filter's GregTech exclusion). The separate
+      # `from-paratranz:gt-lang` pull is skipped because of that same
+      # prefix making its exact-name filter fail — the only behaviour
+      # that pull adds is a `UseThisFileAsLanguageFile=false→true`
+      # replace on a flag that no longer exists in the current
+      # daily-history GregTech.lang, so dropping it is a no-op.
       - name: Pull Lang+zs From PT Daily
         run: >-
           bun run src/index.ts from-paratranz:lang-zs
-          --repo-path='${{ env.REPO_PATH }}'
-
-      - name: Pull GT Lang From PT Daily
-        run: >-
-          bun run src/index.ts from-paratranz:gt-lang
           --repo-path='${{ env.REPO_PATH }}'
 
       # ========== 额外文件后处理（重建 XML/txt，不走 PT 的直接拉取） ==========
