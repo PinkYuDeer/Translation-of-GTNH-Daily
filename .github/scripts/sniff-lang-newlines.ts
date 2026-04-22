@@ -17,8 +17,8 @@
  *   REPO_PATH          – root of the Translation-of-GTNH repo checkout
  */
 
-import { readFile, writeFile, readdir, stat } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { dirname, join, relative } from 'node:path'
 import { existsSync } from 'node:fs'
 
 const dailyHistoryPath = Bun.env.DAILY_HISTORY_PATH
@@ -123,6 +123,7 @@ await processDir(join(dailyHistoryPath, 'resources'), 'resources')
 // Config lang files: daily-history/config/**/en_US.lang (includes quest book)
 await processDir(join(dailyHistoryPath, 'config'), 'config')
 
+await mkdir(dirname(CACHE_PATH), { recursive: true })
 await writeFile(CACHE_PATH, JSON.stringify(cache, Object.keys(cache).sort(), 2) + '\n', 'utf8')
 
 console.log(`Done. Detected ${detectedFiles} files / ${detectedEntries} entries. Cache written to ${CACHE_PATH}`)
