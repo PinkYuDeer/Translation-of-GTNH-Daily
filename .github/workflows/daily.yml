@@ -7,6 +7,7 @@ on:
     - cron: '0 17 * * *'
 
 permissions:
+  actions: write
   contents: write
 
 env:
@@ -32,6 +33,7 @@ jobs:
     name: Daily Sync & Build
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: write
     steps:
       - name: Checkout Repo
@@ -44,21 +46,23 @@ jobs:
 
       # .cache 里保存的是跨 run 的 state（en-lastrun、zh-lastrun、file-ids、
       # newlines.json、pending-update.json）。上游仓库 sparse-clone 也缓存到
-      # .repo.cache 避免每天重新拉。
+      # .repo.cache 避免每天重新拉。GitHub Actions cache 以 ref 为作用域且
+      # 不可覆写，故 key 显式带 branch；restore 只回溯同 branch 旧日缓存。
       - name: Setup Datetime Envs
         uses: Kiwi233/Translation-of-GTNH/.github/actions/run-script@master
         with:
           script: setup-nightly-build-datetime-envs.ts
 
       - name: Restore Daily Cache
-        uses: actions/cache@v4
+        id: restore-daily-cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             .cache
             .repo.cache
-          key: daily-${{ env.NB_LOCAL_DATE }}
+          key: daily-${{ github.ref_name }}-${{ env.NB_LOCAL_DATE }}
           restore-keys: |
-            daily-
+            daily-${{ github.ref_name }}-
 
       # ========== 10 步流水线 ==========
       - name: Fetch English (A–G) + Normalize Newlines
@@ -98,6 +102,65 @@ jobs:
         run: stdbuf -oL -eL bun .github/scripts/daily/restore-and-pack.ts
         env:
           ARCHIVE_NAME: daily-${{ env.NB_LOCAL_DATE }}.7z
+
+      - name: Save Daily Cache
+        if: steps.restore-daily-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .cache
+            .repo.cache
+          key: daily-${{ github.ref_name }}-${{ env.NB_LOCAL_DATE }}
+
+      - name: Prune Old Daily Caches
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CACHE_PREFIX: daily-${{ github.ref_name }}-
+          KEEP_KEY: daily-${{ github.ref_name }}-${{ env.NB_LOCAL_DATE }}
+          REPO: ${{ github.repository }}
+        run: |
+          stdbuf -oL -eL bun -e '
+            const repo = process.env.REPO;
+            const prefix = process.env.CACHE_PREFIX;
+            const keepKey = process.env.KEEP_KEY;
+            const token = process.env.GH_TOKEN;
+            if (!repo || !prefix || !keepKey || !token)
+              throw new Error("missing cache prune env");
+            const headers = {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/vnd.github+json",
+              "User-Agent": "gtnh-daily-cache-pruner",
+            };
+            const listRes = await fetch(`https://api.github.com/repos/${repo}/actions/caches?per_page=100`, { headers });
+            if (!listRes.ok)
+              throw new Error(`list caches failed: ${listRes.status} ${await listRes.text()}`);
+            const data = await listRes.json();
+            const caches = (data.actions_caches ?? [])
+              .filter(cache => typeof cache.key === "string" && cache.key.startsWith(prefix))
+              .sort((a, b) => {
+                const ta = Date.parse(a.last_accessed_at ?? a.created_at ?? 0);
+                const tb = Date.parse(b.last_accessed_at ?? b.created_at ?? 0);
+                return tb - ta;
+              });
+            const keep = caches.find(cache => cache.key === keepKey) ?? caches[0];
+            if (!keep) {
+              console.log(`[daily-cache] no cache found for prefix ${prefix}`);
+              process.exit(0);
+            }
+            console.log(`[daily-cache] keeping ${keep.key} (#${keep.id})`);
+            for (const cache of caches) {
+              if (cache.id === keep.id)
+                continue;
+              const delRes = await fetch(`https://api.github.com/repos/${repo}/actions/caches/${cache.id}`, {
+                method: "DELETE",
+                headers,
+              });
+              if (!delRes.ok)
+                throw new Error(`delete cache ${cache.id} failed: ${delRes.status} ${await delRes.text()}`);
+              console.log(`[daily-cache] deleted ${cache.key} (#${cache.id})`);
+            }
+          '
 
       # ========== Tag & Release ==========
       - name: Push Tag
