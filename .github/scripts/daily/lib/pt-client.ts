@@ -34,6 +34,15 @@ export interface PtStringRow {
   context?: string | null
 }
 
+export interface PtTermRow {
+  id?: number
+  term: string
+  translation: string
+  note?: string | null
+  pos?: string | null
+  variants?: string[] | null
+}
+
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
@@ -165,6 +174,23 @@ export async function apiPostMultipart<T = unknown>(
   fields: Record<string, string>,
   fileField: { name: string, filename: string, content: string, type?: string },
 ): Promise<T> {
+  return apiMultipart('POST', path, fields, fileField)
+}
+
+export async function apiPutMultipart<T = unknown>(
+  path: string,
+  fields: Record<string, string>,
+  fileField: { name: string, filename: string, content: string, type?: string },
+): Promise<T> {
+  return apiMultipart('PUT', path, fields, fileField)
+}
+
+async function apiMultipart<T = unknown>(
+  method: 'POST' | 'PUT',
+  path: string,
+  fields: Record<string, string>,
+  fileField: { name: string, filename: string, content: string, type?: string },
+): Promise<T> {
   const fd = new FormData()
   for (const [k, v] of Object.entries(fields))
     fd.append(k, v)
@@ -173,7 +199,7 @@ export async function apiPostMultipart<T = unknown>(
     new Blob([fileField.content], { type: fileField.type ?? 'application/json' }),
     fileField.filename,
   )
-  const res = await apiRequestRaw('POST', path, {
+  const res = await apiRequestRaw(method, path, {
     headers: authHeaders,
     body: fd,
   })
@@ -284,5 +310,21 @@ export async function listFileStrings(
 ): Promise<PtStringRow[]> {
   return fetchAllPages<PtStringRow>(page =>
     apiGet(`/projects/${projectId}/strings?file=${fileId}&page=${page}&pageSize=${pageSize}`),
+  )
+}
+
+export async function listProjectTerms(projectId: string, pageSize = DEFAULT_STRINGS_PAGE_SIZE): Promise<PtTermRow[]> {
+  const first = await apiGet<unknown>(`/projects/${projectId}/terms`)
+  if (Array.isArray(first))
+    return first as PtTermRow[]
+
+  const pageLike = first as { pageCount?: number, results?: PtTermRow[] }
+  if (!Array.isArray(pageLike.results))
+    return []
+  if ((pageLike.pageCount ?? 1) <= 1)
+    return pageLike.results
+
+  return fetchAllPages<PtTermRow>(page =>
+    apiGet(`/projects/${projectId}/terms?page=${page}&pageSize=${pageSize}`),
   )
 }
