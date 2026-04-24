@@ -51,6 +51,7 @@ interface PtFileMutationResult {
 interface MergePlan {
   push: string[]
   archive: string[]
+  overrideTranslations?: string[]
 }
 
 interface PtStringWriteRow {
@@ -149,39 +150,69 @@ async function putOneString(row: PtStringWriteRow): Promise<void> {
   })
 }
 
-async function pushTranslationsForNewFile(ptPath: string, fileId: number, items: PtStringItem[]): Promise<void> {
+async function pushTranslationsPerString(
+  ptPath: string,
+  fileId: number,
+  items: PtStringItem[],
+  label: 'new-file' | 'override',
+): Promise<void> {
   const translated = items.filter(item => item.translation.length > 0)
   if (translated.length === 0)
     return
 
   const remoteRows = await listFileStrings(PT_18818_ID, fileId)
   const remoteByKey = new Map(remoteRows.map(row => [row.key, row]))
-  const rowTasks = translated.map(item => async () => {
+  const rowTasks: Array<() => Promise<void>> = []
+  for (const item of translated) {
     const remote = remoteByKey.get(item.key)
-    if (!remote)
-      throw new Error(`new PT file ${ptPath} missing stringId for key ${item.key}`)
-    await putOneString({
-      stringId: remote.id,
-      fileId,
-      key: item.key,
-      original: item.original,
-      translation: item.translation,
-      stage: item.stage ?? 0,
-      ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
+    if (!remote) {
+      if (label === 'new-file')
+        throw new Error(`new PT file ${ptPath} missing stringId for key ${item.key}`)
+      // On override, a brand-new key will have been materialized by the file
+      // POST but may not yet be visible; skip rather than fail the whole file.
+      continue
+    }
+    // Skip PUT if PT's stored translation already matches what we want. File
+    // uploads only refresh originals, but for matching translations there is
+    // nothing to overwrite and we avoid burning rate-limited API calls.
+    const desired = toPtNewlines(item.translation)
+    if ((remote.translation ?? '') === desired)
+      continue
+    rowTasks.push(async () => {
+      await putOneString({
+        stringId: remote.id,
+        fileId,
+        key: item.key,
+        original: item.original,
+        translation: item.translation,
+        stage: item.stage ?? 0,
+        ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
+      })
     })
-  })
+  }
+
+  if (rowTasks.length === 0)
+    return
 
   const { failures, results } = await runBounded(rowTasks, CONCURRENCY, {
     onSettled: ({ completed, total, failures, result }) => {
       if (completed === 1 || completed === total || completed % 100 === 0 || result instanceof Error)
         // eslint-disable-next-line no-console
-        console.log(`[push-final] new-file row progress ${ptPath} ${completed}/${total} (fail=${failures})`)
+        console.log(`[push-final] ${label} row progress ${ptPath} ${completed}/${total} (fail=${failures})`)
     },
   })
   if (failures > 0) {
     const failed = results.find(r => r instanceof Error)
-    throw failed instanceof Error ? failed : new Error(`new-file translation push failed for ${ptPath}`)
+    throw failed instanceof Error ? failed : new Error(`${label} translation push failed for ${ptPath}`)
   }
+}
+
+async function pushTranslationsForNewFile(ptPath: string, fileId: number, items: PtStringItem[]): Promise<void> {
+  return pushTranslationsPerString(ptPath, fileId, items, 'new-file')
+}
+
+async function overrideTranslationsForFile(ptPath: string, fileId: number, items: PtStringItem[]): Promise<void> {
+  return pushTranslationsPerString(ptPath, fileId, items, 'override')
 }
 
 async function renameOne(
@@ -237,6 +268,8 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`[push-final] recovered ${recovered} fileId(s) from remote file list`)
 
+  const overrideSet = new Set(plan.overrideTranslations ?? [])
+
   const pushTasks = plan.push.map(ptPath => async () => {
     const items = await loadItems(ptPath)
     const existingFileId = fileIds[ptPath]
@@ -249,6 +282,8 @@ async function main(): Promise<void> {
     fileIds[ptPath] = res.id
     if (existingFileId == null)
       await pushTranslationsForNewFile(ptPath, res.id, items)
+    else if (overrideSet.has(ptPath))
+      await overrideTranslationsForFile(ptPath, res.id, items)
     return ptPath
   })
 
@@ -287,6 +322,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log(
     `[push-final] uploaded=${pushRun.successes}/${plan.push.length} `
+    + `override=${overrideSet.size} `
     + `archived=${archiveRun.successes}/${plan.archive.length} failed=${totalFailures}`,
   )
 

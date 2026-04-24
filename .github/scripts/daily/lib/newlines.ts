@@ -58,9 +58,14 @@ export function normalizePtNewlines(value: string): string {
   return normalizeNewlines(value).replaceAll('%n', '\n')
 }
 
-/** Encode our internal newline form into PT's `%n` marker before upload. */
+/**
+ * Canonicalize values for upload to PT. PT normalizes all newline markers to a
+ * real LF on ingest, so we send real LF too — this keeps `<BR>`, `<br>`,
+ * literal `\n`, and `%n` all collapsed to the same LF form regardless of what
+ * shape the value arrived in.
+ */
 export function toPtNewlines(value: string): string {
-  return normalizePtNewlines(value).replaceAll('\n', '%n')
+  return normalizePtNewlines(value)
 }
 
 /** Expand a real newline back to the given placeholder form. */
