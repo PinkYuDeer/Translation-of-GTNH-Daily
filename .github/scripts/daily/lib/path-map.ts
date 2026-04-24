@@ -115,6 +115,12 @@ export function resolve4964To18818<T extends { name: string }>(
       return hit
   }
 
+  // `config/txloader/load/...` and root files must match by exact name. Falling
+  // back to the forceload modid index would silently route retired load files
+  // (for example old betterquesting lang packs) into unrelated active targets.
+  if (!canonical.startsWith('resources/') && !canonical.startsWith('config/txloader/forceload/'))
+    return undefined
+
   const modId = extractSourceModId(canonical)
   if (modId)
     return targetByModId.get(modId)
