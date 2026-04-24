@@ -43,6 +43,11 @@ interface MergePlan {
   archive: string[]
 }
 
+interface CurrentPtFile {
+  raw: PtStringItem[]
+  normalized: PtStringItem[]
+}
+
 interface DriftEntry {
   translation: string
 }
@@ -168,13 +173,17 @@ async function main(): Promise<void> {
     enFiles.set(ptPath, (await loadPtItems(abs)).map(normalizeItem))
   }
 
-  const currentFiles = new Map<string, PtStringItem[]>()
+  const currentFiles = new Map<string, CurrentPtFile>()
   for await (const abs of walkJson(currentRoot)) {
     const rel = toPosix(relative(currentRoot, abs))
     const ptPath = rel.endsWith('.json') ? rel.slice(0, -'.json'.length) : rel
     if (isArchivedPtPath(ptPath))
       continue
-    currentFiles.set(ptPath, (await loadPtItems(abs)).map(normalizeItem))
+    const raw = await loadPtItems(abs)
+    currentFiles.set(ptPath, {
+      raw,
+      normalized: raw.map(normalizeItem),
+    })
   }
 
   const targetEntries = [...enFiles.keys()].map(ptPath => ({ name: `${ptPath}.json` }))
@@ -217,7 +226,8 @@ async function main(): Promise<void> {
   }
 
   for (const [ptPath, enItems] of enFiles) {
-    const currentItems = currentFiles.get(ptPath) ?? []
+    const currentFile = currentFiles.get(ptPath)
+    const currentItems = currentFile?.normalized ?? []
     const sourceItems = sourceFiles.get(ptPath) ?? []
 
     const currentByKey = new Map(currentItems.map(item => [item.key, item]))
@@ -287,11 +297,11 @@ async function main(): Promise<void> {
     await mkdir(dirname(out), { recursive: true })
     await writeJson(out, finalItems)
 
-    const existed = currentFiles.has(ptPath)
-    const legacyPlaceholderRewrite = hasLegacyPlaceholder(currentItems)
+    const existed = currentFile != null
+    const legacyPlaceholderRewrite = hasLegacyPlaceholder(currentFile?.raw)
     if (!existed)
       stats.filesCreated++
-    if (!itemsEqual(currentFiles.get(ptPath), finalItems) || legacyPlaceholderRewrite) {
+    if (!itemsEqual(currentItems, finalItems) || legacyPlaceholderRewrite) {
       plan.push.push(ptPath)
       stats.filesChanged++
     }
@@ -301,7 +311,8 @@ async function main(): Promise<void> {
     if (enFiles.has(ptPath))
       continue
 
-    const currentItems = currentFiles.get(ptPath) ?? []
+    const currentFile = currentFiles.get(ptPath)
+    const currentItems = currentFile?.normalized ?? []
     const currentByKey = new Map(currentItems.map(item => [item.key, item]))
     const finalItems = sourceItems.map(sourceItem => mergeSourceOnlyItem(sourceItem, currentByKey.get(sourceItem.key)))
 
@@ -311,9 +322,9 @@ async function main(): Promise<void> {
 
     stats.sourceOnlyFiles++
     stats.sourceOnlyKeys += finalItems.length
-    if (!currentFiles.has(ptPath))
+    if (currentFile == null)
       stats.filesCreated++
-    if (!itemsEqual(currentFiles.get(ptPath), finalItems) || hasLegacyPlaceholder(currentItems)) {
+    if (!itemsEqual(currentItems, finalItems) || hasLegacyPlaceholder(currentFile?.raw)) {
       plan.push.push(ptPath)
       stats.filesChanged++
     }
