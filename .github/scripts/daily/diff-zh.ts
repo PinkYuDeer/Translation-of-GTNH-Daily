@@ -41,6 +41,11 @@ function toPosix(p: string): string {
   return p.split(sep).join('/')
 }
 
+/** Backward-compat: older zh-4964 snapshots may still contain PT's legacy prefixes. */
+function normalize4964Key(key: string): string {
+  return key.replace(/^(?:gt-)?lang\|/, '').trim()
+}
+
 async function* walkJson(dir: string): AsyncGenerator<string> {
   let ents
   try {
@@ -134,11 +139,12 @@ async function main(): Promise<void> {
     const pendingForFile = pending[ptPath] ?? {}
 
     for (const s of curr4964) {
+      const normalizedKey = normalize4964Key(s.key)
       if (!s.translation) {
         skippedEmptyTranslation++
         continue
       }
-      const enRow = enByKey.get(s.key)
+      const enRow = enByKey.get(normalizedKey)
       if (!enRow) {
         skippedMissingEnKey++
         continue
@@ -150,11 +156,11 @@ async function main(): Promise<void> {
 
       // The 4964 row covers this key's current English → clear any stale-
       // marker intent we might have queued from diff-en.
-      if (pendingForFile[s.key] != null)
-        delete pendingForFile[s.key]
+      if (pendingForFile[normalizedKey] != null)
+        delete pendingForFile[normalizedKey]
 
       const normalized = normalizeNewlines(s.translation)
-      const prev = lastrunByKey.get(s.key)
+      const prev = lastrunByKey.get(normalizedKey)
       if (
         prev
         && normalizeNewlines(prev.translation ?? '') === normalized
@@ -166,7 +172,7 @@ async function main(): Promise<void> {
       const targetStage = Math.max(sourceStage, 1)
       if (targetStage !== sourceStage)
         stagePromoted++
-      pushQueue.push({ ptPath, key: s.key, translation: normalized, stage: targetStage })
+      pushQueue.push({ ptPath, key: normalizedKey, translation: normalized, stage: targetStage })
       touched.add(ptPath)
     }
 
