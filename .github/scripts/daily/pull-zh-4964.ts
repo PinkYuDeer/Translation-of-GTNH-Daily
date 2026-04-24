@@ -18,7 +18,7 @@
  */
 
 import { existsSync } from 'node:fs'
-import { copyFile, mkdir, readFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import {
@@ -46,6 +46,28 @@ interface PtStringRow {
 }
 
 const PAGE_SIZE = 1000
+
+/**
+ * TEMPORARY OVERRIDE: Kiwi233 master hasn't merged the latest zh_CN.txt yet,
+ * so we fetch the file from MagicYuDeer/patch-1 and stage it over the Kiwi233
+ * checkout. Remove this block (and the call in main) once the PR merges back
+ * into Kiwi233 master.
+ */
+const TIPS_ZH_OVERRIDE_URL
+  = 'https://raw.githubusercontent.com/MagicYuDeer/Translation-of-GTNH/patch-1/config/Betterloadingscreen/tips/zh_CN.txt'
+const TIPS_ZH_PATH_IN_KIWI = 'config/Betterloadingscreen/tips/zh_CN.txt'
+
+async function applyTipsZhOverride(): Promise<void> {
+  const dst = join(REPO_CACHE_DIR, 'kiwi', TIPS_ZH_PATH_IN_KIWI)
+  const res = await fetch(TIPS_ZH_OVERRIDE_URL)
+  if (!res.ok)
+    throw new Error(`tips-override fetch failed: ${res.status} ${res.statusText}`)
+  const body = await res.text()
+  await mkdir(dirname(dst), { recursive: true })
+  await writeFile(dst, body, 'utf8')
+  // eslint-disable-next-line no-console
+  console.log(`[pull-zh-4964] tips override staged (${body.length} bytes) from MagicYuDeer/patch-1`)
+}
 
 async function listFiles(projectId: string): Promise<PtFileSummary[]> {
   // GET /files returns an array directly on PT; tolerate the `{results}` shape
@@ -130,6 +152,8 @@ async function copyExtras(): Promise<void> {
 
 async function main(): Promise<void> {
   assertToken()
+
+  await applyTipsZhOverride()
 
   const files = await listFiles(PT_4964_ID)
   // eslint-disable-next-line no-console
