@@ -44,10 +44,10 @@ jobs:
         with:
           bun-version: latest
 
-      # .cache 里保存的是跨 run 的 state（en-lastrun、zh-lastrun、file-ids、
-      # newlines.json、pending-update.json）。上游仓库 sparse-clone 也缓存到
-      # .repo.cache 避免每天重新拉。GitHub Actions cache 以 ref 为作用域且
-      # 不可覆写，故 key 显式带 branch；restore 只回溯同 branch 旧日缓存。
+      # .cache 里只保留少量可复用状态（fileIds、newlines 等）；正确性不再依赖
+      # cache，因为每次都会重拉当前 PT 18818 与上游 4964。上游 sparse-clone
+      # 缓存在 .repo.cache 里，避免每天重新拉。GitHub Actions cache 以 ref 为
+      # 作用域且不可覆写，故 key 显式带 branch；restore 只回溯同 branch 旧日缓存。
       - name: Setup Datetime Envs
         uses: Kiwi233/Translation-of-GTNH/.github/actions/run-script@master
         with:
@@ -64,38 +64,26 @@ jobs:
           restore-keys: |
             daily-${{ github.ref_name }}-
 
-      # ========== 10 步流水线 ==========
+      # ========== 三源整合流水线 ==========
       - name: Fetch English (A–G) + Normalize Newlines
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/fetch-en.ts
 
-      - name: Diff English vs Last Run
+      - name: Pull Current PT 18818 State
         shell: bash
-        run: stdbuf -oL -eL bun .github/scripts/daily/diff-en.ts
-
-      - name: Push English to PT 18818
-        shell: bash
-        run: stdbuf -oL -eL bun .github/scripts/daily/push-en.ts
+        run: stdbuf -oL -eL bun .github/scripts/daily/pull-current-18818.ts
 
       - name: Pull PT 4964 + Stage Kiwi233 Extras
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/pull-zh-4964.ts
 
-      - name: Diff Chinese Against Last Snapshot
+      - name: Merge English + PT 18818 + PT 4964 Locally
         shell: bash
-        run: stdbuf -oL -eL bun .github/scripts/daily/diff-zh.ts
+        run: stdbuf -oL -eL bun .github/scripts/daily/merge-final.ts
 
-      - name: Refresh StringIds for Touched Files
+      - name: Push Merged Final Files to PT 18818
         shell: bash
-        run: stdbuf -oL -eL bun .github/scripts/daily/refresh-ids.ts
-
-      - name: Push Chinese Translations (normal + stale markers)
-        shell: bash
-        run: stdbuf -oL -eL bun .github/scripts/daily/push-zh.ts
-
-      - name: Pull Final 18818 State (forward translations)
-        shell: bash
-        run: stdbuf -oL -eL bun .github/scripts/daily/pull-final-18818.ts
+        run: stdbuf -oL -eL bun .github/scripts/daily/push-final.ts
 
       - name: Rebuild .lang Files and Pack 7z
         shell: bash
