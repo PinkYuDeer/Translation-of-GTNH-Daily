@@ -29,7 +29,7 @@ import { dirname, join, relative, sep } from 'node:path'
 import { BUILD_DIR } from './lib/config.ts'
 import { writeJson } from './lib/cache.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
-import { normalizePtNewlines } from './lib/newlines.ts'
+import { normalizeNewlines, normalizePtNewlines } from './lib/newlines.ts'
 import {
   indexByModId,
   isArchivedPtPath,
