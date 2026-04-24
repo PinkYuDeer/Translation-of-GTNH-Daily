@@ -41,6 +41,14 @@ import {
 interface MergePlan {
   push: string[]
   archive: string[]
+  /**
+   * Subset of `push`: files whose existing translations on PT 18818 must also
+   * be overwritten per-string after the file-level POST, because PT does not
+   * update existing translations through the file upload endpoint. Populated
+   * when force mode is on or the current PT file still contains legacy newline
+   * placeholders (`<BR>`, `<br>`, literal `\n`, `%n`).
+   */
+  overrideTranslations: string[]
 }
 
 interface CurrentPtFile {
@@ -110,9 +118,11 @@ function hasLegacyPlaceholder(items: PtStringItem[] | undefined): boolean {
     (item.original ?? '').includes('<BR>')
     || (item.original ?? '').includes('<br>')
     || (item.original ?? '').includes('\\n')
+    || (item.original ?? '').includes('%n')
     || (item.translation ?? '').includes('<BR>')
     || (item.translation ?? '').includes('<br>')
     || (item.translation ?? '').includes('\\n')
+    || (item.translation ?? '').includes('%n')
   )
 }
 
@@ -146,7 +156,9 @@ function mergeSourceOnlyItem(
   current: PtStringItem | undefined,
 ): PtStringItem {
   const keepCurrent = current?.original === sourceItem.original && !!current.translation && !sourceItem.translation
-  const context = current?.context ?? sourceItem.context
+  // Upstream 4964 context never carries into 18818 — only preserve context that
+  // 18818 already had for this key.
+  const context = current?.context
   return {
     key: sourceItem.key,
     original: sourceItem.original,
@@ -211,7 +223,7 @@ async function main(): Promise<void> {
   await rm(finalRoot, { recursive: true, force: true })
   await mkdir(finalRoot, { recursive: true })
 
-  const plan: MergePlan = { push: [], archive: [] }
+  const plan: MergePlan = { push: [], archive: [], overrideTranslations: [] }
   const stats: MergeStats = {
     files: enFiles.size,
     filesChanged: 0,
@@ -305,6 +317,8 @@ async function main(): Promise<void> {
     if (force || !itemsEqual(currentItems, finalItems) || legacyPlaceholderRewrite) {
       plan.push.push(ptPath)
       stats.filesChanged++
+      if (existed && (force || legacyPlaceholderRewrite))
+        plan.overrideTranslations.push(ptPath)
     }
   }
 
@@ -323,11 +337,14 @@ async function main(): Promise<void> {
 
     stats.sourceOnlyFiles++
     stats.sourceOnlyKeys += finalItems.length
+    const legacyPlaceholderRewrite = hasLegacyPlaceholder(currentFile?.raw)
     if (currentFile == null)
       stats.filesCreated++
-    if (force || !itemsEqual(currentItems, finalItems) || hasLegacyPlaceholder(currentFile?.raw)) {
+    if (force || !itemsEqual(currentItems, finalItems) || legacyPlaceholderRewrite) {
       plan.push.push(ptPath)
       stats.filesChanged++
+      if (currentFile != null && (force || legacyPlaceholderRewrite))
+        plan.overrideTranslations.push(ptPath)
     }
   }
 
@@ -350,6 +367,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log(
     `[merge-final] files=${stats.files} push=${plan.push.length} archive=${plan.archive.length} `
+    + `override=${plan.overrideTranslations.length} `
     + `created=${stats.filesCreated} source-only-files=${stats.sourceOnlyFiles} source-only-keys=${stats.sourceOnlyKeys} `
     + `preserved=${stats.currentPreserved} source-applied=${stats.sourceApplied} `
     + `stale-current=${stats.staleFromCurrent} stale-4964=${stats.staleFrom4964} unresolved-4964=${stats.unresolved4964}`,
