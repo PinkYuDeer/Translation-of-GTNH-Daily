@@ -9,11 +9,13 @@
  *
  * Skip rules for a 4964 row `s`:
  *   1. s.translation empty                   no content
- *   2. normalize(s.original) != new EN       4964 is still on the old English
- *                                            (translation was written against
- *                                            a now-obsolete string; can't use)
- *   3. (normalized) s.translation + s.stage  already pushed, no-op
+ *   2. (normalized) s.translation + s.stage  already pushed, no-op
  *      equal lastrun
+ *
+ * When normalize(s.original) != new EN the translation was written against an
+ * older English string. Rather than discarding it, we emit a stale-drift marker
+ * of the form `{newEnglish}|旧译：|{oldChinese}` at stage=0 so reviewers on PT
+ * 18818 see both sides and can update in place.
  *
  * `files-to-refresh-ids.json` collects every pt-path that push-zh will touch:
  *   - every file with an entry in the push queue
@@ -104,7 +106,7 @@ async function main(): Promise<void> {
   let skippedEmptyTranslation = 0
   let skippedMissingEnFile = 0
   let skippedMissingEnKey = 0
-  let skippedOriginalMismatch = 0
+  let staleFromMismatch = 0
   let stagePromoted = 0
 
   for await (const abs of walkJson(root4964)) {
@@ -150,7 +152,15 @@ async function main(): Promise<void> {
         continue
       }
       if (normalizeNewlines(s.original) !== normalizeNewlines(enRow.original)) {
-        skippedOriginalMismatch++
+        // 4964's translation was written against older English. Instead of
+        // discarding it, surface the drift on PT 18818 as a reviewable marker:
+        // `{newEnglish}|旧译：|{oldChineseTranslation}` at stage=0.
+        const marker = `${normalizeNewlines(enRow.original)}|旧译：|${normalizeNewlines(s.translation)}`
+        if (pendingForFile[normalizedKey] != null)
+          delete pendingForFile[normalizedKey]
+        pushQueue.push({ ptPath, key: normalizedKey, translation: marker, stage: 0 })
+        touched.add(ptPath)
+        staleFromMismatch++
         continue
       }
 
@@ -198,7 +208,7 @@ async function main(): Promise<void> {
       Object.values(pending).reduce((n, m) => n + Object.keys(m).length, 0)
     } unresolved-4964=${unresolved} skipped-empty=${skippedEmptyTranslation} `
     + `skipped-no-en-file=${skippedMissingEnFile} skipped-no-en-key=${skippedMissingEnKey} `
-    + `skipped-original-mismatch=${skippedOriginalMismatch} stage-promoted=${stagePromoted}`,
+    + `stale-from-mismatch=${staleFromMismatch} stage-promoted=${stagePromoted}`,
   )
   if (unresolvedNames.length > 0)
     // eslint-disable-next-line no-console
