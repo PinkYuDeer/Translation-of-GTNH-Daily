@@ -65,7 +65,7 @@
 | 1 | `fetch-en.ts` | sparse-clone 三个上游 → 枚举英文源 A–G → 去重（daily-history 胜）→ 嗅探换行符写缓存 → 归一化 `\\n` → 输出 `.build/en/` |
 | 2 | `pull-current-18818.ts` | 拉取我方 PT 18818 当前文件与词条 → 输出 `.build/zh-current/`，并刷新 `file-ids/files.json` |
 | 3 | `pull-zh-4964.ts` | 分页拉取 PT 4964 全部译文 → 输出 `.build/zh-4964/`；并从 Kiwi233 拉直通文件（InGameInfoXML、overridenames_zhcn、tips 中文源、`resources/minecraft`） |
-| 4 | `merge-final.ts` | 以英文为准，本地整合 `.build/en/`、`.build/zh-current/`、`.build/zh-4964/` → 生成 `.build/zh-final/` 与 `merge-plan.json` |
+| 4 | `merge-final.ts` | 以英文为主轴，本地整合 `.build/en/`、`.build/zh-current/`、`.build/zh-4964/`；若 4964 尚有英文侧未收录的条目/文件，亦保留进 `.build/zh-final/` 与 `merge-plan.json` |
 | 5 | `push-final.ts` | 按 `merge-plan.json` 整文件回推 PT 18818；新增文件先建英文原文，再逐词条补译；退役文件改名 `*.achive.json` |
 | 6 | `restore-and-pack.ts` | 按缓存还原换行符 → 生成 `.lang`/`.txt` → 并入 Kiwi 直通文件 → 7z `-mx=9` |
 

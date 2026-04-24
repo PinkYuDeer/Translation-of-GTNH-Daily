@@ -8,8 +8,9 @@
  *   3. `.build/zh-4964/`    — upstream reviewed Chinese source
  *
  * Merge rules:
- *   - English key/original set is authoritative: keys/files absent from English
- *     disappear from the active final tree.
+ *   - English key/original set is authoritative for the normal daily keyspace.
+ *     However, reviewed 4964 rows/files that still have no English counterpart
+ *     are preserved as source-only entries instead of being dropped.
  *   - Current PT 18818 translations are preserved when key+original still match.
  *   - If English changed and 4964 has no fresh exact match, emit a stale marker
  *     `${newEnglish}|旧译：|${oldTranslation}` at stage=0.
@@ -33,6 +34,7 @@ import { normalizeNewlines, normalizePtNewlines } from './lib/newlines.ts'
 import {
   indexByModId,
   isArchivedPtPath,
+  map4964PathTo18818,
   resolve4964To18818,
 } from './lib/path-map.ts'
 
@@ -50,6 +52,8 @@ interface MergeStats {
   filesChanged: number
   filesCreated: number
   filesArchived: number
+  sourceOnlyFiles: number
+  sourceOnlyKeys: number
   currentPreserved: number
   sourceApplied: number
   staleFromCurrent: number
@@ -132,6 +136,23 @@ function staleMarker(newOriginal: string, oldTranslation: string): string {
   return `${normalizeNewlines(newOriginal)}|旧译：|${normalizeNewlines(oldTranslation)}`
 }
 
+function mergeSourceOnlyItem(
+  sourceItem: PtStringItem,
+  current: PtStringItem | undefined,
+): PtStringItem {
+  const keepCurrent = current?.original === sourceItem.original && !!current.translation && !sourceItem.translation
+  const context = current?.context ?? sourceItem.context
+  return {
+    key: sourceItem.key,
+    original: sourceItem.original,
+    translation: keepCurrent ? current.translation : sourceItem.translation,
+    stage: keepCurrent
+      ? (current.stage ?? 0)
+      : (sourceItem.translation ? Math.max(sourceItem.stage ?? 0, 1) : (sourceItem.stage ?? 0)),
+    ...(context != null && context !== '' ? { context } : {}),
+  }
+}
+
 async function main(): Promise<void> {
   const enRoot = join(BUILD_DIR, 'en')
   const currentRoot = join(BUILD_DIR, 'zh-current')
@@ -161,20 +182,14 @@ async function main(): Promise<void> {
   const targetByModId = indexByModId(targetEntries)
 
   const sourceFiles = new Map<string, PtStringItem[]>()
-  let unresolved4964 = 0
-  const unresolvedExamples: string[] = []
   const duplicateExamples: string[] = []
 
   for await (const abs of walkJson(sourceRoot)) {
     const sourceName = toPosix(relative(sourceRoot, abs))
     const resolved = resolve4964To18818(sourceName, targetByName, targetByModId)
-    if (!resolved) {
-      unresolved4964++
-      if (unresolvedExamples.length < 10)
-        unresolvedExamples.push(sourceName)
-      continue
-    }
-    const ptPath = resolved.name.slice(0, -'.json'.length)
+    const ptPath = resolved
+      ? resolved.name.slice(0, -'.json'.length)
+      : map4964PathTo18818(sourceName)
     if (sourceFiles.has(ptPath)) {
       if (duplicateExamples.length < 10)
         duplicateExamples.push(`${sourceName} -> ${ptPath}`)
@@ -192,11 +207,13 @@ async function main(): Promise<void> {
     filesChanged: 0,
     filesCreated: 0,
     filesArchived: 0,
+    sourceOnlyFiles: 0,
+    sourceOnlyKeys: 0,
     currentPreserved: 0,
     sourceApplied: 0,
     staleFromCurrent: 0,
     staleFrom4964: 0,
-    unresolved4964,
+    unresolved4964: 0,
   }
 
   for (const [ptPath, enItems] of enFiles) {
@@ -259,6 +276,13 @@ async function main(): Promise<void> {
       })
     }
 
+    for (const sourceItem of sourceItems) {
+      if (enItems.some(en => en.key === sourceItem.key))
+        continue
+      finalItems.push(mergeSourceOnlyItem(sourceItem, currentByKey.get(sourceItem.key)))
+      stats.sourceOnlyKeys++
+    }
+
     const out = join(finalRoot, `${ptPath}.json`)
     await mkdir(dirname(out), { recursive: true })
     await writeJson(out, finalItems)
@@ -273,12 +297,36 @@ async function main(): Promise<void> {
     }
   }
 
+  for (const [ptPath, sourceItems] of sourceFiles) {
+    if (enFiles.has(ptPath))
+      continue
+
+    const currentItems = currentFiles.get(ptPath) ?? []
+    const currentByKey = new Map(currentItems.map(item => [item.key, item]))
+    const finalItems = sourceItems.map(sourceItem => mergeSourceOnlyItem(sourceItem, currentByKey.get(sourceItem.key)))
+
+    const out = join(finalRoot, `${ptPath}.json`)
+    await mkdir(dirname(out), { recursive: true })
+    await writeJson(out, finalItems)
+
+    stats.sourceOnlyFiles++
+    stats.sourceOnlyKeys += finalItems.length
+    if (!currentFiles.has(ptPath))
+      stats.filesCreated++
+    if (!itemsEqual(currentFiles.get(ptPath), finalItems) || hasLegacyPlaceholder(currentItems)) {
+      plan.push.push(ptPath)
+      stats.filesChanged++
+    }
+  }
+
   for (const ptPath of currentFiles.keys()) {
-    if (enFiles.has(ptPath) || isArchivedPtPath(ptPath))
+    if (enFiles.has(ptPath) || sourceFiles.has(ptPath) || isArchivedPtPath(ptPath))
       continue
     plan.archive.push(ptPath)
     stats.filesArchived++
   }
+
+  stats.files = enFiles.size + stats.sourceOnlyFiles
 
   await writeFile(mergeStatsPath, `${JSON.stringify(stats, null, 2)}\n`, 'utf8')
   await writeJson(mergePlanPath, plan)
@@ -286,12 +334,10 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log(
     `[merge-final] files=${stats.files} push=${plan.push.length} archive=${plan.archive.length} `
-    + `created=${stats.filesCreated} preserved=${stats.currentPreserved} source-applied=${stats.sourceApplied} `
+    + `created=${stats.filesCreated} source-only-files=${stats.sourceOnlyFiles} source-only-keys=${stats.sourceOnlyKeys} `
+    + `preserved=${stats.currentPreserved} source-applied=${stats.sourceApplied} `
     + `stale-current=${stats.staleFromCurrent} stale-4964=${stats.staleFrom4964} unresolved-4964=${stats.unresolved4964}`,
   )
-  if (unresolvedExamples.length > 0)
-    // eslint-disable-next-line no-console
-    console.warn(`[merge-final] unresolved 4964 examples: ${unresolvedExamples.join(', ')}`)
   if (duplicateExamples.length > 0)
     // eslint-disable-next-line no-console
     console.warn(`[merge-final] duplicate 4964 mappings ignored: ${duplicateExamples.join(', ')}`)
