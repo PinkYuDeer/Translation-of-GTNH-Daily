@@ -5,6 +5,14 @@
  * as full-file replacements. Files retired from the active English source are
  * renamed to `*.achive.json` instead of deleted.
  *
+ * Special case: if an English file is brand-new and 18818 does not have it
+ * yet, we do NOT create it with translated rows inline. Instead we:
+ *   1. create the file from English originals only (empty translations)
+ *   2. list the newborn stringIds
+ *   3. push translated rows one-by-one
+ *
+ * This matches PT's create/update semantics more reliably for fresh files.
+ *
  * This script consumes `.build/merge-plan.json`:
  *   - `push[]`    — active files to create/replace via POST /files
  *   - `archive[]` — active files to rename away via PUT /files/{id}
@@ -20,6 +28,7 @@ import {
   apiPostMultipart,
   apiPutJson,
   indexFilesByLowerName,
+  listFileStrings,
   listProjectFiles,
   runBounded,
 } from './lib/pt-client.ts'
@@ -43,6 +52,16 @@ interface MergePlan {
   archive: string[]
 }
 
+interface PtStringWriteRow {
+  stringId: number
+  fileId: number
+  key: string
+  original: string
+  translation: string
+  stage: number
+  context?: string
+}
+
 function ptBasename(ptPath: string): string {
   const full = toPtJsonPath(ptPath)
   const slash = full.lastIndexOf('/')
@@ -58,6 +77,16 @@ function ptDirname(ptPath: string): string {
 async function loadItems(ptPath: string): Promise<PtStringItem[]> {
   const abs = join(BUILD_DIR, 'zh-final', `${ptPath}.json`)
   return JSON.parse(await readFile(abs, 'utf8')) as PtStringItem[]
+}
+
+function toEnglishOnlyItems(items: PtStringItem[]): PtStringItem[] {
+  return items.map(item => ({
+    key: item.key,
+    original: item.original,
+    translation: '',
+    stage: 0,
+    ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
+  }))
 }
 
 function normalizeMutationResult(
@@ -96,6 +125,52 @@ async function uploadOne(
     { name: 'file', filename, content: body },
   )
   return normalizeMutationResult(ptPath, res, existingFileId)
+}
+
+async function putOneString(row: PtStringWriteRow): Promise<void> {
+  await apiPutJson(`/projects/${PT_18818_ID}/strings/${row.stringId}`, {
+    key: row.key,
+    original: row.original,
+    translation: row.translation,
+    file: row.fileId,
+    stage: row.stage,
+    ...(row.context != null ? { context: row.context } : {}),
+  })
+}
+
+async function pushTranslationsForNewFile(ptPath: string, fileId: number, items: PtStringItem[]): Promise<void> {
+  const translated = items.filter(item => item.translation.length > 0)
+  if (translated.length === 0)
+    return
+
+  const remoteRows = await listFileStrings(PT_18818_ID, fileId)
+  const remoteByKey = new Map(remoteRows.map(row => [row.key, row]))
+  const rowTasks = translated.map(item => async () => {
+    const remote = remoteByKey.get(item.key)
+    if (!remote)
+      throw new Error(`new PT file ${ptPath} missing stringId for key ${item.key}`)
+    await putOneString({
+      stringId: remote.id,
+      fileId,
+      key: item.key,
+      original: item.original,
+      translation: item.translation,
+      stage: item.stage ?? 0,
+      ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
+    })
+  })
+
+  const { failures, results } = await runBounded(rowTasks, CONCURRENCY, {
+    onSettled: ({ completed, total, failures, result }) => {
+      if (completed === 1 || completed === total || completed % 100 === 0 || result instanceof Error)
+        // eslint-disable-next-line no-console
+        console.log(`[push-final] new-file row progress ${ptPath} ${completed}/${total} (fail=${failures})`)
+    },
+  })
+  if (failures > 0) {
+    const failed = results.find(r => r instanceof Error)
+    throw failed instanceof Error ? failed : new Error(`new-file translation push failed for ${ptPath}`)
+  }
 }
 
 async function renameOne(
@@ -153,11 +228,16 @@ async function main(): Promise<void> {
 
   const pushTasks = plan.push.map(ptPath => async () => {
     const items = await loadItems(ptPath)
-    const res = await uploadOne(ptPath, fileIds[ptPath], items)
+    const existingFileId = fileIds[ptPath]
+    const res = existingFileId != null
+      ? await uploadOne(ptPath, existingFileId, items)
+      : await uploadOne(ptPath, undefined, toEnglishOnlyItems(items))
     const expected = toPtJsonPath(ptPath)
     if (res.name !== expected)
       throw new Error(`upload path mismatch for ${ptPath}: expected ${expected}, got ${res.name}`)
     fileIds[ptPath] = res.id
+    if (existingFileId == null)
+      await pushTranslationsForNewFile(ptPath, res.id, items)
     return ptPath
   })
 
