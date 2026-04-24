@@ -44,9 +44,26 @@ export async function apiGetRaw(path: string): Promise<Response> {
 }
 
 export async function apiPostJson<T = unknown>(path: string, body: unknown): Promise<T> {
+  return apiSendJson('POST', path, body)
+}
+
+export async function apiPutJson<T = unknown>(path: string, body: unknown): Promise<T> {
+  return apiSendJson('PUT', path, body)
+}
+
+export async function apiPutJsonRaw(path: string, body: unknown): Promise<Response> {
+  return apiSendJsonRaw('PUT', path, body)
+}
+
+async function apiSendJson<T = unknown>(method: 'POST' | 'PUT', path: string, body: unknown): Promise<T> {
+  const res = await apiSendJsonRaw(method, path, body)
+  return res.json() as Promise<T>
+}
+
+async function apiSendJsonRaw(method: 'POST' | 'PUT', path: string, body: unknown): Promise<Response> {
   while (true) {
     const res = await fetch(`${API_BASE}${path}`, {
-      method: 'POST',
+      method,
       headers: jsonHeaders,
       body: JSON.stringify(body),
     })
@@ -56,9 +73,9 @@ export async function apiPostJson<T = unknown>(path: string, body: unknown): Pro
     }
     if (!res.ok) {
       const text = await res.text()
-      throw new Error(`POST ${path} → ${res.status} ${res.statusText}: ${text}`)
+      throw new Error(`${method} ${path} → ${res.status} ${res.statusText}: ${text}`)
     }
-    return res.json() as Promise<T>
+    return res
   }
 }
 

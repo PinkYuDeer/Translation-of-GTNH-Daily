@@ -9,8 +9,10 @@
  *      - preserve English key order (`.build/en/<pt-path>.en.json`)
  *      - empty translations → write `key=` (no English fallback; Minecraft
  *        reads en_US.lang for missing keys automatically)
- *    Tips are reversed back into `zh_CN.txt` since Minecraft's Better
- *    Loading Screen doesn't read .lang for tips.
+ *    Tips are handled specially: PT only stores a synthetic keyed mirror, but
+ *    the authoritative zh_CN.txt lives in the Kiwi/MagicYuDeer repo branch.
+ *    Pack output therefore prefers that direct file and only falls back to
+ *    reassembling PT data if the repo copy is unavailable.
  *
  * 2. Assemble the pack tree (matches C:\…\2.8.4 reference):
  *
@@ -104,22 +106,14 @@ function reassemble(
   const finalByKey = new Map(finalItems.map(i => [i.key, i]))
   const enByKey = new Map((enItems ?? []).map(i => [i.key, i]))
   const orderKeys = enItems?.map(i => i.key) ?? [...finalByKey.keys()]
-  // Tips aren't a real .lang file at runtime — Better Loading Screen reads the
-  // rebuilt zh_CN.txt directly, which means there's no en_US.lang fallback.
-  // For untranslated tip keys we emit the English original so the loading
-  // screen still shows something instead of a blank line.
-  const isTips = ptPath === TIPS_PT_PATH
   const out: LangEntry[] = []
   for (const key of orderKeys) {
     const item = finalByKey.get(key)
     // Empty/undefined translation → write `key=` so Minecraft falls back to
-    // en_US.lang at runtime (per translation team decision). Tips are the
-    // exception noted above.
+    // en_US.lang at runtime (per translation team decision).
     const translation = item?.translation && item.translation.length > 0
       ? item.translation
-      : isTips
-        ? enByKey.get(key)?.original ?? ''
-        : ''
+      : ''
     const form = newlinesForFile?.[key] as '<BR>' | '<br>' | '\\n' | undefined
     const value = restoreNewlines(translation, form)
     out.push({ key, value })
@@ -158,14 +152,23 @@ async function rebuildLangTree(): Promise<string> {
 }
 
 /**
- * Tips get converted back to the `.txt` layout Minecraft expects; the
- * positional `tip.NNNN` keys are sorted and the values concatenated.
+ * Tips are maintained outside PT. Prefer the direct repo copy (already
+ * overridden to MagicYuDeer/patch-1 upstream in pull-zh-4964); only if that
+ * file is absent do we fall back to reassembling the synthetic PT mirror.
  *
- * The first 8 lines of Kiwi233's zh_CN.txt (7 comment lines + the PT feedback
- * notice) are preserved verbatim as the preamble, so upstream edits to either
- * flow through without touching this code.
+ * Fallback mode converts the keyed mirror back to the `.txt` layout Minecraft
+ * expects; the first 8 lines of Kiwi233's zh_CN.txt (7 comment lines + the PT
+ * feedback notice) are preserved verbatim as the preamble.
  */
 async function rebuildTipsTxt(zhLangRoot: string): Promise<string | undefined> {
+  const kiwiTips = join(REPO_CACHE_DIR, 'kiwi/config/Betterloadingscreen/tips/zh_CN.txt')
+  const outPath = join(BUILD_DIR, 'zh-tips/config/Betterloadingscreen/tips/zh_CN.txt')
+  await mkdir(dirname(outPath), { recursive: true })
+  if (existsSync(kiwiTips)) {
+    await copyFile(kiwiTips, outPath)
+    return outPath
+  }
+
   const tipsLangPath = join(zhLangRoot, TIPS_PT_PATH)
   if (!existsSync(tipsLangPath))
     return undefined
@@ -180,15 +183,11 @@ async function rebuildTipsTxt(zhLangRoot: string): Promise<string | undefined> {
   const body = entriesToTips(entries)
 
   let preamble = ''
-  const kiwiTips = join(REPO_CACHE_DIR, 'kiwi/config/Betterloadingscreen/tips/zh_CN.txt')
   if (existsSync(kiwiTips)) {
     const kiwiText = (await readFile(kiwiTips, 'utf8')).replace(/\r\n/g, '\n')
     const lines = kiwiText.split('\n').slice(0, 8)
     preamble = `${lines.join('\n')}\n`
   }
-
-  const outPath = join(BUILD_DIR, 'zh-tips/config/Betterloadingscreen/tips/zh_CN.txt')
-  await mkdir(dirname(outPath), { recursive: true })
   await writeFile(outPath, preamble + body, 'utf8')
   return outPath
 }
