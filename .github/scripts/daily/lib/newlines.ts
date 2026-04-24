@@ -48,6 +48,16 @@ export function normalizeNewlines(value: string): string {
     .replaceAll('\\n', '\n')
 }
 
+/**
+ * PT exports / UI sometimes surface stored line breaks as `%n`. That marker is
+ * not part of the upstream lang files, so only apply this variant when reading
+ * PT-sourced values (current 18818 / reviewed 4964), never when ingesting the
+ * raw English source tree.
+ */
+export function normalizePtNewlines(value: string): string {
+  return normalizeNewlines(value).replaceAll('%n', '\n')
+}
+
 /** Expand a real newline back to the given placeholder form. */
 export function restoreNewlines(value: string, form: NewlineForm | undefined): string {
   if (!form || form === '\\n')

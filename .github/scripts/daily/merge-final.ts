@@ -29,7 +29,7 @@ import { dirname, join, relative, sep } from 'node:path'
 import { BUILD_DIR } from './lib/config.ts'
 import { writeJson } from './lib/cache.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
-import { normalizeNewlines } from './lib/newlines.ts'
+import { normalizePtNewlines } from './lib/newlines.ts'
 import {
   indexByModId,
   isArchivedPtPath,
@@ -89,11 +89,20 @@ async function loadPtItems(abs: string): Promise<PtStringItem[]> {
 function normalizeItem(item: PtStringItem): PtStringItem {
   return {
     key: item.key,
-    original: normalizeNewlines(item.original ?? ''),
-    translation: normalizeNewlines(item.translation ?? ''),
+    original: normalizePtNewlines(item.original ?? ''),
+    translation: normalizePtNewlines(item.translation ?? ''),
     stage: item.stage ?? 0,
     ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
   }
+}
+
+function hasLegacyPlaceholder(items: PtStringItem[] | undefined): boolean {
+  return (items ?? []).some(item =>
+    (item.original ?? '').includes('<BR>')
+    || (item.original ?? '').includes('<br>')
+    || (item.translation ?? '').includes('<BR>')
+    || (item.translation ?? '').includes('<br>'),
+  )
 }
 
 function itemsEqual(a: PtStringItem[] | undefined, b: PtStringItem[]): boolean {
@@ -253,9 +262,10 @@ async function main(): Promise<void> {
     await writeJson(out, finalItems)
 
     const existed = currentFiles.has(ptPath)
+    const legacyPlaceholderRewrite = hasLegacyPlaceholder(currentItems)
     if (!existed)
       stats.filesCreated++
-    if (!itemsEqual(currentFiles.get(ptPath), finalItems)) {
+    if (!itemsEqual(currentFiles.get(ptPath), finalItems) || legacyPlaceholderRewrite) {
       plan.push.push(ptPath)
       stats.filesChanged++
     }
