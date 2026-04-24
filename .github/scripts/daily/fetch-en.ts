@@ -29,7 +29,7 @@ import { writeJson, readNewlines, writeNewlines, type NewlineForm } from './lib/
 import { parseLang, langToPtItems, type PtStringItem } from './lib/lang-parser.ts'
 import { parseTipsLines, tipsToEntries } from './lib/tips-parser.ts'
 import { normalizeNewlines, sniffNewline } from './lib/newlines.ts'
-import { rewriteTargetRelpath } from './lib/path-map.ts'
+import { rewriteTargetRelpath, stripVersionSuffix } from './lib/path-map.ts'
 
 interface FetchedFile {
   /** PT-18818 path (keys into .build/en, cache, everything downstream). */
@@ -120,14 +120,14 @@ function modpackToPtPath(rel: string): string | undefined {
 }
 
 /**
- * Per-file processing: parse the `.lang` text, sniff+register newline form for
- * each entry, normalize each value to real `\n`, return PT-skeleton items.
+ * Per-file processing: parse the `.lang` text, sniff per-entry newline form,
+ * normalize values to real `\n`. Returns the PT-skeleton items plus the sniffed
+ * newline map; the caller decides which pt-path key they bind to (so we can
+ * canonicalize paths before recording).
  */
 function processLangFile(
   content: string,
-  ptPath: string,
-  newlinesMap: Record<string, Record<string, NewlineForm>>,
-): PtStringItem[] {
+): { items: PtStringItem[], perFile: Record<string, NewlineForm> } {
   const entries = parseLang(content)
   const perFile: Record<string, NewlineForm> = {}
   for (const e of entries) {
@@ -136,9 +136,7 @@ function processLangFile(
       perFile[e.key] = form
     e.value = normalizeNewlines(e.value)
   }
-  if (Object.keys(perFile).length > 0)
-    newlinesMap[ptPath] = perFile
-  return langToPtItems(entries)
+  return { items: langToPtItems(entries), perFile }
 }
 
 /**
@@ -146,9 +144,35 @@ function processLangFile(
  * apply — each tip line is a standalone value.
  */
 function processTipsFile(content: string): PtStringItem[] {
-  const lines = parseTipsLines(content)
+  // en_US.txt's first 7 lines are the upstream comment block; content starts
+  // at line 8. Chinese shifts this by 1 (line 8 is the PT feedback notice);
+  // see pull-zh-4964's buildTipsFrom4964Kiwi for the zh side.
+  const lines = parseTipsLines(content, 8)
   const entries = tipsToEntries(lines)
   return langToPtItems(entries)
+}
+
+/**
+ * Merge a new set of entries into an already-collected file. Entries are deduped
+ * by key (first-wins); newline forms are likewise merged first-wins. Used when
+ * two upstream paths canonicalize to the same pt-path (e.g. `(+16)` variants).
+ */
+function mergeInto(
+  existing: FetchedFile,
+  newItems: PtStringItem[],
+  newlinesMap: Record<string, Record<string, NewlineForm>>,
+  perFileIncoming: Record<string, NewlineForm> | undefined,
+): void {
+  const byKey = new Map(existing.entries.map(e => [e.key, e]))
+  for (const item of newItems) {
+    if (!byKey.has(item.key))
+      byKey.set(item.key, item)
+  }
+  existing.entries = [...byKey.values()]
+  if (perFileIncoming) {
+    const merged = { ...perFileIncoming, ...(newlinesMap[existing.ptPath] ?? {}) }
+    newlinesMap[existing.ptPath] = merged
+  }
 }
 
 async function main(): Promise<void> {
@@ -167,13 +191,25 @@ async function main(): Promise<void> {
     // We only ingest en_US.lang (plus the root GregTech.lang).
     if (rel !== 'GregTech.lang' && !rel.endsWith('/en_US.lang'))
       continue
-    const ptPath = dailyHistoryToPtPath(rel)
-    if (!ptPath)
+    const raw = dailyHistoryToPtPath(rel)
+    if (!raw)
       continue
+    // Strip `(+N)` version markers so e.g. `GregTech(+16)[bartworks]` collapses
+    // into `GregTech[bartworks]`. If two variants canonicalize to the same
+    // path, their entries are merged (first-wins on key conflicts).
+    const ptPath = stripVersionSuffix(raw)
     const content = await readFile(abs, 'utf8')
-    const items = processLangFile(content, ptPath, newlinesMap)
+    const { items, perFile } = processLangFile(content)
     const source = rel === 'GregTech.lang' ? 'A' : rel.startsWith('resources/') ? 'B' : 'C'
-    collected.set(ptPath, { ptPath, source, entries: items })
+    const existing = collected.get(ptPath)
+    if (existing) {
+      mergeInto(existing, items, newlinesMap, perFile)
+    }
+    else {
+      collected.set(ptPath, { ptPath, source, entries: items })
+      if (Object.keys(perFile).length > 0)
+        newlinesMap[ptPath] = perFile
+    }
   }
 
   // -------- Modpack (sources D–F), deduped against daily-history --------
@@ -182,19 +218,22 @@ async function main(): Promise<void> {
     const rel = toPosix(`config/${relative(modpackConfig, abs)}`)
     if (!rel.endsWith('.lang'))
       continue
-    const ptPath = modpackToPtPath(rel)
-    if (!ptPath)
+    const raw = modpackToPtPath(rel)
+    if (!raw)
       continue
+    const ptPath = stripVersionSuffix(raw)
     if (collected.has(ptPath))
       continue // daily-history wins
     const content = await readFile(abs, 'utf8')
-    const items = processLangFile(content, ptPath, newlinesMap)
+    const { items, perFile } = processLangFile(content)
     const source = rel.startsWith('config/txloader/forceload/')
       ? 'D'
       : rel === 'config/amazingtrophies/lang/en_US.lang'
         ? 'F'
         : 'E'
     collected.set(ptPath, { ptPath, source, entries: items })
+    if (Object.keys(perFile).length > 0)
+      newlinesMap[ptPath] = perFile
   }
 
   // -------- G: tips synthesised as a PT file --------

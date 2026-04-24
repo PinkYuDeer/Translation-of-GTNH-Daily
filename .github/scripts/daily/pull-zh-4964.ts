@@ -63,9 +63,13 @@ async function getAllStrings(projectId: string, fileId: number): Promise<PtStrin
 }
 
 /**
- * Tips: align Kiwi233's zh_CN.txt with fetch-en's synthetic English keys. The
- * two files must have the same *non-empty, non-comment* line count — if they
- * don't, we fail loudly (this means upstream tips files drifted).
+ * Tips: align Kiwi233's zh_CN.txt with fetch-en's synthetic English keys.
+ *
+ * Upstream puts different-sized header blocks on each side. English: 7 comment
+ * lines (content from line 8). Chinese: 7 comment lines + 1 PT feedback notice
+ * on line 8 (content from line 9). We skip the respective headers and expect
+ * the remaining tip counts to match; if they don't, we fail loudly (upstream
+ * tips drift).
  */
 async function buildTipsFrom4964Kiwi(): Promise<PtStringItem[] | undefined> {
   const enFile = join(BUILD_DIR, 'en', 'config/Betterloadingscreen/tips/zh_CN.lang.en.json')
@@ -73,7 +77,7 @@ async function buildTipsFrom4964Kiwi(): Promise<PtStringItem[] | undefined> {
   if (!existsSync(enFile) || !existsSync(zhFile))
     return undefined
   const enItems = JSON.parse(await readFile(enFile, 'utf8')) as PtStringItem[]
-  const zhLines = parseTipsLines(await readFile(zhFile, 'utf8'))
+  const zhLines = parseTipsLines(await readFile(zhFile, 'utf8'), 9)
   if (enItems.length !== zhLines.length) {
     throw new Error(`tips line count mismatch: en=${enItems.length} zh=${zhLines.length}`)
   }

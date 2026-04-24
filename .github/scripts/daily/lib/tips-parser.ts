@@ -1,24 +1,32 @@
 /**
  * Loading-screen `tips/*.txt` ↔ synthetic .lang conversion.
  *
- * The tips file is a list of display lines, one per line. Comments start with
- * `#`, blank lines are ignored. Minecraft's Better Loading Screen mod picks
- * a random non-empty, non-comment line to show while the pack loads.
+ * The tips file is a list of display lines, one per line. Upstream uses the
+ * first several lines as a fixed comment/header block whose count differs
+ * between languages (English: 7 header lines; Chinese: 8 — line 8 is a PT
+ * feedback notice that is Chinese-only and must not be aligned with English).
+ * Minecraft's Better Loading Screen mod picks a random non-empty, non-comment
+ * line to show while the pack loads.
  *
  * We can't round-trip this as-is through PT — PT stores key/value pairs.
  * So we synthesize a `.lang`-shaped list where each non-empty line gets a
  * positional key like `tip.0001`. The English and Chinese upstream files must
- * have the same number of non-empty non-comment lines, in the same logical
- * order; otherwise we cannot line up translations and the build fails loudly.
+ * have the same number of tip lines *after skipping their respective header
+ * counts*; otherwise we cannot line up translations and the build fails loudly.
  */
 
 import type { LangEntry } from './lang-parser.ts'
 
-/** Strip comments / blank lines; keep original line order. */
-export function parseTipsLines(content: string): string[] {
+/**
+ * Skip the first `startLine - 1` lines as header, then yield remaining
+ * non-blank non-comment lines in order. Default `startLine=1` preserves the
+ * old "skip comments only" behaviour for any caller that wants it.
+ */
+export function parseTipsLines(content: string, startLine = 1): string[] {
   const out: string[] = []
-  for (const rawLine of content.split('\n')) {
-    const line = rawLine.replace(/\r$/, '')
+  const lines = content.split('\n')
+  for (let i = Math.max(0, startLine - 1); i < lines.length; i++) {
+    const line = lines[i].replace(/\r$/, '')
     const trimmed = line.trim()
     if (!trimmed || trimmed.startsWith('#'))
       continue

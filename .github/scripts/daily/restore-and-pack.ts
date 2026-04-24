@@ -45,7 +45,7 @@ import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, writeFile } from 'node
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 
-import { BUILD_DIR } from './lib/config.ts'
+import { BUILD_DIR, REPO_CACHE_DIR } from './lib/config.ts'
 import { readNewlines } from './lib/cache.ts'
 import { entriesToTips } from './lib/tips-parser.ts'
 import {
@@ -149,6 +149,10 @@ async function rebuildLangTree(): Promise<string> {
 /**
  * Tips get converted back to the `.txt` layout Minecraft expects; the
  * positional `tip.NNNN` keys are sorted and the values concatenated.
+ *
+ * The first 8 lines of Kiwi233's zh_CN.txt (7 comment lines + the PT feedback
+ * notice) are preserved verbatim as the preamble, so upstream edits to either
+ * flow through without touching this code.
  */
 async function rebuildTipsTxt(zhLangRoot: string): Promise<string | undefined> {
   const tipsLangPath = join(zhLangRoot, TIPS_PT_PATH)
@@ -162,10 +166,19 @@ async function rebuildTipsTxt(zhLangRoot: string): Promise<string | undefined> {
     if (idx < 0) continue
     entries.push({ key: line.slice(0, idx).trim(), value: line.slice(idx + 1) })
   }
-  const out = entriesToTips(entries)
+  const body = entriesToTips(entries)
+
+  let preamble = ''
+  const kiwiTips = join(REPO_CACHE_DIR, 'kiwi/config/Betterloadingscreen/tips/zh_CN.txt')
+  if (existsSync(kiwiTips)) {
+    const kiwiText = (await readFile(kiwiTips, 'utf8')).replace(/\r\n/g, '\n')
+    const lines = kiwiText.split('\n').slice(0, 8)
+    preamble = `${lines.join('\n')}\n`
+  }
+
   const outPath = join(BUILD_DIR, 'zh-tips/config/Betterloadingscreen/tips/zh_CN.txt')
   await mkdir(dirname(outPath), { recursive: true })
-  await writeFile(outPath, out, 'utf8')
+  await writeFile(outPath, preamble + body, 'utf8')
   return outPath
 }
 
