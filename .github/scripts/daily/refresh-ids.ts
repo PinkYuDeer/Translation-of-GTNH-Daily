@@ -13,9 +13,10 @@
  * Their union = refresh set. For each pt-path, we paginate
  * `GET /projects/18818/strings?file={fileId}` and persist the mapping.
  *
- * Files whose fileId we don't know yet (newly-created) are logged and skipped;
- * push-en should have filled files.json but a prior partial run may have left
- * a gap. Those gaps heal on the next daily run.
+ * Files whose fileId we don't know yet are no longer skipped immediately:
+ * before giving up, we re-list remote PT files and recover ids by filename
+ * (same self-heal strategy as upstream). Only paths still unresolved after
+ * that lookup are logged and skipped.
  *
  * After a successful refresh, the pt-path is cleared from `stale-ids.json`.
  */
@@ -36,18 +37,38 @@ import {
   writeJson,
   writeStringIds,
 } from './lib/cache.ts'
-import { apiGet, fetchAllPages, runBounded } from './lib/pt-client.ts'
-
-interface PtStringRow { id: number, key: string }
-const PAGE_SIZE = 1000
+import {
+  indexFilesByLowerName,
+  listFileStrings,
+  listProjectFiles,
+  runBounded,
+} from './lib/pt-client.ts'
 
 async function refreshOne(fileId: number): Promise<Record<string, number>> {
-  const rows = await fetchAllPages<PtStringRow>(page =>
-    apiGet(`/projects/${PT_18818_ID}/strings?file=${fileId}&page=${page}&pageSize=${PAGE_SIZE}`),
-  )
+  const rows = await listFileStrings(PT_18818_ID, fileId)
   const out: Record<string, number> = {}
   for (const r of rows) out[r.key] = r.id
   return out
+}
+
+async function hydrateMissingFileIds(
+  ptPaths: Iterable<string>,
+  fileIds: Record<string, number>,
+): Promise<number> {
+  const missing = [...ptPaths].filter(ptPath => typeof fileIds[ptPath] !== 'number')
+  if (missing.length === 0)
+    return 0
+
+  const remoteByName = indexFilesByLowerName(await listProjectFiles(PT_18818_ID))
+  let recovered = 0
+  for (const ptPath of missing) {
+    const hit = remoteByName.get(`${ptPath}.json`.toLowerCase())
+    if (!hit)
+      continue
+    fileIds[ptPath] = hit.id
+    recovered++
+  }
+  return recovered
 }
 
 async function main(): Promise<void> {
@@ -64,6 +85,10 @@ async function main(): Promise<void> {
     return
   }
 
+  const recovered = await hydrateMissingFileIds(union, fileIds)
+  if (recovered > 0)
+    await writeJson(join(CACHE_DIR, CACHE_PATHS.fileIds), fileIds)
+
   const targets: Array<{ ptPath: string, fileId: number }> = []
   const missing: string[] = []
   for (const ptPath of union) {
@@ -76,6 +101,9 @@ async function main(): Promise<void> {
   if (missing.length > 0)
     // eslint-disable-next-line no-console
     console.warn(`[refresh-ids] ${missing.length} path(s) have no known fileId: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? '…' : ''}`)
+  if (recovered > 0)
+    // eslint-disable-next-line no-console
+    console.log(`[refresh-ids] recovered ${recovered} fileId(s) from remote file list`)
 
   const tasks = targets.map(t => async () => {
     const map = await refreshOne(t.fileId)

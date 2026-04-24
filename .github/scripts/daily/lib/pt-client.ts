@@ -1,46 +1,131 @@
 /**
- * Thin ParaTranz REST client with 429 back-off and a bounded-concurrency
- * runner. All daily-pipeline scripts share this client so rate-limit handling
- * and error semantics stay consistent.
+ * Thin ParaTranz REST client with retry/back-off, plus a few PT-specific
+ * helpers (`listProjectFiles`, `listFileStrings`) inspired by the upstream
+ * GTNH tooling.
  *
- * The server responds 429 when a client burns its per-IP quota; the only safe
- * recovery is to sleep 60s and retry the same request. Other non-2xx
- * responses are thrown as errors so callers can decide file-vs-fatal.
+ * Two practical lessons we keep from upstream:
+ *   1. fileIds should be recoverable by remote filename when local cache is
+ *      cold or partially lost;
+ *   2. PT transient failures are not limited to 429 — network hiccups and
+ *      5xx responses also deserve automatic retry.
  */
 
 import { API_BASE, PARATRANZ_TOKEN, RATE_LIMIT_RETRY_MS } from './config.ts'
 
 const authHeaders = { Authorization: PARATRANZ_TOKEN }
 const jsonHeaders = { ...authHeaders, 'Content-Type': 'application/json' }
+const MAX_RATE_LIMIT_RETRIES = 100
+const MAX_TRANSIENT_RETRIES = 8
+const DEFAULT_STRINGS_PAGE_SIZE = 1000
+
+export interface PtFileSummary {
+  id: number
+  name: string
+  modifiedAt?: string | null
+  extra?: Record<string, unknown> | null
+}
+
+export interface PtStringRow {
+  id: number
+  key: string
+  original: string
+  translation: string
+  stage: number
+  context?: string | null
+}
 
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-export async function apiGet<T = unknown>(path: string): Promise<T> {
-  while (true) {
-    const res = await fetch(`${API_BASE}${path}`, { headers: jsonHeaders })
-    if (res.status === 429) {
-      await sleep(RATE_LIMIT_RETRY_MS)
-      continue
-    }
-    if (!res.ok)
-      throw new Error(`GET ${path} → ${res.status} ${res.statusText}`)
-    return res.json() as Promise<T>
+function parseRetryAfterMs(retryAfter: string | null): number | undefined {
+  if (!retryAfter)
+    return undefined
+  const seconds = Number(retryAfter)
+  if (Number.isFinite(seconds))
+    return Math.max(0, seconds * 1000)
+  const at = Date.parse(retryAfter)
+  if (Number.isNaN(at))
+    return undefined
+  return Math.max(0, at - Date.now())
+}
+
+function transientBackoffMs(attempt: number): number {
+  return Math.min(60_000, 1000 * 2 ** Math.max(0, attempt - 1))
+}
+
+async function readResponseTextSafe(res: Response): Promise<string> {
+  try {
+    return await res.text()
+  }
+  catch {
+    return ''
   }
 }
 
-export async function apiGetRaw(path: string): Promise<Response> {
+async function apiRequestRaw(
+  method: 'GET' | 'POST' | 'PUT',
+  path: string,
+  init: { headers: HeadersInit, body?: BodyInit } = { headers: authHeaders },
+): Promise<Response> {
+  let rateLimitRetries = 0
+  let transientRetries = 0
+
   while (true) {
-    const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders })
-    if (res.status === 429) {
-      await sleep(RATE_LIMIT_RETRY_MS)
+    let res: Response
+    try {
+      res = await fetch(`${API_BASE}${path}`, {
+        method,
+        headers: init.headers,
+        ...(init.body != null ? { body: init.body } : {}),
+      })
+    }
+    catch (err) {
+      transientRetries++
+      if (transientRetries > MAX_TRANSIENT_RETRIES) {
+        const message = err instanceof Error ? err.message : String(err)
+        throw new Error(`${method} ${path} → network error: ${message}`)
+      }
+      await sleep(transientBackoffMs(transientRetries))
       continue
     }
-    if (!res.ok)
-      throw new Error(`GET ${path} → ${res.status} ${res.statusText}`)
+
+    if (res.status === 429) {
+      rateLimitRetries++
+      if (rateLimitRetries > MAX_RATE_LIMIT_RETRIES) {
+        const text = await readResponseTextSafe(res)
+        throw new Error(`429 ${method} ${path} exhausted retries${text ? `: ${text}` : ''}`)
+      }
+      await sleep(parseRetryAfterMs(res.headers.get('Retry-After')) ?? RATE_LIMIT_RETRY_MS)
+      continue
+    }
+
+    if (res.status >= 500) {
+      transientRetries++
+      if (transientRetries > MAX_TRANSIENT_RETRIES) {
+        const text = await readResponseTextSafe(res)
+        throw new Error(`${method} ${path} → ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`)
+      }
+      await sleep(parseRetryAfterMs(res.headers.get('Retry-After')) ?? transientBackoffMs(transientRetries))
+      continue
+    }
+
+    if (!res.ok) {
+      const text = await readResponseTextSafe(res)
+      throw new Error(`${method} ${path} → ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`)
+    }
+
     return res
   }
+}
+
+export async function apiGet<T = unknown>(path: string): Promise<T> {
+  const res = await apiRequestRaw('GET', path, { headers: jsonHeaders })
+  return res.json() as Promise<T>
+}
+
+export async function apiGetRaw(path: string): Promise<Response> {
+  return apiRequestRaw('GET', path, { headers: authHeaders })
 }
 
 export async function apiPostJson<T = unknown>(path: string, body: unknown): Promise<T> {
@@ -61,22 +146,10 @@ async function apiSendJson<T = unknown>(method: 'POST' | 'PUT', path: string, bo
 }
 
 async function apiSendJsonRaw(method: 'POST' | 'PUT', path: string, body: unknown): Promise<Response> {
-  while (true) {
-    const res = await fetch(`${API_BASE}${path}`, {
-      method,
-      headers: jsonHeaders,
-      body: JSON.stringify(body),
-    })
-    if (res.status === 429) {
-      await sleep(RATE_LIMIT_RETRY_MS)
-      continue
-    }
-    if (!res.ok) {
-      const text = await res.text()
-      throw new Error(`${method} ${path} → ${res.status} ${res.statusText}: ${text}`)
-    }
-    return res
-  }
+  return apiRequestRaw(method, path, {
+    headers: jsonHeaders,
+    body: JSON.stringify(body),
+  })
 }
 
 /**
@@ -92,30 +165,19 @@ export async function apiPostMultipart<T = unknown>(
   fields: Record<string, string>,
   fileField: { name: string, filename: string, content: string, type?: string },
 ): Promise<T> {
-  while (true) {
-    const fd = new FormData()
-    for (const [k, v] of Object.entries(fields))
-      fd.append(k, v)
-    fd.append(
-      fileField.name,
-      new Blob([fileField.content], { type: fileField.type ?? 'application/json' }),
-      fileField.filename,
-    )
-    const res = await fetch(`${API_BASE}${path}`, {
-      method: 'POST',
-      headers: authHeaders,
-      body: fd,
-    })
-    if (res.status === 429) {
-      await sleep(RATE_LIMIT_RETRY_MS)
-      continue
-    }
-    if (!res.ok) {
-      const text = await res.text()
-      throw new Error(`POST ${path} → ${res.status} ${res.statusText}: ${text}`)
-    }
-    return res.json() as Promise<T>
-  }
+  const fd = new FormData()
+  for (const [k, v] of Object.entries(fields))
+    fd.append(k, v)
+  fd.append(
+    fileField.name,
+    new Blob([fileField.content], { type: fileField.type ?? 'application/json' }),
+    fileField.filename,
+  )
+  const res = await apiRequestRaw('POST', path, {
+    headers: authHeaders,
+    body: fd,
+  })
+  return res.json() as Promise<T>
 }
 
 /**
@@ -165,4 +227,33 @@ export async function fetchAllPages<T>(
     page++
   }
   return all
+}
+
+/**
+ * PT's `/files` endpoint returns a bare array on current deployments, but some
+ * generated clients also model it as `{results}`. Accept both to keep callers
+ * simple and robust.
+ */
+export async function listProjectFiles(projectId: string): Promise<PtFileSummary[]> {
+  const data = await apiGet<unknown>(`/projects/${projectId}/files`)
+  if (Array.isArray(data))
+    return data as PtFileSummary[]
+  return (((data as { results?: PtFileSummary[] }).results) ?? [])
+}
+
+export function indexFilesByLowerName<T extends { name: string }>(files: readonly T[]): Map<string, T> {
+  const out = new Map<string, T>()
+  for (const file of files)
+    out.set(file.name.toLowerCase(), file)
+  return out
+}
+
+export async function listFileStrings(
+  projectId: string,
+  fileId: number,
+  pageSize = DEFAULT_STRINGS_PAGE_SIZE,
+): Promise<PtStringRow[]> {
+  return fetchAllPages<PtStringRow>(page =>
+    apiGet(`/projects/${projectId}/strings?file=${fileId}&page=${page}&pageSize=${pageSize}`),
+  )
 }

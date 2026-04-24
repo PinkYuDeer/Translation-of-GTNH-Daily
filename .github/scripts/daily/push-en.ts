@@ -13,6 +13,10 @@
  *   3. stale-ids.json  — list of pt-paths whose stringIds must be refreshed
  *                        before push-zh runs (a file replace reallocates ids)
  *
+ * Upstream parity improvement: if local `files.json` is cold or partially
+ * missing, we first re-list remote PT files and recover fileIds by filename,
+ * so we update-in-place instead of accidentally attempting a duplicate create.
+ *
  * Internal pt-path convention: short form without `.json` suffix (matches
  * filesystem layout under `.build/en/`). Only converted to PT's `.lang.json`
  * shape when talking to the server.
@@ -30,7 +34,12 @@ import {
   writeFileIds,
   writeJson,
 } from './lib/cache.ts'
-import { apiPostMultipart, runBounded } from './lib/pt-client.ts'
+import {
+  apiPostMultipart,
+  indexFilesByLowerName,
+  listProjectFiles,
+  runBounded,
+} from './lib/pt-client.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
 import { toPtJsonPath } from './lib/path-map.ts'
 
@@ -89,6 +98,25 @@ async function uploadOne(
   return newId
 }
 
+async function hydrateMissingFileIds(
+  ptPaths: string[],
+  fileIds: Record<string, number>,
+): Promise<number> {
+  const missing = ptPaths.filter(ptPath => typeof fileIds[ptPath] !== 'number')
+  if (missing.length === 0)
+    return 0
+  const remote = indexFilesByLowerName(await listProjectFiles(PT_18818_ID))
+  let recovered = 0
+  for (const ptPath of missing) {
+    const hit = remote.get(toPtJsonPath(ptPath).toLowerCase())
+    if (!hit)
+      continue
+    fileIds[ptPath] = hit.id
+    recovered++
+  }
+  return recovered
+}
+
 async function main(): Promise<void> {
   assertToken()
 
@@ -100,6 +128,10 @@ async function main(): Promise<void> {
   }
 
   const fileIds = await readFileIds()
+  const recovered = await hydrateMissingFileIds(changed, fileIds)
+  if (recovered > 0)
+    // eslint-disable-next-line no-console
+    console.log(`[push-en] recovered ${recovered} fileId(s) from remote file list`)
   const staleIds: string[] = (await readJson<string[]>(join(CACHE_DIR, CACHE_PATHS.staleIds))) ?? []
   const staleSet = new Set(staleIds)
 

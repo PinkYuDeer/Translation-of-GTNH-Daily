@@ -28,24 +28,11 @@ import {
   REPO_CACHE_DIR,
   assertToken,
 } from './lib/config.ts'
-import { apiGet, fetchAllPages, runBounded } from './lib/pt-client.ts'
+import { listFileStrings, listProjectFiles, runBounded } from './lib/pt-client.ts'
 import { writeJson } from './lib/cache.ts'
 import { parseTipsLines, tipsToEntries } from './lib/tips-parser.ts'
 import { stripPtJsonSuffix } from './lib/path-map.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
-
-interface PtFileSummary { id: number, name: string }
-
-interface PtStringRow {
-  id: number
-  key: string
-  original: string
-  translation: string
-  stage: number
-  context?: string | null
-}
-
-const PAGE_SIZE = 1000
 
 /**
  * TEMPORARY OVERRIDE: Kiwi233 master hasn't merged the latest zh_CN.txt yet,
@@ -67,21 +54,6 @@ async function applyTipsZhOverride(): Promise<void> {
   await writeFile(dst, body, 'utf8')
   // eslint-disable-next-line no-console
   console.log(`[pull-zh-4964] tips override staged (${body.length} bytes) from MagicYuDeer/patch-1`)
-}
-
-async function listFiles(projectId: string): Promise<PtFileSummary[]> {
-  // GET /files returns an array directly on PT; tolerate the `{results}` shape
-  // just in case the server version differs.
-  const data = await apiGet<unknown>(`/projects/${projectId}/files`)
-  if (Array.isArray(data))
-    return data as PtFileSummary[]
-  return (((data as { results?: PtFileSummary[] }).results) ?? [])
-}
-
-async function getAllStrings(projectId: string, fileId: number): Promise<PtStringRow[]> {
-  return fetchAllPages<PtStringRow>(page =>
-    apiGet(`/projects/${projectId}/strings?file=${fileId}&page=${page}&pageSize=${PAGE_SIZE}`),
-  )
 }
 
 /**
@@ -153,13 +125,13 @@ async function main(): Promise<void> {
 
   await applyTipsZhOverride()
 
-  const files = await listFiles(PT_4964_ID)
+  const files = await listProjectFiles(PT_4964_ID)
   // eslint-disable-next-line no-console
   console.log(`[pull-zh-4964] ${files.length} files in project ${PT_4964_ID}`)
 
   const outRoot = join(BUILD_DIR, 'zh-4964')
   const tasks = files.map(f => async () => {
-    const rows = await getAllStrings(PT_4964_ID, f.id)
+    const rows = await listFileStrings(PT_4964_ID, f.id)
     // Convert rows into the same PtStringItem shape used elsewhere, dropping
     // the server `id` — diff-zh doesn't need it, and keeping it would just
     // balloon the cache.
