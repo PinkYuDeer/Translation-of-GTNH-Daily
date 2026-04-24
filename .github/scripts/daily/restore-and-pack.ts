@@ -102,13 +102,24 @@ function reassemble(
   newlinesForFile: Record<string, string> | undefined,
 ): LangEntry[] {
   const finalByKey = new Map(finalItems.map(i => [i.key, i]))
+  const enByKey = new Map((enItems ?? []).map(i => [i.key, i]))
   const orderKeys = enItems?.map(i => i.key) ?? [...finalByKey.keys()]
+  // Tips aren't a real .lang file at runtime — Better Loading Screen reads the
+  // rebuilt zh_CN.txt directly, which means there's no en_US.lang fallback.
+  // For untranslated tip keys we emit the English original so the loading
+  // screen still shows something instead of a blank line.
+  const isTips = ptPath === TIPS_PT_PATH
   const out: LangEntry[] = []
   for (const key of orderKeys) {
     const item = finalByKey.get(key)
     // Empty/undefined translation → write `key=` so Minecraft falls back to
-    // en_US.lang at runtime (per translation team decision).
-    const translation = item?.translation ?? ''
+    // en_US.lang at runtime (per translation team decision). Tips are the
+    // exception noted above.
+    const translation = item?.translation && item.translation.length > 0
+      ? item.translation
+      : isTips
+        ? enByKey.get(key)?.original ?? ''
+        : ''
     const form = newlinesForFile?.[key] as '<BR>' | '<br>' | '\\n' | undefined
     const value = restoreNewlines(translation, form)
     out.push({ key, value })

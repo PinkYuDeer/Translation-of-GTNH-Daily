@@ -67,9 +67,16 @@ async function getAllStrings(projectId: string, fileId: number): Promise<PtStrin
  *
  * Upstream puts different-sized header blocks on each side. English: 7 comment
  * lines (content from line 8). Chinese: 7 comment lines + 1 PT feedback notice
- * on line 8 (content from line 9). We skip the respective headers and expect
- * the remaining tip counts to match; if they don't, we fail loudly (upstream
- * tips drift).
+ * on line 8 (content from line 9). We skip the respective headers and align
+ * the rest by position.
+ *
+ * Line counts may legitimately differ — English tips are added in the modpack
+ * before Kiwi233 translates them. We warn but do not fail: extra EN tips are
+ * emitted with empty translation (stage=0) so diff-zh skips them and they
+ * remain untranslated on PT 18818 until someone translates via the UI.
+ * Extra ZH lines past the EN count are ignored (upstream removed those tips).
+ * restore-and-pack falls back to the English original when a tip's translation
+ * is empty, so the loading screen still displays something coherent.
  */
 async function buildTipsFrom4964Kiwi(): Promise<PtStringItem[] | undefined> {
   const enFile = join(BUILD_DIR, 'en', 'config/Betterloadingscreen/tips/zh_CN.lang.en.json')
@@ -79,16 +86,22 @@ async function buildTipsFrom4964Kiwi(): Promise<PtStringItem[] | undefined> {
   const enItems = JSON.parse(await readFile(enFile, 'utf8')) as PtStringItem[]
   const zhLines = parseTipsLines(await readFile(zhFile, 'utf8'), 9)
   if (enItems.length !== zhLines.length) {
-    throw new Error(`tips line count mismatch: en=${enItems.length} zh=${zhLines.length}`)
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[pull-zh-4964] tips line mismatch (en=${enItems.length} zh=${zhLines.length}); `
+      + 'aligning by position, extras stay untranslated',
+    )
   }
   const zhEntries = tipsToEntries(zhLines)
-  // Produce a "4964-like" string-item list: translation filled from Kiwi233.
-  return enItems.map((en, i) => ({
-    key: en.key,
-    original: en.original,
-    translation: zhEntries[i].value,
-    stage: 1, // treat Kiwi233 lines as already-reviewed
-  }))
+  return enItems.map((en, i) => {
+    const zh = zhEntries[i]
+    return {
+      key: en.key,
+      original: en.original,
+      translation: zh?.value ?? '',
+      stage: zh ? 1 : 0, // Kiwi233 rows are reviewed; uncovered rows start at 0
+    }
+  })
 }
 
 async function copyExtras(): Promise<void> {
