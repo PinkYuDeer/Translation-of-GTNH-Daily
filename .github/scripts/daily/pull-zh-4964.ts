@@ -5,7 +5,7 @@
  * `.build/zh-4964/` as one JSON per file, keyed on the 4964 path. No 18818
  * fetch happens here — the path map is applied later in diff-zh.
  *
- * In parallel, we stage three Kiwi233-sourced extras that bypass PT entirely:
+ * In parallel, we stage four Kiwi233-sourced extras that bypass PT entirely:
  *
  *   - InGameInfoXML/InGameInfo_zh_CN.xml           → shipped as-is at pack time
  *   - txloader/forceload/____gtnhoverridenames_zhcn → shipped as-is at pack time
@@ -13,12 +13,14 @@
  *                                                    `.build/en/.../tips/...`
  *                                                    to synthesise a fake 4964
  *                                                    file that feeds diff-zh
+ *   - resources/minecraft/**                       → shipped as-is at
+ *                                                    `config/txloader/forceload/minecraft/**`
  *
  * The Kiwi233 checkout is reused from fetch-en's sparse-clone (`.repo.cache/kiwi`).
  */
 
 import { existsSync } from 'node:fs'
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { copyFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import {
@@ -127,6 +129,15 @@ async function copyExtras(): Promise<void> {
     await mkdir(dirname(dst), { recursive: true })
     await copyFile(src, dst)
   }
+
+  const minecraftSrc = join(kiwiRoot, 'resources/minecraft')
+  const minecraftDst = join(extrasRoot, 'config/txloader/forceload/minecraft')
+  if (!existsSync(minecraftSrc)) {
+    // eslint-disable-next-line no-console
+    console.warn(`[pull-zh-4964] extra missing: ${minecraftSrc}`)
+    return
+  }
+  await cp(minecraftSrc, minecraftDst, { recursive: true, force: true })
 }
 
 async function main(): Promise<void> {

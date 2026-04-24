@@ -9,7 +9,7 @@
  * Upstreams (all sparse-cloned to `.repo.cache/<name>`):
  *   - GTNewHorizons/GTNH-Translations@master  (daily-history)
  *   - GTNewHorizons/GT-New-Horizons-Modpack@master  (config)
- *   - Kiwi233/Translation-of-GTNH@master  (Betterloadingscreen tips only)
+ *   - Kiwi233/Translation-of-GTNH@master  (tips + direct-pack extras cache)
  *
  * Source coverage — see PLAN.md §3.1 for the authoritative table. Each case
  * below is commented with its source letter.
