@@ -100,8 +100,10 @@ function hasLegacyPlaceholder(items: PtStringItem[] | undefined): boolean {
   return (items ?? []).some(item =>
     (item.original ?? '').includes('<BR>')
     || (item.original ?? '').includes('<br>')
+    || (item.original ?? '').includes('\\n')
     || (item.translation ?? '').includes('<BR>')
-    || (item.translation ?? '').includes('<br>'),
+    || (item.translation ?? '').includes('<br>')
+    || (item.translation ?? '').includes('\\n')
   )
 }
 
