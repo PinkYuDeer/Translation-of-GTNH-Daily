@@ -3,3 +3,11 @@
 
 ### VS Code ###
 .vscode/
+
+### Node / Bun (local dev only) ###
+node_modules/
+
+### Daily pipeline build artifacts ###
+.build/
+.cache/
+.repo.cache/
