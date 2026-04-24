@@ -165,6 +165,7 @@ async function main(): Promise<void> {
   const finalRoot = join(BUILD_DIR, 'zh-final')
   const mergePlanPath = join(BUILD_DIR, 'merge-plan.json')
   const mergeStatsPath = join(BUILD_DIR, 'merge-stats.json')
+  const force = (process.env.FORCE ?? '').length > 0
 
   const enFiles = new Map<string, PtStringItem[]>()
   for await (const abs of walkJson(enRoot)) {
@@ -301,7 +302,7 @@ async function main(): Promise<void> {
     const legacyPlaceholderRewrite = hasLegacyPlaceholder(currentFile?.raw)
     if (!existed)
       stats.filesCreated++
-    if (!itemsEqual(currentItems, finalItems) || legacyPlaceholderRewrite) {
+    if (force || !itemsEqual(currentItems, finalItems) || legacyPlaceholderRewrite) {
       plan.push.push(ptPath)
       stats.filesChanged++
     }
@@ -324,7 +325,7 @@ async function main(): Promise<void> {
     stats.sourceOnlyKeys += finalItems.length
     if (currentFile == null)
       stats.filesCreated++
-    if (!itemsEqual(currentItems, finalItems) || hasLegacyPlaceholder(currentFile?.raw)) {
+    if (force || !itemsEqual(currentItems, finalItems) || hasLegacyPlaceholder(currentFile?.raw)) {
       plan.push.push(ptPath)
       stats.filesChanged++
     }
@@ -341,6 +342,10 @@ async function main(): Promise<void> {
 
   await writeFile(mergeStatsPath, `${JSON.stringify(stats, null, 2)}\n`, 'utf8')
   await writeJson(mergePlanPath, plan)
+
+  if (force)
+    // eslint-disable-next-line no-console
+    console.log('[merge-final] FORCE mode: every merged file will be re-uploaded to PT 18818')
 
   // eslint-disable-next-line no-console
   console.log(

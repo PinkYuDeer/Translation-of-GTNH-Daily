@@ -2,6 +2,11 @@ name: 0. Daily Sync & Build
 
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: '强制模式：忽略缓存，并将所有合并/换行规范化后的文件重新推送到 PT 18818'
+        type: boolean
+        default: false
   schedule:
     # 中国时间每天凌晨 1 点（UTC 17:00）
     - cron: '0 17 * * *'
@@ -55,6 +60,7 @@ jobs:
 
       - name: Restore Daily Cache
         id: restore-daily-cache
+        if: ${{ inputs.force != true }}
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -83,6 +89,8 @@ jobs:
 
       - name: Merge English + PT 18818 + PT 4964 Locally
         shell: bash
+        env:
+          FORCE: ${{ inputs.force == true && '1' || '' }}
         run: stdbuf -oL -eL bun .github/scripts/daily/merge-final.ts
 
       - name: Push Merged Final Files to PT 18818
