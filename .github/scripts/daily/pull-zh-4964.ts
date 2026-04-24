@@ -95,10 +95,8 @@ async function getAllStrings(projectId: string, fileId: number): Promise<PtStrin
  * Line counts may legitimately differ — English tips are added in the modpack
  * before Kiwi233 translates them. We warn but do not fail: extra EN tips are
  * emitted with empty translation (stage=0) so diff-zh skips them and they
- * remain untranslated on PT 18818 until someone translates via the UI.
+ * remain untranslated on PT 18818 until someone updates the repo-side zh_CN.txt.
  * Extra ZH lines past the EN count are ignored (upstream removed those tips).
- * restore-and-pack falls back to the English original when a tip's translation
- * is empty, so the loading screen still displays something coherent.
  */
 async function buildTipsFrom4964Kiwi(): Promise<PtStringItem[] | undefined> {
   const enFile = join(BUILD_DIR, 'en', 'config/Betterloadingscreen/tips/zh_CN.lang.en.json')
