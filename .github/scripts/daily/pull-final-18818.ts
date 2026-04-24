@@ -33,7 +33,7 @@ import {
   apiGet,
   apiGetRaw,
   apiPostJson,
-  fetchAllPages,
+  listFileStrings,
   runBounded,
   sleep,
 } from './lib/pt-client.ts'
@@ -106,14 +106,6 @@ async function tryArtifactFlow(outRoot: string): Promise<boolean> {
   }
 }
 
-interface PtStringRow {
-  key: string
-  original: string
-  translation: string
-  stage: number
-  context?: string | null
-}
-
 async function fallbackFileByFile(outRoot: string): Promise<void> {
   const fileIds = await readFileIds()
   const entries = Object.entries(fileIds)
@@ -121,9 +113,7 @@ async function fallbackFileByFile(outRoot: string): Promise<void> {
   console.log(`[pull-final] fallback: pulling ${entries.length} files per-file`)
 
   const tasks = entries.map(([ptPath, fileId]) => async () => {
-    const rows = await fetchAllPages<PtStringRow>(page =>
-      apiGet(`/projects/${PT_18818_ID}/strings?file=${fileId}&page=${page}&pageSize=1000`),
-    )
+    const rows = await listFileStrings(PT_18818_ID, fileId)
     const items = rows.map(r => ({
       key: r.key,
       original: r.original,
