@@ -1,10 +1,8 @@
 /**
  * Step 6 — push-zh.
  *
- * Two independent push phases, both trying batch
- * `PUT /projects/18818/strings` first, then falling back to per-string
- * `PUT /projects/18818/strings/{stringId}` when the batch endpoint rejects the
- * payload or is unavailable:
+ * Two independent push phases, both using per-string
+ * `PUT /projects/18818/strings/{stringId}`.
  *
  * (a) Normal push: every row queued in `push-queue.json` (from diff-zh) is
  *     pushed as-is with its (normalized) translation and stage.
@@ -44,11 +42,9 @@ import {
   writeZhLastrun,
   type PendingUpdateEntry,
 } from './lib/cache.ts'
-import { apiPutJson, apiPutJsonRaw, runBounded } from './lib/pt-client.ts'
+import { apiPutJson, runBounded } from './lib/pt-client.ts'
 import { normalizeNewlines } from './lib/newlines.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
-
-const BATCH_SIZE = 100
 
 interface PushEntry {
   ptPath: string
@@ -68,16 +64,6 @@ interface Row {
   context?: string
 }
 
-interface BatchRowPayload {
-  id: number
-  key: string
-  original: string
-  translation: string
-  file: number
-  stage: number
-  context?: string
-}
-
 async function putOneString(row: Row): Promise<void> {
   await apiPutJson(`/projects/${PT_18818_ID}/strings/${row.stringId}`, {
     key: row.key,
@@ -87,25 +73,6 @@ async function putOneString(row: Row): Promise<void> {
     stage: row.stage,
     ...(row.context != null ? { context: row.context } : {}),
   })
-}
-
-function toBatchPayload(row: Row): BatchRowPayload {
-  return {
-    id: row.stringId,
-    key: row.key,
-    original: row.original,
-    translation: row.translation,
-    file: row.fileId,
-    stage: row.stage,
-    ...(row.context != null ? { context: row.context } : {}),
-  }
-}
-
-function chunkRows<T>(rows: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < rows.length; i += size)
-    out.push(rows.slice(i, i + size))
-  return out
 }
 
 function recordSuccess(
@@ -129,38 +96,23 @@ async function pushRows(
   if (rows.length === 0)
     return { successes: 0, failures: 0, results }
 
-  let warnedFallback = false
-  const chunks = chunkRows(rows, BATCH_SIZE)
-  const tasks = chunks.map((chunk, chunkIndex) => async () => {
-    const start = chunkIndex * BATCH_SIZE
+  const tasks = rows.map((row, index) => async () => {
     try {
-      await apiPutJsonRaw(`/projects/${PT_18818_ID}/strings`, chunk.map(toBatchPayload))
-      for (let i = 0; i < chunk.length; i++) {
-        recordSuccess(perFileUpdates, chunk[i])
-        results[start + i] = true
-      }
-      return
+      await putOneString(row)
+      recordSuccess(perFileUpdates, row)
+      results[index] = true
     }
     catch (err) {
-      if (!warnedFallback) {
-        warnedFallback = true
-        // eslint-disable-next-line no-console
-        console.warn(`[push-zh] ${label}: batch PUT /strings failed, fallback to per-string PUT: ${err instanceof Error ? err.message : err}`)
-      }
-    }
-
-    for (let i = 0; i < chunk.length; i++) {
-      try {
-        await putOneString(chunk[i])
-        recordSuccess(perFileUpdates, chunk[i])
-        results[start + i] = true
-      }
-      catch (err) {
-        results[start + i] = err as Error
-      }
+      results[index] = err as Error
     }
   })
-  await runBounded(tasks, CONCURRENCY)
+  await runBounded(tasks, CONCURRENCY, {
+    onSettled: ({ completed, total, failures, result }) => {
+      if (completed === 1 || completed === total || completed % 100 === 0 || result instanceof Error)
+        // eslint-disable-next-line no-console
+        console.log(`[push-zh] ${label} progress ${completed}/${total} (fail=${failures})`)
+    },
+  })
 
   let successes = 0
   let failures = 0
@@ -222,6 +174,8 @@ async function main(): Promise<void> {
   const queue = (await readJson<PushEntry[]>(join(CACHE_DIR, CACHE_PATHS.pushQueue))) ?? []
   const byPath = groupByPtPath(queue)
   const fileIds = await readFileIds()
+  // eslint-disable-next-line no-console
+  console.log(`[push-zh] normal queue keys=${queue.length} files=${byPath.size}`)
 
   // Preload stringId maps once per pt-path (avoids re-reading the same file
   // inside the task closure for every row).
@@ -318,6 +272,8 @@ async function main(): Promise<void> {
     }
   }
 
+  // eslint-disable-next-line no-console
+  console.log(`[push-zh] stale queue keys=${staleRows.length} pending-files=${Object.keys(pending).length}`)
   const staleRes = await pushRows('stale', staleRows, perFileUpdates)
   // eslint-disable-next-line no-console
   console.log(`[push-zh] stale:  ${staleRes.successes} ok / ${staleRes.failures} failed (dropped-no-id=${droppedStaleNoId} no-prior=${droppedStaleNoPrior})`)

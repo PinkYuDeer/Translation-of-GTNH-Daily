@@ -253,12 +253,11 @@ push-queue ← {target-path, key: s.key, translation: normalize(s.translation), 
 
 **动作**：
 
-**(a) 正常 push**：先把 `push-queue` 逐条补足 `stringId/fileId/original`，再**按批（建议 100 条）**走 strings 批量更新接口：
+**(a) 正常 push**：对 `push-queue` 每条逐一更新：
 - 从 `file-ids/<pt-path>.strings.json` 取 `stringId`
 - 从 `files.json` 取 `fileId`
 - 从 `.build/en/<pt-path>.en.json` 取该 key 的 `original`
-- `PUT /projects/18818/strings`，body 为数组：`[{id, key, original, translation, file, stage, context?}]`
-- 若批量接口临时异常，再回退单条 `PUT /projects/18818/strings/{stringId}`
+- `PUT /projects/18818/strings/{stringId}`，body `{key, original, translation, file, stage, context?}`
 - 成功后，更新本地 `zh-lastrun/<pt-path>.zh.json` 的对应条目
 
 **(b) 旧译占位 push**：步骤 5 完成后，`pending-update` 中**剩余**的条目就是"英文更新、但 4964 尚无新译文"。对每条 `{pt-path, key, oldOriginal, newOriginal}`：
@@ -268,8 +267,7 @@ push-queue ← {target-path, key: s.key, translation: normalize(s.translation), 
   marker := `${newOriginal}|旧译|${oldChinese}`
   ```
   其中 `oldChinese` 为上次 push 的归一化译文（`\n` 形态）。`newOriginal` 亦为归一化后的新英文。
-- 同样补足 `stringId/fileId/original` 后并入批量 `PUT /projects/18818/strings`
-- 若批量接口临时异常，再回退单条 `PUT /projects/18818/strings/{stringId}`，body `{key, original, translation: marker, file, stage: 0, context?}`（`stage=0` 以使其进入 PT "未翻译/待审"队列，引人工注意）
+- 同样补足 `stringId/fileId/original` 后逐条 `PUT /projects/18818/strings/{stringId}`，body `{key, original, translation: marker, file, stage: 0, context?}`（`stage=0` 以使其进入 PT "未翻译/待审"队列，引人工注意）
 - 成功后更新 `zh-lastrun` 对应条目的 `translation = marker, stage = 0`
 
 **并发**：5，429 退避 60s。

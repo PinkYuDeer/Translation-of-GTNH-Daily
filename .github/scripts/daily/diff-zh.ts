@@ -34,7 +34,7 @@ import {
   writePendingUpdate,
   type PendingUpdateEntry,
 } from './lib/cache.ts'
-import { indexByModId, resolve4964To18818 } from './lib/path-map.ts'
+import { indexByModId, isArchivedPtPath, resolve4964To18818 } from './lib/path-map.ts'
 import { normalizeNewlines } from './lib/newlines.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
 
@@ -80,10 +80,12 @@ async function main(): Promise<void> {
   // Build an index of 18818's known files so we can resolve 4964 paths that
   // use the bare-modid convention to 18818's `<Display>[<modid>]` form.
   const fileIds = await readFileIds()
-  const fileEntries: { name: string }[] = Object.keys(fileIds).map(ptPath => ({
-    // Index on PT's canonical form — `name` always includes `.json`.
-    name: ptPath.endsWith('.json') ? ptPath : `${ptPath}.json`,
-  }))
+  const fileEntries: { name: string }[] = Object.keys(fileIds)
+    .filter(ptPath => !isArchivedPtPath(ptPath))
+    .map(ptPath => ({
+      // Index on PT's canonical form — `name` always includes `.json`.
+      name: ptPath.endsWith('.json') ? ptPath : `${ptPath}.json`,
+    }))
   const targetByName = new Map(fileEntries.map(f => [f.name, f]))
   const targetByModId = indexByModId(fileEntries)
 
@@ -94,6 +96,7 @@ async function main(): Promise<void> {
   const pushQueue: PushEntry[] = []
   const touched = new Set<string>()
   let unresolved = 0
+  const unresolvedNames: string[] = []
 
   for await (const abs of walkJson(root4964)) {
     // 4964-side name exactly as PT stores it (ends with .json).
@@ -103,6 +106,8 @@ async function main(): Promise<void> {
       // No matching 18818 file — this is common for upstream-only 4964 content
       // (glossary files etc.) and safe to skip silently at info level.
       unresolved++
+      if (unresolvedNames.length < 10)
+        unresolvedNames.push(source4964Name)
       continue
     }
     // Strip the `.json` suffix to get our internal pt-path.
@@ -174,6 +179,9 @@ async function main(): Promise<void> {
       Object.values(pending).reduce((n, m) => n + Object.keys(m).length, 0)
     } unresolved-4964=${unresolved}`,
   )
+  if (unresolvedNames.length > 0)
+    // eslint-disable-next-line no-console
+    console.warn(`[diff-zh] unresolved examples: ${unresolvedNames.join(', ')}`)
 }
 
 void main().catch((err) => {

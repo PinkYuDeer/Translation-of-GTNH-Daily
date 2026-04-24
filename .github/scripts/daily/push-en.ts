@@ -4,7 +4,11 @@
  * Upload every pt-path listed in `changed-en.json` to PT 18818. One file = one
  * REST call: either a replace (`POST /projects/{id}/files/{fileId}`) when we
  * already know the fileId, or a create (`POST /projects/{id}/files`) when we
- * don't. The file body is the PT-skeleton JSON that fetch-en produced under
+ * don't. For files that vanished from the current daily but existed last run,
+ * we do not delete them: we rename them in PT via `PUT /files/{id}` to
+ * `*.achive.json` and prune the active-path caches locally.
+ *
+ * The upload body is the PT-skeleton JSON that fetch-en produced under
  * `.build/en/<pt-path>.en.json`.
  *
  * Side effects (atomic per file, so a mid-run crash leaves a consistent cache):
@@ -28,6 +32,9 @@ import { dirname, join } from 'node:path'
 
 import { BUILD_DIR, CACHE_DIR, CACHE_PATHS, CONCURRENCY, PT_18818_ID, assertToken } from './lib/config.ts'
 import {
+  deleteEnLastrun,
+  deleteStringIds,
+  deleteZhLastrun,
   readFileIds,
   readJson,
   writeEnLastrun,
@@ -36,12 +43,13 @@ import {
 } from './lib/cache.ts'
 import {
   apiPostMultipart,
+  apiPutJson,
   indexFilesByLowerName,
   listProjectFiles,
   runBounded,
 } from './lib/pt-client.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
-import { toPtJsonPath } from './lib/path-map.ts'
+import { toArchivePtPath, toPtJsonPath } from './lib/path-map.ts'
 
 /** Shape of PT's POST /files response (the fields we care about). */
 interface PtFileCreateResponse {
@@ -51,10 +59,22 @@ interface PtFileCreateResponse {
   name?: string
 }
 
-async function loadItems(ptPath: string): Promise<PtStringItem[]> {
+interface PtFileMutationResult {
+  id: number
+  name: string
+}
+
+interface PushResult {
+  ptPath: string
+  action: 'upload' | 'archive' | 'prune'
+  id?: number
+  archivedTo?: string
+}
+
+async function loadItems(ptPath: string): Promise<PtStringItem[] | undefined> {
   const abs = join(BUILD_DIR, 'en', `${ptPath}.en.json`)
   if (!existsSync(abs))
-    throw new Error(`changed pt-path missing from .build/en: ${ptPath}`)
+    return undefined
   return JSON.parse(await readFile(abs, 'utf8')) as PtStringItem[]
 }
 
@@ -71,31 +91,52 @@ function ptDirname(ptPath: string): string {
   return slash < 0 ? '' : full.slice(0, slash)
 }
 
-/** Upload a single file. Returns the fileId (new or existing). */
+function normalizeMutationResult(
+  ptPath: string,
+  response: PtFileCreateResponse,
+  existingFileId: number | undefined,
+): PtFileMutationResult {
+  const id = response.file?.id ?? response.id ?? existingFileId
+  const name = response.file?.name ?? response.name
+  if (typeof id !== 'number' || typeof name !== 'string')
+    throw new Error(`POST /files returned incomplete metadata for ${ptPath}: ${JSON.stringify(response)}`)
+  return { id, name }
+}
+
+/** Upload or rename a single file. Returns the resulting PT file metadata. */
 async function uploadOne(
   ptPath: string,
   existingFileId: number | undefined,
   items: PtStringItem[],
-): Promise<number> {
+): Promise<PtFileMutationResult> {
   const body = JSON.stringify(items)
   const filename = ptBasename(ptPath)
   if (existingFileId != null) {
-    await apiPostMultipart(`/projects/${PT_18818_ID}/files/${existingFileId}`, {}, {
+    const res = await apiPostMultipart<PtFileCreateResponse>(`/projects/${PT_18818_ID}/files/${existingFileId}`, {}, {
       name: 'file',
       filename,
       content: body,
     })
-    return existingFileId
+    return normalizeMutationResult(ptPath, res, existingFileId)
   }
   const res = await apiPostMultipart<PtFileCreateResponse>(
     `/projects/${PT_18818_ID}/files`,
     { path: ptDirname(ptPath) },
     { name: 'file', filename, content: body },
   )
-  const newId = res.file?.id ?? res.id
-  if (typeof newId !== 'number')
-    throw new Error(`POST /files returned no id for ${ptPath}: ${JSON.stringify(res)}`)
-  return newId
+  return normalizeMutationResult(ptPath, res, existingFileId)
+}
+
+async function renameOne(
+  oldPtPath: string,
+  existingFileId: number,
+  newPtPath: string,
+): Promise<PtFileMutationResult> {
+  const res = await apiPutJson<PtFileCreateResponse>(
+    `/projects/${PT_18818_ID}/files/${existingFileId}`,
+    { name: toPtJsonPath(newPtPath) },
+  )
+  return normalizeMutationResult(oldPtPath, res, existingFileId)
 }
 
 async function hydrateMissingFileIds(
@@ -115,6 +156,20 @@ async function hydrateMissingFileIds(
     recovered++
   }
   return recovered
+}
+
+async function pruneActiveCaches(
+  ptPath: string,
+  fileIds: Record<string, number>,
+  staleSet: Set<string>,
+): Promise<void> {
+  delete fileIds[ptPath]
+  staleSet.delete(ptPath)
+  await Promise.all([
+    deleteEnLastrun(ptPath),
+    deleteZhLastrun(ptPath),
+    deleteStringIds(ptPath),
+  ])
 }
 
 async function main(): Promise<void> {
@@ -141,22 +196,73 @@ async function main(): Promise<void> {
   const tasks = changed.map(ptPath => async () => {
     const items = await loadItems(ptPath)
     const existing = fileIds[ptPath]
-    const id = await uploadOne(ptPath, existing, items)
-    fileIds[ptPath] = id
-    staleSet.add(ptPath)
-    await writeEnLastrun(ptPath, items)
-    return { ptPath, id }
+    if (items) {
+      const res = await uploadOne(ptPath, existing, items)
+      const expected = toPtJsonPath(ptPath)
+      if (res.name !== expected)
+        throw new Error(`upload path mismatch for ${ptPath}: expected ${expected}, got ${res.name}`)
+      fileIds[ptPath] = res.id
+      staleSet.add(ptPath)
+      await writeEnLastrun(ptPath, items)
+      return { ptPath, action: 'upload', id: res.id } satisfies PushResult
+    }
+
+    if (existing == null) {
+      await pruneActiveCaches(ptPath, fileIds, staleSet)
+      return { ptPath, action: 'prune' } satisfies PushResult
+    }
+
+    const archivedPtPath = toArchivePtPath(ptPath)
+    const res = await renameOne(ptPath, existing, archivedPtPath)
+    const expected = toPtJsonPath(archivedPtPath)
+    if (res.name !== expected) {
+      throw new Error(
+        `archive rename did not stick for ${ptPath}: expected ${expected}, got ${res.name}`,
+      )
+    }
+    await pruneActiveCaches(ptPath, fileIds, staleSet)
+    return { ptPath, action: 'archive', id: res.id, archivedTo: archivedPtPath } satisfies PushResult
   })
 
-  const { successes, failures, results } = await runBounded(tasks, CONCURRENCY)
+  const { successes, failures, results } = await runBounded(tasks, CONCURRENCY, {
+    onSettled: ({ completed, total, failures, result }) => {
+      if (completed === 1 || completed === total || completed % 25 === 0 || result instanceof Error)
+        // eslint-disable-next-line no-console
+        console.log(`[push-en] progress ${completed}/${total} (fail=${failures})`)
+    },
+  })
 
   // Always flush shared state, even on partial failure.
   await writeFileIds(fileIds)
   await mkdir(dirname(join(CACHE_DIR, CACHE_PATHS.staleIds)), { recursive: true })
   await writeJson(join(CACHE_DIR, CACHE_PATHS.staleIds), [...staleSet])
 
+  let uploaded = 0
+  let archived = 0
+  let pruned = 0
+  for (const r of results) {
+    if (r instanceof Error)
+      continue
+    if (r.action === 'upload')
+      uploaded++
+    else if (r.action === 'archive')
+      archived++
+    else
+      pruned++
+  }
   // eslint-disable-next-line no-console
-  console.log(`[push-en] ${successes} ok / ${failures} failed (of ${changed.length})`)
+  console.log(
+    `[push-en] ${successes} ok / ${failures} failed (of ${changed.length}); `
+    + `uploaded=${uploaded} archived=${archived} pruned=${pruned}`,
+  )
+  if (archived > 0) {
+    for (const r of results) {
+      if (r instanceof Error || r.action !== 'archive')
+        continue
+      // eslint-disable-next-line no-console
+      console.log(`[push-en] archived ${r.ptPath} -> ${r.archivedTo}`)
+    }
+  }
   if (failures > 0) {
     for (let i = 0; i < results.length; i++) {
       const r = results[i]

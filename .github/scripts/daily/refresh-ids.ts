@@ -43,6 +43,7 @@ import {
   listProjectFiles,
   runBounded,
 } from './lib/pt-client.ts'
+import { isArchivedPtPath } from './lib/path-map.ts'
 
 async function refreshOne(fileId: number): Promise<Record<string, number>> {
   const rows = await listFileStrings(PT_18818_ID, fileId)
@@ -78,7 +79,7 @@ async function main(): Promise<void> {
   const fromDiff = (await readJson<string[]>(join(CACHE_DIR, CACHE_PATHS.filesToRefresh))) ?? []
   const fileIds = await readFileIds()
 
-  const union = new Set([...stale, ...fromDiff])
+  const union = new Set([...stale, ...fromDiff].filter(ptPath => !isArchivedPtPath(ptPath)))
   if (union.size === 0) {
     // eslint-disable-next-line no-console
     console.log('[refresh-ids] nothing to refresh')
@@ -110,7 +111,13 @@ async function main(): Promise<void> {
     await writeStringIds(t.ptPath, map)
     return { ptPath: t.ptPath, count: Object.keys(map).length }
   })
-  const { successes, failures, results } = await runBounded(tasks, CONCURRENCY)
+  const { successes, failures, results } = await runBounded(tasks, CONCURRENCY, {
+    onSettled: ({ completed, total, failures, result }) => {
+      if (completed === 1 || completed === total || completed % 25 === 0 || result instanceof Error)
+        // eslint-disable-next-line no-console
+        console.log(`[refresh-ids] progress ${completed}/${total} files (fail=${failures})`)
+    },
+  })
 
   // Clear stale-ids for pt-paths that refreshed successfully. Leave the
   // failures in place so the next run retries them.
