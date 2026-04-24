@@ -44,6 +44,15 @@ const TIPS_ZH_OVERRIDE_URL
   = 'https://raw.githubusercontent.com/MagicYuDeer/Translation-of-GTNH/patch-1/config/Betterloadingscreen/tips/zh_CN.txt'
 const TIPS_ZH_PATH_IN_KIWI = 'config/Betterloadingscreen/tips/zh_CN.txt'
 
+/**
+ * PT 4964 stores legacy per-file prefixes in `key`, notably `lang|...` and
+ * `gt-lang|...`. PT 18818 and our `.build/en` snapshots use raw Minecraft keys,
+ * so strip those prefixes at ingest time.
+ */
+function normalize4964Key(key: string): string {
+  return key.replace(/^(?:gt-)?lang\|/, '').trim()
+}
+
 async function applyTipsZhOverride(): Promise<void> {
   const dst = join(REPO_CACHE_DIR, 'kiwi', TIPS_ZH_PATH_IN_KIWI)
   const res = await fetch(TIPS_ZH_OVERRIDE_URL)
@@ -136,7 +145,7 @@ async function main(): Promise<void> {
     // the server `id` — diff-zh doesn't need it, and keeping it would just
     // balloon the cache.
     const items = rows.map(r => ({
-      key: r.key,
+      key: normalize4964Key(r.key),
       original: r.original,
       translation: r.translation ?? '',
       stage: r.stage ?? 0,
