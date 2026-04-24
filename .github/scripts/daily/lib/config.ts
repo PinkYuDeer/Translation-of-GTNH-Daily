@@ -43,6 +43,7 @@ export const UPSTREAM = {
       'config/InGameInfoXML',
       'config/Betterloadingscreen',
       'config/txloader/forceload/____gtnhoverridenames_zhcn',
+      'resources/minecraft',
     ],
   },
 } as const

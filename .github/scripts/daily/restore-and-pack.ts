@@ -26,6 +26,7 @@
  *          txloader/
  *            forceload/<Display>[<modid>]/lang/zh_CN.lang
  *            forceload/____gtnhoverridenames_zhcn/lang/zh_CN.lang  (Kiwi233 direct)
+ *            forceload/minecraft/**                                 (Kiwi233 direct)
  *            load/<modid>/lang/zh_CN.lang
  *
  *    amazingtrophies intentionally ships at *both* paths (root `/config/` and
