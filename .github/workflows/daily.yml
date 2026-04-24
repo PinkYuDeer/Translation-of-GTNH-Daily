@@ -77,6 +77,10 @@ jobs:
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/pull-zh-4964.ts
 
+      - name: Sync ParaTranz Terms (4964 -> 18818)
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/sync-terms.ts
+
       - name: Merge English + PT 18818 + PT 4964 Locally
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/merge-final.ts
