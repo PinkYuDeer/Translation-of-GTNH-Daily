@@ -188,21 +188,50 @@ export async function apiPostMultipart<T = unknown>(
 export async function runBounded<T>(
   tasks: (() => Promise<T>)[],
   limit: number,
+  options?: {
+    onSettled?: (info: {
+      index: number
+      completed: number
+      total: number
+      successes: number
+      failures: number
+      result: T | Error
+    }) => void
+  },
 ): Promise<{ results: (T | Error)[], successes: number, failures: number }> {
   const results: (T | Error)[] = new Array(tasks.length)
   let idx = 0
   let successes = 0
   let failures = 0
+  let completed = 0
   const workers = Array.from({ length: Math.min(limit, tasks.length) }, async () => {
     while (idx < tasks.length) {
       const i = idx++
       try {
         results[i] = await tasks[i]()
         successes++
+        completed++
+        options?.onSettled?.({
+          index: i,
+          completed,
+          total: tasks.length,
+          successes,
+          failures,
+          result: results[i],
+        })
       }
       catch (err) {
         results[i] = err as Error
         failures++
+        completed++
+        options?.onSettled?.({
+          index: i,
+          completed,
+          total: tasks.length,
+          successes,
+          failures,
+          result: results[i],
+        })
       }
     }
   })

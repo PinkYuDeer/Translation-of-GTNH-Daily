@@ -62,31 +62,40 @@ jobs:
 
       # ========== 10 步流水线 ==========
       - name: Fetch English (A–G) + Normalize Newlines
-        run: bun .github/scripts/daily/fetch-en.ts
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/fetch-en.ts
 
       - name: Diff English vs Last Run
-        run: bun .github/scripts/daily/diff-en.ts
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/diff-en.ts
 
       - name: Push English to PT 18818
-        run: bun .github/scripts/daily/push-en.ts
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/push-en.ts
 
       - name: Pull PT 4964 + Stage Kiwi233 Extras
-        run: bun .github/scripts/daily/pull-zh-4964.ts
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/pull-zh-4964.ts
 
       - name: Diff Chinese Against Last Snapshot
-        run: bun .github/scripts/daily/diff-zh.ts
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/diff-zh.ts
 
       - name: Refresh StringIds for Touched Files
-        run: bun .github/scripts/daily/refresh-ids.ts
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/refresh-ids.ts
 
       - name: Push Chinese Translations (normal + stale markers)
-        run: bun .github/scripts/daily/push-zh.ts
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/push-zh.ts
 
       - name: Pull Final 18818 State (forward translations)
-        run: bun .github/scripts/daily/pull-final-18818.ts
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/pull-final-18818.ts
 
       - name: Rebuild .lang Files and Pack 7z
-        run: bun .github/scripts/daily/restore-and-pack.ts
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/restore-and-pack.ts
         env:
           ARCHIVE_NAME: daily-${{ env.NB_LOCAL_DATE }}.7z
 

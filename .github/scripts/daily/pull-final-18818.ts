@@ -37,6 +37,7 @@ import {
   runBounded,
   sleep,
 } from './lib/pt-client.ts'
+import { isArchivedPtPath } from './lib/path-map.ts'
 
 const POLL_INTERVAL_MS = 15_000
 const POLL_MAX = 20
@@ -108,7 +109,7 @@ async function tryArtifactFlow(outRoot: string): Promise<boolean> {
 
 async function fallbackFileByFile(outRoot: string): Promise<void> {
   const fileIds = await readFileIds()
-  const entries = Object.entries(fileIds)
+  const entries = Object.entries(fileIds).filter(([ptPath]) => !isArchivedPtPath(ptPath))
   // eslint-disable-next-line no-console
   console.log(`[pull-final] fallback: pulling ${entries.length} files per-file`)
 
@@ -128,7 +129,13 @@ async function fallbackFileByFile(outRoot: string): Promise<void> {
     await mkdir(dirname(out), { recursive: true })
     await writeJson(out, items)
   })
-  const { successes, failures, results } = await runBounded(tasks, CONCURRENCY)
+  const { successes, failures, results } = await runBounded(tasks, CONCURRENCY, {
+    onSettled: ({ completed, total, failures, result }) => {
+      if (completed === 1 || completed === total || completed % 25 === 0 || result instanceof Error)
+        // eslint-disable-next-line no-console
+        console.log(`[pull-final] fallback progress ${completed}/${total} files (fail=${failures})`)
+    },
+  })
   // eslint-disable-next-line no-console
   console.log(`[pull-final] fallback: ${successes} ok / ${failures} failed`)
   if (failures > 0) {

@@ -11,7 +11,7 @@
  * without manual seeding.
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
@@ -53,12 +53,20 @@ export async function writeEnLastrun(ptPath: string, items: PtStringItem[]): Pro
   await writeJson(enLastrunFile(ptPath), items)
 }
 
+export async function deleteEnLastrun(ptPath: string): Promise<void> {
+  await rm(enLastrunFile(ptPath), { force: true })
+}
+
 export async function readZhLastrun(ptPath: string): Promise<PtStringItem[] | undefined> {
   return readJson<PtStringItem[]>(zhLastrunFile(ptPath))
 }
 
 export async function writeZhLastrun(ptPath: string, items: PtStringItem[]): Promise<void> {
   await writeJson(zhLastrunFile(ptPath), items)
+}
+
+export async function deleteZhLastrun(ptPath: string): Promise<void> {
+  await rm(zhLastrunFile(ptPath), { force: true })
 }
 
 /** `{ptPath: fileId}` – maps PT file name to its numeric id on 18818. */
@@ -77,6 +85,10 @@ export async function readStringIds(ptPath: string): Promise<Record<string, numb
 
 export async function writeStringIds(ptPath: string, map: Record<string, number>): Promise<void> {
   await writeJson(stringIdsFile(ptPath), map)
+}
+
+export async function deleteStringIds(ptPath: string): Promise<void> {
+  await rm(stringIdsFile(ptPath), { force: true })
 }
 
 export type NewlineForm = '<BR>' | '<br>' | '\\n'

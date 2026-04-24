@@ -56,6 +56,7 @@ import {
   serializeLang,
 } from './lib/lang-parser.ts'
 import { restoreNewlines } from './lib/newlines.ts'
+import { isArchivedPtPath } from './lib/path-map.ts'
 
 const TIPS_PT_PATH = 'config/Betterloadingscreen/tips/zh_CN.lang'
 
@@ -128,11 +129,16 @@ async function rebuildLangTree(): Promise<string> {
   const newlines = await readNewlines()
 
   let count = 0
+  let archivedSkipped = 0
   for await (const abs of walkJson(finalRoot)) {
     // filename shape: `<pt-path>.lang.json` or `GregTech.lang.json`, etc.
     const rel = toPosix(relative(finalRoot, abs))
     // Strip only the trailing `.json` → pt-path (keeps the `.lang` suffix).
     const ptPath = rel.endsWith('.json') ? rel.slice(0, -'.json'.length) : rel
+    if (isArchivedPtPath(ptPath)) {
+      archivedSkipped++
+      continue
+    }
 
     const finalItems = await loadPtItems(abs)
     const enAbs = join(enRoot, `${ptPath}.en.json`)
@@ -148,6 +154,9 @@ async function rebuildLangTree(): Promise<string> {
   }
   // eslint-disable-next-line no-console
   console.log(`[restore] rebuilt ${count} lang file(s) under ${outRoot}`)
+  if (archivedSkipped > 0)
+    // eslint-disable-next-line no-console
+    console.log(`[restore] skipped ${archivedSkipped} archived file(s) from zh-final`)
   return outRoot
 }
 

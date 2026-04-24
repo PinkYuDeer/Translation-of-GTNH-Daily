@@ -149,7 +149,13 @@ async function main(): Promise<void> {
     return { name: f.name, rows: items.length }
   })
 
-  const { successes, failures, results } = await runBounded(tasks, CONCURRENCY)
+  const { successes, failures, results } = await runBounded(tasks, CONCURRENCY, {
+    onSettled: ({ completed, total, failures, result }) => {
+      if (completed === 1 || completed === total || completed % 25 === 0 || result instanceof Error)
+        // eslint-disable-next-line no-console
+        console.log(`[pull-zh-4964] progress ${completed}/${total} files (fail=${failures})`)
+    },
+  })
   // eslint-disable-next-line no-console
   console.log(`[pull-zh-4964] files: ${successes} ok / ${failures} failed`)
   if (failures > 0) {
