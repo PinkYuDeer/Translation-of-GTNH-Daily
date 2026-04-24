@@ -57,6 +57,7 @@ interface PtFileCreateResponse {
   // Some PT versions inline the fields at the top level.
   id?: number
   name?: string
+  status?: string
 }
 
 interface PtFileMutationResult {
@@ -96,6 +97,12 @@ function normalizeMutationResult(
   response: PtFileCreateResponse,
   existingFileId: number | undefined,
 ): PtFileMutationResult {
+  // PT returns only `{ status: "hashMatched" }` when a replace upload is
+  // byte-identical to the current remote file. Treat that as success and keep
+  // the known fileId/path instead of failing the whole rerun.
+  if (existingFileId != null && response.status === 'hashMatched')
+    return { id: existingFileId, name: toPtJsonPath(ptPath) }
+
   const id = response.file?.id ?? response.id ?? existingFileId
   const name = response.file?.name ?? response.name
   if (typeof id !== 'number' || typeof name !== 'string')
