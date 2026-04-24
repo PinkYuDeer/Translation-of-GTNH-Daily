@@ -95,8 +95,10 @@ async function loadPtItems(abs: string): Promise<PtStringItem[]> {
 
 /**
  * Build a .lang-shaped LangEntry[] from zh-final items, re-applying newlines
- * and preserving English key order. Missing keys in the final (possible if
- * PT dropped one somehow) are emitted with empty value so the file round-
+ * and preserving English key order. Keys that exist only in `zh-final` (for
+ * example source-only rows inherited from 4964) are appended after the English
+ * key order so they survive pack rebuilds. Missing keys in the final (possible
+ * if PT dropped one somehow) are emitted with empty value so the file round-
  * trips with the same keyspace as the English source.
  */
 function reassemble(
@@ -106,10 +108,10 @@ function reassemble(
   newlinesForFile: Record<string, string> | undefined,
 ): LangEntry[] {
   const finalByKey = new Map(finalItems.map(i => [i.key, i]))
-  const enByKey = new Map((enItems ?? []).map(i => [i.key, i]))
   const orderKeys = enItems?.map(i => i.key) ?? [...finalByKey.keys()]
+  const extraKeys = [...finalByKey.keys()].filter(key => !orderKeys.includes(key))
   const out: LangEntry[] = []
-  for (const key of orderKeys) {
+  for (const key of [...orderKeys, ...extraKeys]) {
     const item = finalByKey.get(key)
     // Empty/undefined translation → write `key=` so Minecraft falls back to
     // en_US.lang at runtime (per translation team decision).

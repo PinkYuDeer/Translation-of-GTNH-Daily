@@ -60,6 +60,10 @@ function extractSourceModId(sourceName: string): string | undefined {
   return bracket?.[1]
 }
 
+function canonicalize4964SourcePath(source4964Name: string): string {
+  return stripPtJsonSuffix(stripVersionSuffix(decodePathLossy(source4964Name)))
+}
+
 /** Convert a `.lang` / `.txt` source path to PT's `.json` upload path. */
 export function toPtJsonPath(relpath: string): string {
   if (relpath.endsWith('.json'))
@@ -102,7 +106,7 @@ export function resolve4964To18818<T extends { name: string }>(
   targetByName: Map<string, T>,
   targetByModId: Map<string, T>,
 ): T | undefined {
-  const canonical = stripVersionSuffix(decodePathLossy(source4964Name))
+  const canonical = toPtJsonPath(canonicalize4964SourcePath(source4964Name))
 
   const exact = targetByName.get(canonical)
   if (exact != null)
@@ -126,6 +130,17 @@ export function resolve4964To18818<T extends { name: string }>(
     return targetByModId.get(modId)
 
   return undefined
+}
+
+/**
+ * Fallback mapping for 4964 files that have no English counterpart in 18818 yet.
+ * This lets us preserve reviewed upstream files instead of dropping them.
+ */
+export function map4964PathTo18818(source4964Name: string): string {
+  const canonical = canonicalize4964SourcePath(source4964Name)
+  if (canonical.startsWith('resources/'))
+    return `config/txloader/forceload/${canonical.slice('resources/'.length)}`
+  return canonical
 }
 
 /**
