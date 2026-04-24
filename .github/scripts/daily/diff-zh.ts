@@ -8,12 +8,11 @@
  * push-zh won't emit a stale marker for it).
  *
  * Skip rules for a 4964 row `s`:
- *   1. s.stage < 1                           untranslated / rejected
- *   2. s.translation empty                   no content
- *   3. normalize(s.original) != new EN       4964 is still on the old English
+ *   1. s.translation empty                   no content
+ *   2. normalize(s.original) != new EN       4964 is still on the old English
  *                                            (translation was written against
  *                                            a now-obsolete string; can't use)
- *   4. (normalized) s.translation + s.stage  already pushed, no-op
+ *   3. (normalized) s.translation + s.stage  already pushed, no-op
  *      equal lastrun
  *
  * `files-to-refresh-ids.json` collects every pt-path that push-zh will touch:
@@ -97,6 +96,11 @@ async function main(): Promise<void> {
   const touched = new Set<string>()
   let unresolved = 0
   const unresolvedNames: string[] = []
+  let skippedEmptyTranslation = 0
+  let skippedMissingEnFile = 0
+  let skippedMissingEnKey = 0
+  let skippedOriginalMismatch = 0
+  let stagePromoted = 0
 
   for await (const abs of walkJson(root4964)) {
     // 4964-side name exactly as PT stores it (ends with .json).
@@ -117,10 +121,11 @@ async function main(): Promise<void> {
       loadItems(abs) as Promise<PtStringItem[]>,
       loadItems(join(rootEn, `${ptPath}.en.json`)),
       loadItems(join(rootLastrun, `${ptPath}.zh.json`)),
-    ])
+    ]) 
     if (!enItems) {
       // We only push into files that also exist on our English side; if the
       // en file doesn't exist we have nothing to align against.
+      skippedMissingEnFile++
       continue
     }
 
@@ -129,15 +134,19 @@ async function main(): Promise<void> {
     const pendingForFile = pending[ptPath] ?? {}
 
     for (const s of curr4964) {
-      if ((s.stage ?? 0) < 1)
+      if (!s.translation) {
+        skippedEmptyTranslation++
         continue
-      if (!s.translation)
-        continue
+      }
       const enRow = enByKey.get(s.key)
-      if (!enRow)
+      if (!enRow) {
+        skippedMissingEnKey++
         continue
-      if (normalizeNewlines(s.original) !== normalizeNewlines(enRow.original))
+      }
+      if (normalizeNewlines(s.original) !== normalizeNewlines(enRow.original)) {
+        skippedOriginalMismatch++
         continue
+      }
 
       // The 4964 row covers this key's current English → clear any stale-
       // marker intent we might have queued from diff-en.
@@ -153,7 +162,11 @@ async function main(): Promise<void> {
       )
         continue
 
-      pushQueue.push({ ptPath, key: s.key, translation: normalized, stage: s.stage })
+      const sourceStage = s.stage ?? 0
+      const targetStage = Math.max(sourceStage, 1)
+      if (targetStage !== sourceStage)
+        stagePromoted++
+      pushQueue.push({ ptPath, key: s.key, translation: normalized, stage: targetStage })
       touched.add(ptPath)
     }
 
@@ -177,7 +190,9 @@ async function main(): Promise<void> {
   console.log(
     `[diff-zh] push-queue=${pushQueue.length} touched-files=${touched.size} pending-keys=${
       Object.values(pending).reduce((n, m) => n + Object.keys(m).length, 0)
-    } unresolved-4964=${unresolved}`,
+    } unresolved-4964=${unresolved} skipped-empty=${skippedEmptyTranslation} `
+    + `skipped-no-en-file=${skippedMissingEnFile} skipped-no-en-key=${skippedMissingEnKey} `
+    + `skipped-original-mismatch=${skippedOriginalMismatch} stage-promoted=${stagePromoted}`,
   )
   if (unresolvedNames.length > 0)
     // eslint-disable-next-line no-console
