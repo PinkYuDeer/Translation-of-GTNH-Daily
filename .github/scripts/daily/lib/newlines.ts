@@ -58,6 +58,11 @@ export function normalizePtNewlines(value: string): string {
   return normalizeNewlines(value).replaceAll('%n', '\n')
 }
 
+/** Encode our internal newline form into PT's `%n` marker before upload. */
+export function toPtNewlines(value: string): string {
+  return normalizePtNewlines(value).replaceAll('\n', '%n')
+}
+
 /** Expand a real newline back to the given placeholder form. */
 export function restoreNewlines(value: string, form: NewlineForm | undefined): string {
   if (!form || form === '\\n')

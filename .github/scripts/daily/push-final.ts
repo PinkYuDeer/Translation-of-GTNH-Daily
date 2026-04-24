@@ -33,6 +33,7 @@ import {
   runBounded,
 } from './lib/pt-client.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
+import { toPtNewlines } from './lib/newlines.ts'
 import { toArchivePtPath, toPtJsonPath } from './lib/path-map.ts'
 
 interface PtFileMutationResponse {
@@ -79,6 +80,16 @@ async function loadItems(ptPath: string): Promise<PtStringItem[]> {
   return JSON.parse(await readFile(abs, 'utf8')) as PtStringItem[]
 }
 
+function toPtUploadItems(items: PtStringItem[]): PtStringItem[] {
+  return items.map(item => ({
+    key: item.key,
+    original: toPtNewlines(item.original ?? ''),
+    translation: toPtNewlines(item.translation ?? ''),
+    stage: item.stage ?? 0,
+    ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
+  }))
+}
+
 function toEnglishOnlyItems(items: PtStringItem[]): PtStringItem[] {
   return items.map(item => ({
     key: item.key,
@@ -109,7 +120,7 @@ async function uploadOne(
   existingFileId: number | undefined,
   items: PtStringItem[],
 ): Promise<PtFileMutationResult> {
-  const body = JSON.stringify(items)
+  const body = JSON.stringify(toPtUploadItems(items))
   const filename = ptBasename(ptPath)
   if (existingFileId != null) {
     const res = await apiPostMultipart<PtFileMutationResponse>(`/projects/${PT_18818_ID}/files/${existingFileId}`, {}, {
@@ -130,8 +141,8 @@ async function uploadOne(
 async function putOneString(row: PtStringWriteRow): Promise<void> {
   await apiPutJson(`/projects/${PT_18818_ID}/strings/${row.stringId}`, {
     key: row.key,
-    original: row.original,
-    translation: row.translation,
+    original: toPtNewlines(row.original),
+    translation: toPtNewlines(row.translation),
     file: row.fileId,
     stage: row.stage,
     ...(row.context != null ? { context: row.context } : {}),
