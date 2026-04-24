@@ -1,0 +1,19 @@
+{
+  "name": "translation-of-gtnh-daily",
+  "private": true,
+  "type": "module",
+  "description": "Daily-synced GTNH Chinese translation build pipeline. Ships as Release artifacts, not as an npm package.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PinkYuDeer/Translation-of-GTNH-Daily.git"
+  },
+  "license": "GPL-3.0-only",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.9",
+    "bun-types": "^1.3.9",
+    "typescript": "^5.5.4"
+  }
+}
