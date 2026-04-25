@@ -206,18 +206,36 @@ async function main(): Promise<void> {
   const sourceFiles = new Map<string, PtStringItem[]>()
   const duplicateExamples: string[] = []
 
+  // Multiple 4964 source files can resolve to the same 18818 ptPath — typically
+  // a canonical `config/txloader/forceload/Foo[foo]/...` co-existing with a
+  // legacy `resources/Foo[foo]/...` that 4964 still maintains. Earlier this
+  // step kept the first one and dropped the rest, silently losing every key
+  // unique to the dropped file. Now we merge: the first-encountered file's
+  // entries win on key conflicts, and later files contribute any keys the
+  // first one is missing.
   for await (const abs of walkJson(sourceRoot)) {
     const sourceName = toPosix(relative(sourceRoot, abs))
     const resolved = resolve4964To18818(sourceName, targetByName, targetByModId)
     const ptPath = resolved
       ? resolved.name.slice(0, -'.json'.length)
       : map4964PathTo18818(sourceName)
-    if (sourceFiles.has(ptPath)) {
-      if (duplicateExamples.length < 10)
-        duplicateExamples.push(`${sourceName} -> ${ptPath}`)
+    const incoming = (await loadPtItems(abs)).map(normalizeItem)
+    const existing = sourceFiles.get(ptPath)
+    if (existing == null) {
+      sourceFiles.set(ptPath, incoming)
       continue
     }
-    sourceFiles.set(ptPath, (await loadPtItems(abs)).map(normalizeItem))
+    const byKey = new Map(existing.map(item => [item.key, item]))
+    let added = 0
+    for (const item of incoming) {
+      if (!byKey.has(item.key)) {
+        byKey.set(item.key, item)
+        added++
+      }
+    }
+    sourceFiles.set(ptPath, [...byKey.values()])
+    if (duplicateExamples.length < 10)
+      duplicateExamples.push(`${sourceName} -> ${ptPath} (+${added} keys)`)
   }
 
   await rm(finalRoot, { recursive: true, force: true })
@@ -374,7 +392,7 @@ async function main(): Promise<void> {
   )
   if (duplicateExamples.length > 0)
     // eslint-disable-next-line no-console
-    console.warn(`[merge-final] duplicate 4964 mappings ignored: ${duplicateExamples.join(', ')}`)
+    console.warn(`[merge-final] duplicate 4964 mappings merged: ${duplicateExamples.join(', ')}`)
 }
 
 void main().catch((err) => {
