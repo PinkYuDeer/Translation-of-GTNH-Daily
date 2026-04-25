@@ -54,6 +54,7 @@ import { entriesToTips } from './lib/tips-parser.ts'
 import {
   type LangEntry,
   type PtStringItem,
+  serializeGregTechLang,
   serializeLang,
 } from './lib/lang-parser.ts'
 import { restoreNewlines } from './lib/newlines.ts'
@@ -102,17 +103,21 @@ async function loadPtItems(abs: string): Promise<PtStringItem[]> {
  * trips with the same keyspace as the English source.
  */
 function reassemble(
-  ptPath: string,
   finalItems: PtStringItem[],
   enItems: PtStringItem[] | undefined,
   newlinesForFile: Record<string, string> | undefined,
 ): LangEntry[] {
   const finalByKey = new Map(finalItems.map(i => [i.key, i]))
-  const orderKeys = enItems?.map(i => i.key) ?? [...finalByKey.keys()]
-  const extraKeys = [...finalByKey.keys()].filter(key => !orderKeys.includes(key))
   const out: LangEntry[] = []
-  for (const key of [...orderKeys, ...extraKeys]) {
+  const seen = new Set<string>()
+
+  function emit(key: string): void {
+    if (seen.has(key))
+      return
+    seen.add(key)
     const item = finalByKey.get(key)
+    if (!item && enItems)
+      return
     // Empty/undefined translation → write `key=` so Minecraft falls back to
     // en_US.lang at runtime (per translation team decision).
     const translation = item?.translation && item.translation.length > 0
@@ -122,6 +127,11 @@ function reassemble(
     const value = restoreNewlines(translation, form)
     out.push({ key, value })
   }
+
+  for (const item of enItems ?? [])
+    emit(item.key)
+  for (const item of finalItems)
+    emit(item.key)
   return out
 }
 
@@ -149,10 +159,13 @@ async function rebuildLangTree(): Promise<string> {
       ? (JSON.parse(await readFile(enAbs, 'utf8')) as PtStringItem[])
       : undefined
 
-    const entries = reassemble(ptPath, finalItems, enItems, newlines[ptPath])
+    const entries = reassemble(finalItems, enItems, newlines[ptPath])
     const outAbs = join(outRoot, ptPath)
     await mkdir(dirname(outAbs), { recursive: true })
-    await writeFile(outAbs, serializeLang(entries), 'utf8')
+    const text = ptPath === 'GregTech.lang'
+      ? serializeGregTechLang(entries)
+      : serializeLang(entries)
+    await writeFile(outAbs, text, 'utf8')
     count++
   }
   // eslint-disable-next-line no-console

@@ -48,6 +48,20 @@ export function serializeLang(entries: LangEntry[]): string {
   return `${entries.map(e => `${e.key}=${e.value}`).join('\n')}\n`
 }
 
+/**
+ * GregTech ships as a Forge-style config block rather than a plain `.lang` file:
+ *
+ *   # Configuration file
+ *
+ *   languagefile {
+ *       key=value
+ *   }
+ */
+export function serializeGregTechLang(entries: LangEntry[]): string {
+  const body = entries.map(e => `    ${e.key}=${e.value}`).join('\n')
+  return `# Configuration file \n\nlanguagefile {\n${body}\n}\n`
+}
+
 /** Convert parsed entries into PT's string-item JSON (untranslated skeleton). */
 export function langToPtItems(entries: LangEntry[]): PtStringItem[] {
   return entries.map(e => ({
