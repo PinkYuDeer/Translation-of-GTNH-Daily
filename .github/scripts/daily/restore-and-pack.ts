@@ -7,8 +7,8 @@
  * 1. Rebuild real .lang files from `.build/zh-final/<pt-path>.lang.json`:
  *      - restore each entry's newline placeholder from `newlines.json`
  *      - preserve English key order (`.build/en/<pt-path>.en.json`)
- *      - empty translations → write `key=` (no English fallback; Minecraft
- *        reads en_US.lang for missing keys automatically)
+ *      - empty translations are omitted from the packed output entirely;
+ *        Minecraft falls back to en_US.lang automatically
  *    Tips are handled specially: PT only stores a synthetic keyed mirror, but
  *    the authoritative zh_CN.txt lives in the Kiwi/MagicYuDeer repo branch.
  *    Pack output therefore prefers that direct file and only falls back to
@@ -98,9 +98,8 @@ async function loadPtItems(abs: string): Promise<PtStringItem[]> {
  * Build a .lang-shaped LangEntry[] from zh-final items, re-applying newlines
  * and preserving English key order. Keys that exist only in `zh-final` (for
  * example source-only rows inherited from 4964) are appended after the English
- * key order so they survive pack rebuilds. Missing keys in the final (possible
- * if PT dropped one somehow) are emitted with empty value so the file round-
- * trips with the same keyspace as the English source.
+ * key order so they survive pack rebuilds. Keys whose final translation is
+ * empty are omitted from the packed output.
  */
 function reassemble(
   finalItems: PtStringItem[],
@@ -118,11 +117,11 @@ function reassemble(
     const item = finalByKey.get(key)
     if (!item && enItems)
       return
-    // Empty/undefined translation → write `key=` so Minecraft falls back to
-    // en_US.lang at runtime (per translation team decision).
     const translation = item?.translation && item.translation.length > 0
       ? item.translation
       : ''
+    if (translation.length === 0)
+      return
     const form = newlinesForFile?.[key] as '<BR>' | '<br>' | '\\n' | undefined
     const value = restoreNewlines(translation, form)
     out.push({ key, value })
