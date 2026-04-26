@@ -156,14 +156,14 @@ async function pushTranslationsPerString(
   items: PtStringItem[],
   label: 'new-file' | 'override',
 ): Promise<void> {
-  const translated = items.filter(item => item.translation.length > 0)
-  if (translated.length === 0)
+  const syncable = items.filter(item => item.translation.length > 0 || (item.stage ?? 0) > 0)
+  if (syncable.length === 0)
     return
 
   const remoteRows = await listFileStrings(PT_18818_ID, fileId)
   const remoteByKey = new Map(remoteRows.map(row => [row.key, row]))
   const rowTasks: Array<() => Promise<void>> = []
-  for (const item of translated) {
+  for (const item of syncable) {
     const remote = remoteByKey.get(item.key)
     if (!remote) {
       if (label === 'new-file')
@@ -176,7 +176,8 @@ async function pushTranslationsPerString(
     // uploads only refresh originals, but for matching translations there is
     // nothing to overwrite and we avoid burning rate-limited API calls.
     const desired = toPtNewlines(item.translation)
-    if ((remote.translation ?? '') === desired)
+    const desiredStage = item.stage ?? 0
+    if ((remote.translation ?? '') === desired && (remote.stage ?? 0) === desiredStage)
       continue
     rowTasks.push(async () => {
       await putOneString({
