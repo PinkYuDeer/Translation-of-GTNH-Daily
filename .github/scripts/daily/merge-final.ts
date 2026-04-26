@@ -155,7 +155,12 @@ function mergeSourceOnlyItem(
   sourceItem: PtStringItem,
   current: PtStringItem | undefined,
 ): PtStringItem {
-  const keepCurrent = current?.original === sourceItem.original && !!current.translation && !sourceItem.translation
+  const sourceReviewed = (sourceItem.stage ?? 0) > 0
+  const keepCurrent
+    = !sourceReviewed
+      && current?.original === sourceItem.original
+      && !!current.translation
+      && !sourceItem.translation
   // Upstream 4964 context never carries into 18818 — only preserve context that
   // 18818 already had for this key.
   const context = current?.context
@@ -165,7 +170,7 @@ function mergeSourceOnlyItem(
     translation: keepCurrent ? current.translation : sourceItem.translation,
     stage: keepCurrent
       ? (current.stage ?? 0)
-      : (sourceItem.translation ? Math.max(sourceItem.stage ?? 0, 1) : (sourceItem.stage ?? 0)),
+      : (sourceReviewed || sourceItem.translation ? Math.max(sourceItem.stage ?? 0, 1) : (sourceItem.stage ?? 0)),
     ...(context != null && context !== '' ? { context } : {}),
   }
 }
@@ -260,6 +265,7 @@ async function main(): Promise<void> {
     const currentFile = currentFiles.get(ptPath)
     const currentItems = currentFile?.normalized ?? []
     const sourceItems = sourceFiles.get(ptPath) ?? []
+    const hasReviewedSource = sourceItems.some(item => (item.stage ?? 0) > 0)
 
     const currentByKey = new Map(currentItems.map(item => [item.key, item]))
     const sourceByKey = new Map(sourceItems.map(item => [item.key, item]))
@@ -274,6 +280,8 @@ async function main(): Promise<void> {
       let stage = 0
       const context = current?.context ?? enItem.context
       const hasCurrentExactTranslation = current?.original === enItem.original && !!current.translation
+      const sourceReviewed = (source?.stage ?? 0) > 0
+      let handledBySource = false
 
       if (current && current.original === enItem.original) {
         translation = current.translation
@@ -285,21 +293,34 @@ async function main(): Promise<void> {
         currentDrift.set(enItem.key, { translation: current.translation })
       }
 
-      if (source?.translation) {
+      if (sourceReviewed) {
+        if (source.original === enItem.original) {
+          translation = source.translation ?? ''
+          stage = Math.max(source.stage ?? 0, 1)
+          currentDrift.delete(enItem.key)
+          stats.sourceApplied++
+          handledBySource = true
+        }
+        else if (!hasCurrentExactTranslation) {
+          if (source.translation) {
+            translation = staleMarker(enItem.original, source.translation)
+            stage = 0
+            currentDrift.delete(enItem.key)
+            stats.staleFrom4964++
+            handledBySource = true
+          }
+        }
+      }
+      else if (source?.translation) {
         if (source.original === enItem.original) {
           translation = source.translation
           stage = Math.max(source.stage ?? 0, 1)
           currentDrift.delete(enItem.key)
           stats.sourceApplied++
-        }
-        else if (!hasCurrentExactTranslation) {
-          translation = staleMarker(enItem.original, source.translation)
-          stage = 0
-          currentDrift.delete(enItem.key)
-          stats.staleFrom4964++
+          handledBySource = true
         }
       }
-      else {
+      if (!handledBySource) {
         const drift = currentDrift.get(enItem.key)
         if (drift) {
           translation = staleMarker(enItem.original, drift.translation)
@@ -335,7 +356,7 @@ async function main(): Promise<void> {
     if (force || !itemsEqual(currentItems, finalItems) || legacyPlaceholderRewrite) {
       plan.push.push(ptPath)
       stats.filesChanged++
-      if (existed && (force || legacyPlaceholderRewrite))
+      if (existed && (force || legacyPlaceholderRewrite || hasReviewedSource))
         plan.overrideTranslations.push(ptPath)
     }
   }
@@ -348,6 +369,7 @@ async function main(): Promise<void> {
     const currentItems = currentFile?.normalized ?? []
     const currentByKey = new Map(currentItems.map(item => [item.key, item]))
     const finalItems = sourceItems.map(sourceItem => mergeSourceOnlyItem(sourceItem, currentByKey.get(sourceItem.key)))
+    const hasReviewedSource = sourceItems.some(item => (item.stage ?? 0) > 0)
 
     const out = join(finalRoot, `${ptPath}.json`)
     await mkdir(dirname(out), { recursive: true })
@@ -361,7 +383,7 @@ async function main(): Promise<void> {
     if (force || !itemsEqual(currentItems, finalItems) || legacyPlaceholderRewrite) {
       plan.push.push(ptPath)
       stats.filesChanged++
-      if (currentFile != null && (force || legacyPlaceholderRewrite))
+      if (currentFile != null && (force || legacyPlaceholderRewrite || hasReviewedSource))
         plan.overrideTranslations.push(ptPath)
     }
   }
