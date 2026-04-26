@@ -98,8 +98,9 @@ async function loadPtItems(abs: string): Promise<PtStringItem[]> {
  * Build a .lang-shaped LangEntry[] from zh-final items, re-applying newlines
  * and preserving English key order. Keys that exist only in `zh-final` (for
  * example source-only rows inherited from 4964) are appended after the English
- * key order so they survive pack rebuilds. Keys whose final translation is
- * empty are omitted from the packed output.
+ * key order so they survive pack rebuilds. English-backed keys whose final
+ * translation is empty are omitted; source-only keys fall back to their
+ * upstream `original` so extra upstream English rows still ship in the pack.
  */
 function reassemble(
   finalItems: PtStringItem[],
@@ -107,6 +108,7 @@ function reassemble(
   newlinesForFile: Record<string, string> | undefined,
 ): LangEntry[] {
   const finalByKey = new Map(finalItems.map(i => [i.key, i]))
+  const enKeys = new Set((enItems ?? []).map(item => item.key))
   const out: LangEntry[] = []
   const seen = new Set<string>()
 
@@ -117,13 +119,13 @@ function reassemble(
     const item = finalByKey.get(key)
     if (!item && enItems)
       return
-    const translation = item?.translation && item.translation.length > 0
+    const valueSource = item?.translation && item.translation.length > 0
       ? item.translation
-      : ''
-    if (translation.length === 0)
+      : (!enKeys.has(key) ? (item?.original ?? '') : '')
+    if (valueSource.length === 0)
       return
     const form = newlinesForFile?.[key] as '<BR>' | '<br>' | '\\n' | undefined
-    const value = restoreNewlines(translation, form)
+    const value = restoreNewlines(valueSource, form)
     out.push({ key, value })
   }
 
