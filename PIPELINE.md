@@ -23,14 +23,15 @@
 
 ```
  ┌──────────────────────── 上游源（只读） ────────────────────────┐
- │ A. GTNewHorizons/GTNH-Translations       daily-history/        │
- │ B. GTNewHorizons/GT-New-Horizons-Modpack config/               │
- │ C. Kiwi233/Translation-of-GTNH           config/ + resources/  │
- │ D. ParaTranz 18818 当前态                                       │
- │ E. ParaTranz 4964 校对译文                                      │
+ │ A0. GTNewHorizons/GT5-Unofficial         runtime GregTech.lang │
+ │ A.  GTNewHorizons/GTNH-Translations      daily-history/        │
+ │ B.  GTNewHorizons/GT-New-Horizons-Modpack config/              │
+ │ C.  Kiwi233/Translation-of-GTNH          config/ + resources/  │
+ │ D.  ParaTranz 18818 当前态                                      │
+ │ E.  ParaTranz 4964 校对译文                                     │
  └───────────────────────────────┬───────────────────────────────┘
                                  ▼
-       fetch-en → pull-current-18818 → pull-zh-4964 → sync-terms
+ generate-gregtech-lang → fetch-en → pull-current-18818 → pull-zh-4964 → sync-terms
                                  ▼
                          merge-final → push-final
                                  ▼
@@ -47,9 +48,16 @@
 
 脚本都位于 `.github/scripts/daily/`。下表列出职责与关键输入 / 输出，需要更详细的规则请直接看脚本头注释。
 
+### 0. `generate-gregtech-lang.ts` — 生成 GregTech.lang（实验）
+
+- 克隆/更新 `GTNewHorizons/GT5-Unofficial@master` 到 `.repo.cache/gt5u`
+- 用 `./gradlew runServer` 启动最小 GT5U dev server；侦测 `GregTech.log` 中 `GTMod: PostLoad-Phase finished!` 后终止进程
+- 输出 `.build/generated-gregtech/GregTech.lang` 与 metadata；若此步失败，工作流直接失败，不回退 `daily-history/GregTech.lang`
+
 ### 1. `fetch-en.ts` — 英文原文收集
 
 - Sparse-clone 三个上游仓库到 `.repo.cache/<slug>/`（已存在时只 `fetch + reset --hard`，尽量命中 Actions cache）
+- `.build/generated-gregtech/GregTech.lang` 必须存在；`daily-history/GregTech.lang` 不再作为回退来源
 - 枚举 A–G 七类英文源（见脚本顶部说明），按 PT 18818 路径写成统一 JSON 骨架
 - **去重**：同一目标路径同时来自 `daily-history` 与 `Modpack` 时，`daily-history` 胜
 - **换行嗅探**：逐词条识别英文原文使用的是 `<BR>` / `<br>` / 字面 `\n` / `%n`，写入 `.cache/newlines.json`
@@ -79,12 +87,13 @@
 - 英文 key/original 为主轴；18818 译文在 key + original 都匹配时保留
 - 若 4964 对同 key 有新鲜译文（original 与英文匹配），覆盖 18818 当前译文
 - 若英文变了而 4964 没跟上，写入 stale 标记：`${新英文}|旧译：|${旧译文}`，stage=0
-- 若 4964 还保留着 18818 英文侧已无的条目/文件，作为 source-only 保留，不删
+- 4964 中英文侧已无的条目/文件一律忽略，不再作为 source-only 补入 18818
+- 最终译文 `trim()` 后为空的条目，以原文填入译文并置 stage=1
 - 退役文件（英文侧消失）单独记录，后续改名而非删除
 
 输出：
 - `.build/zh-final/<pt-path>.json` — 最终 PT 文件内容
-- `.build/merge-plan.json` — 本轮要 push / archive 的文件清单；含 `overrideTranslations[]`：需要逐词条覆写现网译文的文件（force 模式 / 现网还带有 `<BR>` 等旧换行占位时会进这个集合）
+- `.build/merge-plan.json` — 本轮要 push / archive 的文件清单；含 `overrideTranslations[]`：需要逐词条覆写现网译文的文件（force 模式 / 现网还带有 `<BR>` 等旧换行占位 / 合成后译文或 stage 与现网不同，都会进这个集合）
 
 ### 5. `push-final.ts` — 整文件回推 PT 18818
 
@@ -115,7 +124,8 @@ GitHub Actions `actions/cache@v4`，key 以 branch + 日期为作用域，同 br
 .repo.cache/
 ├─ translations/              GTNewHorizons/GTNH-Translations  sparse-clone
 ├─ modpack/                   GTNewHorizons/GT-New-Horizons-Modpack  sparse-clone
-└─ kiwi/                      Kiwi233/Translation-of-GTNH  sparse-clone
+├─ kiwi/                      Kiwi233/Translation-of-GTNH  sparse-clone
+└─ gt5u/                      GTNewHorizons/GT5-Unofficial checkout
 ```
 
 缓存只用于提速，不承载正确性 —— 每天都会重拉三源并本地整合。
@@ -156,6 +166,7 @@ Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / 
 │   │   ├── path-map.ts        4964 ↔ 18818 路径映射、归档后缀
 │   │   ├── pt-client.ts       PT REST 客户端（429 退避 / 并发池）
 │   │   └── tips-parser.ts     tips.txt ↔ 合成 .lang
+│   ├── generate-gregtech-lang.ts 步骤 0
 │   ├── fetch-en.ts            步骤 1
 │   ├── pull-current-18818.ts  步骤 2
 │   ├── pull-zh-4964.ts        步骤 3

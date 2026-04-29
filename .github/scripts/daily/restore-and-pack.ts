@@ -61,9 +61,16 @@ import { restoreNewlines } from './lib/newlines.ts'
 import { isArchivedPtPath } from './lib/path-map.ts'
 
 const TIPS_PT_PATH = 'config/Betterloadingscreen/tips/zh_CN.lang'
+const GENERATED_GREGTECH_LANG = join(BUILD_DIR, 'generated-gregtech', 'GregTech.lang')
 
 function toPosix(p: string): string {
   return p.split(sep).join('/')
+}
+
+function gregTechEnglishSource(): string {
+  if (existsSync(GENERATED_GREGTECH_LANG))
+    return GENERATED_GREGTECH_LANG
+  throw new Error(`missing generated GregTech.lang at ${GENERATED_GREGTECH_LANG}`)
 }
 
 async function* walkJson(dir: string): AsyncGenerator<string> {
@@ -96,11 +103,10 @@ async function loadPtItems(abs: string): Promise<PtStringItem[]> {
 
 /**
  * Build a .lang-shaped LangEntry[] from zh-final items, re-applying newlines
- * and preserving English key order. Keys that exist only in `zh-final` (for
- * example source-only rows inherited from 4964) are appended after the English
- * key order so they survive pack rebuilds. English-backed keys whose final
- * translation is empty are omitted; source-only keys fall back to their
- * upstream `original` so extra upstream English rows still ship in the pack.
+ * and preserving English key order. Keys that exist only in `zh-final` are
+ * appended after the English key order so repo-local extras can still survive
+ * pack rebuilds. English-backed keys whose final translation is empty are
+ * omitted; keys without an English skeleton fall back to their `original`.
  */
 function reassemble(
   finalItems: PtStringItem[],
@@ -250,8 +256,9 @@ async function pack(zhLangRoot: string, tipsTxt: string | undefined): Promise<vo
     await copyFile(abs, dst)
   }
 
-  // English GregTech.lang (unmodified) — copied from the sparse checkout.
-  const enGreg = join('.repo.cache/translations/daily-history/GregTech.lang')
+  // English GregTech.lang (unmodified) — copied from the runtime-generated
+  // GT5U source. No daily-history fallback; a missing generated file is fatal.
+  const enGreg = gregTechEnglishSource()
   if (existsSync(enGreg))
     await copyFile(enGreg, join(stage, 'GregTech_en_US.lang'))
 

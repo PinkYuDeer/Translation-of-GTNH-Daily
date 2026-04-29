@@ -49,9 +49,15 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Setup Java for GT5U
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       # .cache 里只保留少量可复用状态（fileIds、newlines 等）；正确性不再依赖
       # cache，因为每次都会重拉当前 PT 18818 与上游 4964。上游 sparse-clone
-      # 缓存在 .repo.cache 里，避免每天重新拉。GitHub Actions cache 以 ref 为
+      # 及 GT5U checkout 缓存在 .repo.cache 里，避免每天重新拉。GitHub Actions cache 以 ref 为
       # 作用域且不可覆写，故 key 显式带 branch；restore 只回溯同 branch 旧日缓存。
       - name: Setup Datetime Envs
         uses: Kiwi233/Translation-of-GTNH/.github/actions/run-script@master
@@ -71,6 +77,12 @@ jobs:
             daily-${{ github.ref_name }}-
 
       # ========== 三源整合流水线 ==========
+      - name: Generate GregTech.lang from Latest GT5U
+        shell: bash
+        env:
+          GT5U_LANG_TIMEOUT_MS: 1800000
+        run: stdbuf -oL -eL bun .github/scripts/daily/generate-gregtech-lang.ts
+
       - name: Fetch English (A–G) + Normalize Newlines
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/fetch-en.ts
