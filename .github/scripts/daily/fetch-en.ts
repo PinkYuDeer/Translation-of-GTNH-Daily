@@ -6,6 +6,9 @@
  * restoration), normalize values to real `\n`, and write each file as a PT-
  * shaped JSON skeleton into `.build/en/`.
  *
+ * Required pre-source:
+ *   - .build/generated-gregtech/GregTech.lang (generated from latest GT5U)
+ *
  * Upstreams (all sparse-cloned to `.repo.cache/<name>`):
  *   - GTNewHorizons/GTNH-Translations@master  (daily-history)
  *   - GTNewHorizons/GT-New-Horizons-Modpack@master  (config)
@@ -14,9 +17,10 @@
  * Source coverage — see PLAN.md §3.1 for the authoritative table. Each case
  * below is commented with its source letter.
  *
- * Dedup rule: if the same PT-18818 path is produced by both daily-history and
- * Modpack, daily-history wins. F (amazingtrophies /config/ copy) and G
- * (tips) never collide with anything else.
+ * Dedup rule: generated GT5U GregTech.lang wins for GregTech.lang. Otherwise,
+ * if the same PT-18818 path is produced by both daily-history and Modpack,
+ * daily-history wins. F (amazingtrophies /config/ copy) and G (tips) never
+ * collide with anything else.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -30,6 +34,8 @@ import { parseLang, langToPtItems, type PtStringItem } from './lib/lang-parser.t
 import { parseTipsLines, tipsToEntries } from './lib/tips-parser.ts'
 import { normalizeNewlines, sniffNewline } from './lib/newlines.ts'
 import { rewriteTargetRelpath, stripVersionSuffix } from './lib/path-map.ts'
+
+const GENERATED_GREGTECH_LANG = join(BUILD_DIR, 'generated-gregtech', 'GregTech.lang')
 
 interface FetchedFile {
   /** PT-18818 path (keys into .build/en, cache, everything downstream). */
@@ -184,12 +190,33 @@ async function main(): Promise<void> {
   const collected = new Map<string, FetchedFile>()
   const newlinesMap: Record<string, Record<string, NewlineForm>> = {}
 
+  // -------- A0: runtime-generated GT5U GregTech.lang. This is required:
+  // daily-history/GregTech.lang is a manually uploaded snapshot and can be far
+  // larger than the optimized runtime language file.
+  if (!existsSync(GENERATED_GREGTECH_LANG))
+    throw new Error(`missing generated GregTech.lang at ${GENERATED_GREGTECH_LANG}`)
+
+  const generatedGregTech = await readFile(GENERATED_GREGTECH_LANG, 'utf8')
+  const generatedGregTechProcessed = processLangFile(generatedGregTech)
+  collected.set('GregTech.lang', {
+    ptPath: 'GregTech.lang',
+    source: 'A0',
+    entries: generatedGregTechProcessed.items,
+  })
+  if (Object.keys(generatedGregTechProcessed.perFile).length > 0)
+    newlinesMap['GregTech.lang'] = generatedGregTechProcessed.perFile
+  // eslint-disable-next-line no-console
+  console.log(`[fetch-en] using generated GT5U GregTech.lang (${generatedGregTechProcessed.items.length} entries)`)
+
   // -------- daily-history (sources A–C) --------
   const dailyRoot = join(translationsRoot, 'daily-history')
   for await (const abs of walk(dailyRoot)) {
     const rel = toPosix(relative(dailyRoot, abs))
-    // We only ingest en_US.lang (plus the root GregTech.lang).
+    // We only ingest en_US.lang. GregTech.lang is generated from GT5U above;
+    // never fall back to the manually uploaded daily-history copy.
     if (rel !== 'GregTech.lang' && !rel.endsWith('/en_US.lang'))
+      continue
+    if (rel === 'GregTech.lang')
       continue
     const raw = dailyHistoryToPtPath(rel)
     if (!raw)

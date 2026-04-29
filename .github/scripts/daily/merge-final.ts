@@ -9,14 +9,16 @@
  *
  * Merge rules:
  *   - English key/original set is authoritative for the normal daily keyspace.
- *     However, reviewed 4964 rows/files that still have no English counterpart
- *     are preserved as source-only entries instead of being dropped.
  *   - Current PT 18818 translations are preserved when key+original still match.
  *   - If English changed and 4964 has no fresh exact match, emit a stale marker
  *     `${newEnglish}|旧译：|${oldTranslation}` at stage=0.
  *   - If 4964 has a fresh exact match, it overrides current PT.
  *   - If 4964 has the key but with older English, it also becomes a stale
  *     marker, overriding current PT's older translation payload.
+ *   - 4964 rows/files without an English counterpart are ignored. The upstream
+ *     PT project is a translation source only, never an English key source.
+ *   - Final rows whose translation is blank after trim are copied from original
+ *     and marked stage=1 so PT does not retain empty untranslated strings.
  *
  * Outputs:
  *   - `.build/zh-final/<pt-path>.json` — final PT-shaped files
@@ -46,7 +48,8 @@ interface MergePlan {
    * be overwritten per-string after the file-level POST, because PT does not
    * update existing translations through the file upload endpoint. Populated
    * when force mode is on or the current PT file still contains legacy newline
-   * placeholders (`<BR>`, `<br>`, literal `\n`, `%n`).
+   * placeholders (`<BR>`, `<br>`, literal `\n`, `%n`), or when the merged
+   * translation/stage differs from current PT.
    */
   overrideTranslations: string[]
 }
@@ -65,13 +68,12 @@ interface MergeStats {
   filesChanged: number
   filesCreated: number
   filesArchived: number
-  sourceOnlyFiles: number
-  sourceOnlyKeys: number
   currentPreserved: number
   sourceApplied: number
   staleFromCurrent: number
   staleFrom4964: number
   unresolved4964: number
+  originalFallbacks: number
 }
 
 function toPosix(p: string): string {
@@ -151,28 +153,32 @@ function staleMarker(newOriginal: string, oldTranslation: string): string {
   return `${normalizeNewlines(newOriginal)}|旧译：|${normalizeNewlines(oldTranslation)}`
 }
 
-function mergeSourceOnlyItem(
-  sourceItem: PtStringItem,
-  current: PtStringItem | undefined,
-): PtStringItem {
-  const sourceReviewed = (sourceItem.stage ?? 0) > 0
-  const keepCurrent
-    = !sourceReviewed
-      && current?.original === sourceItem.original
-      && !!current.translation
-      && !sourceItem.translation
-  // Upstream 4964 context never carries into 18818 — only preserve context that
-  // 18818 already had for this key.
-  const context = current?.context
+function fillBlankTranslation(item: PtStringItem): { item: PtStringItem, filled: boolean } {
+  if ((item.translation ?? '').trim().length > 0)
+    return { item, filled: false }
   return {
-    key: sourceItem.key,
-    original: sourceItem.original,
-    translation: keepCurrent ? current.translation : sourceItem.translation,
-    stage: keepCurrent
-      ? (current.stage ?? 0)
-      : (sourceReviewed || sourceItem.translation ? Math.max(sourceItem.stage ?? 0, 1) : (sourceItem.stage ?? 0)),
-    ...(context != null && context !== '' ? { context } : {}),
+    item: {
+      ...item,
+      translation: item.original ?? '',
+      stage: 1,
+    },
+    filled: true,
   }
+}
+
+function needsTranslationOverride(
+  currentItems: PtStringItem[],
+  finalItems: PtStringItem[],
+): boolean {
+  const currentByKey = new Map(currentItems.map(item => [item.key, item]))
+  return finalItems.some((item) => {
+    if (item.translation.length === 0 && (item.stage ?? 0) === 0)
+      return false
+    const current = currentByKey.get(item.key)
+    return current == null
+      || current.translation !== item.translation
+      || (current.stage ?? 0) !== (item.stage ?? 0)
+  })
 }
 
 async function main(): Promise<void> {
@@ -252,13 +258,12 @@ async function main(): Promise<void> {
     filesChanged: 0,
     filesCreated: 0,
     filesArchived: 0,
-    sourceOnlyFiles: 0,
-    sourceOnlyKeys: 0,
     currentPreserved: 0,
     sourceApplied: 0,
     staleFromCurrent: 0,
     staleFrom4964: 0,
     unresolved4964: 0,
+    originalFallbacks: 0,
   }
 
   for (const [ptPath, enItems] of enFiles) {
@@ -293,7 +298,7 @@ async function main(): Promise<void> {
         currentDrift.set(enItem.key, { translation: current.translation })
       }
 
-      if (sourceReviewed) {
+      if (source && sourceReviewed) {
         if (source.original === enItem.original) {
           translation = source.translation ?? ''
           stage = Math.max(source.stage ?? 0, 1)
@@ -329,20 +334,16 @@ async function main(): Promise<void> {
         }
       }
 
-      finalItems.push({
+      const fallback = fillBlankTranslation({
         key: enItem.key,
         original: enItem.original,
         translation,
         stage,
         ...(context != null && context !== '' ? { context } : {}),
       })
-    }
-
-    for (const sourceItem of sourceItems) {
-      if (enItems.some(en => en.key === sourceItem.key))
-        continue
-      finalItems.push(mergeSourceOnlyItem(sourceItem, currentByKey.get(sourceItem.key)))
-      stats.sourceOnlyKeys++
+      if (fallback.filled)
+        stats.originalFallbacks++
+      finalItems.push(fallback.item)
     }
 
     const out = join(finalRoot, `${ptPath}.json`)
@@ -356,46 +357,22 @@ async function main(): Promise<void> {
     if (force || !itemsEqual(currentItems, finalItems) || legacyPlaceholderRewrite) {
       plan.push.push(ptPath)
       stats.filesChanged++
-      if (existed && (force || legacyPlaceholderRewrite || hasReviewedSource))
-        plan.overrideTranslations.push(ptPath)
-    }
-  }
-
-  for (const [ptPath, sourceItems] of sourceFiles) {
-    if (enFiles.has(ptPath))
-      continue
-
-    const currentFile = currentFiles.get(ptPath)
-    const currentItems = currentFile?.normalized ?? []
-    const currentByKey = new Map(currentItems.map(item => [item.key, item]))
-    const finalItems = sourceItems.map(sourceItem => mergeSourceOnlyItem(sourceItem, currentByKey.get(sourceItem.key)))
-    const hasReviewedSource = sourceItems.some(item => (item.stage ?? 0) > 0)
-
-    const out = join(finalRoot, `${ptPath}.json`)
-    await mkdir(dirname(out), { recursive: true })
-    await writeJson(out, finalItems)
-
-    stats.sourceOnlyFiles++
-    stats.sourceOnlyKeys += finalItems.length
-    const legacyPlaceholderRewrite = hasLegacyPlaceholder(currentFile?.raw)
-    if (currentFile == null)
-      stats.filesCreated++
-    if (force || !itemsEqual(currentItems, finalItems) || legacyPlaceholderRewrite) {
-      plan.push.push(ptPath)
-      stats.filesChanged++
-      if (currentFile != null && (force || legacyPlaceholderRewrite || hasReviewedSource))
+      if (
+        existed
+        && (force || legacyPlaceholderRewrite || hasReviewedSource || needsTranslationOverride(currentItems, finalItems))
+      )
         plan.overrideTranslations.push(ptPath)
     }
   }
 
   for (const ptPath of currentFiles.keys()) {
-    if (enFiles.has(ptPath) || sourceFiles.has(ptPath) || isArchivedPtPath(ptPath))
+    if (enFiles.has(ptPath) || isArchivedPtPath(ptPath))
       continue
     plan.archive.push(ptPath)
     stats.filesArchived++
   }
 
-  stats.files = enFiles.size + stats.sourceOnlyFiles
+  stats.files = enFiles.size
 
   await writeFile(mergeStatsPath, `${JSON.stringify(stats, null, 2)}\n`, 'utf8')
   await writeJson(mergePlanPath, plan)
@@ -408,9 +385,9 @@ async function main(): Promise<void> {
   console.log(
     `[merge-final] files=${stats.files} push=${plan.push.length} archive=${plan.archive.length} `
     + `override=${plan.overrideTranslations.length} `
-    + `created=${stats.filesCreated} source-only-files=${stats.sourceOnlyFiles} source-only-keys=${stats.sourceOnlyKeys} `
-    + `preserved=${stats.currentPreserved} source-applied=${stats.sourceApplied} `
-    + `stale-current=${stats.staleFromCurrent} stale-4964=${stats.staleFrom4964} unresolved-4964=${stats.unresolved4964}`,
+    + `created=${stats.filesCreated} preserved=${stats.currentPreserved} source-applied=${stats.sourceApplied} `
+    + `stale-current=${stats.staleFromCurrent} stale-4964=${stats.staleFrom4964} `
+    + `original-fallback=${stats.originalFallbacks} unresolved-4964=${stats.unresolved4964}`,
   )
   if (duplicateExamples.length > 0)
     // eslint-disable-next-line no-console

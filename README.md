@@ -25,9 +25,10 @@
 ```
   上游（只读）                       本仓库每日流水线                       产物
  ┌──────────────────────┐          ┌──────────────────────────┐       ┌─────────────────┐
- │ GTNH-Translations    │─英文──┐  │ 1. fetch-en              │       │                 │
- │ GT-New-Horizons-...  │─英文──┼▶│ 2. pull-current-18818    │       │ PT 18818        │
- │ Kiwi233/Translation  │─直通──┘  │ 3. pull-zh-4964          │──合并▶│ （整文件回推）   │
+ │ GT5-Unofficial       │─生成──┐  │ 0. generate-gt-lang      │       │                 │
+ │ GTNH-Translations    │─英文──┼▶│ 1. fetch-en              │       │ PT 18818        │
+ │ GT-New-Horizons-...  │─英文──┼▶│ 2. pull-current-18818    │──合并▶│ （整文件回推）   │
+ │ Kiwi233/Translation  │─直通──┘  │ 3. pull-zh-4964          │       │                 │
  └──────────────────────┘          │ 3.5 sync-terms           │       │                 │
                                    │ 4. merge-final           │       └────────┬────────┘
  ┌──────────────────────┐          │ 5. push-final            │                │
@@ -47,6 +48,7 @@
 
 | 源（上游文件系统）                                                      | 最终落地（整合包内路径）                                                 |
 |-------------------------------------------------------------------------|--------------------------------------------------------------------------|
+| `GT5-Unofficial` 运行时生成的 `GregTech.lang`（失败则中止构建）          | `GregTech_zh_CN.lang` / `GregTech_en_US.lang`                            |
 | `daily-history/resources/<Display>[<modid>]/lang/en_US.lang`            | `config/txloader/forceload/<Display>[<modid>]/lang/zh_CN.lang`           |
 | `config/txloader/load/<modid>/lang/en_US.lang`                          | `config/txloader/load/<modid>/lang/zh_CN.lang`                           |
 | `config/txloader/forceload/<path>/en_US.lang`（Modpack）                | 同目录改名 `zh_CN.lang`                                                  |
