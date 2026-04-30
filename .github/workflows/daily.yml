@@ -4,7 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: '强制模式：忽略缓存，并将所有合并/换行规范化后的文件重新推送到 PT 18818'
+        description: '强制模式：将所有合并/换行规范化后的文件重新推送到 PT 18818'
+        type: boolean
+        default: false
+      skip_gt5u:
+        description: '跳过 GT5U runClient，直接使用缓存的 GregTech.lang'
         type: boolean
         default: false
   schedule:
@@ -69,10 +73,11 @@ jobs:
             libxrandr2 \
             libxxf86vm1
 
-      # .cache 里只保留少量可复用状态（fileIds、newlines 等）；正确性不再依赖
-      # cache，因为每次都会重拉当前 PT 18818 与上游 4964。上游 sparse-clone
-      # 及 GT5U checkout 缓存在 .repo.cache 里，避免每天重新拉。GitHub Actions cache 以 ref 为
-      # 作用域且不可覆写，故 key 显式带 branch；restore 只回溯同 branch 旧日缓存。
+      # .cache 里保留少量可复用状态（fileIds、newlines 等）以及 GT5U
+      # GregTech.lang 兜底缓存；每次仍会重拉当前 PT 18818 与上游 4964。
+      # 上游 sparse-clone 及 GT5U checkout 缓存在 .repo.cache 里，避免每天重新拉。
+      # GitHub Actions cache 以 ref 为作用域且不可覆写，故 key 显式带 branch；
+      # restore 只回溯同 branch 旧日缓存。
       - name: Setup Datetime Envs
         uses: Kiwi233/Translation-of-GTNH/.github/actions/run-script@master
         with:
@@ -80,7 +85,6 @@ jobs:
 
       - name: Restore Daily Cache
         id: restore-daily-cache
-        if: ${{ inputs.force != true }}
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -97,6 +101,7 @@ jobs:
           GT5U_LANG_TIMEOUT_MS: 2400000
           GT5U_LANG_MIN_ENTRIES: 2000
           GT5U_CLOSE_AFTER_POSTLOAD_MS: 180000
+          GT5U_LANG_USE_CACHE_ONLY: ${{ inputs.skip_gt5u == true && '1' || '' }}
         run: stdbuf -oL -eL bun .github/scripts/daily/generate-gregtech-lang.ts
 
       - name: Fetch English (A–G) + Normalize Newlines

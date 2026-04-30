@@ -47,7 +47,7 @@
 
 | 源（上游文件系统）                                                      | 最终落地（整合包内路径）                                                 |
 |-------------------------------------------------------------------------|--------------------------------------------------------------------------|
-| `GT5-Unofficial` 以 headless `runClient` 运行并关闭窗口后生成的 `GregTech.lang`（失败则中止构建） | `GregTech_zh_CN.lang` / `GregTech_en_US.lang`                            |
+| `GT5-Unofficial` 以 headless `runClient` 运行并关闭窗口后生成的 `GregTech.lang`（失败时用上次成功缓存兜底） | `GregTech_zh_CN.lang` / `GregTech_en_US.lang`                            |
 | `daily-history/resources/<Display>[<modid>]/lang/en_US.lang`            | `config/txloader/forceload/<Display>[<modid>]/lang/zh_CN.lang`           |
 | `config/txloader/load/<modid>/lang/en_US.lang`                          | `config/txloader/load/<modid>/lang/zh_CN.lang`                           |
 | `config/txloader/forceload/<path>/en_US.lang`（Modpack）                | 同目录改名 `zh_CN.lang`                                                  |
