@@ -130,7 +130,7 @@ function reassemble(
       : (!enKeys.has(key) ? (item?.original ?? '') : '')
     if (valueSource.length === 0)
       return
-    const form = newlinesForFile?.[key] as '<BR>' | '<br>' | '\\n' | undefined
+    const form = newlinesForFile?.[key] as '<BR>' | '<br>' | '\\n' | '\\\\n' | '%n' | undefined
     const value = restoreNewlines(valueSource, form)
     out.push({ key, value })
   }

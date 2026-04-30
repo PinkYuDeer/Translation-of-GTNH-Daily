@@ -150,7 +150,7 @@ function archivedText(
       : (item.original ?? '')
     if (valueSource.length === 0)
       continue
-    const form = newlineForms?.[item.key] as '<BR>' | '<br>' | '\\n' | undefined
+    const form = newlineForms?.[item.key] as '<BR>' | '<br>' | '\\n' | '\\\\n' | '%n' | undefined
     entries.push({
       key: item.key,
       value: restoreNewlines(valueSource, form),
@@ -182,7 +182,7 @@ function normalizeMutationResult(
   response: PtFileMutationResponse,
   existingFileId: number | undefined,
 ): PtFileMutationResult {
-  if (existingFileId != null && response.status === 'hashMatched')
+  if (existingFileId != null && (response.status === 'hashMatched' || response.status === 'empty'))
     return { id: existingFileId, name: toPtJsonPath(ptPath) }
 
   const id = response.file?.id ?? response.id ?? existingFileId

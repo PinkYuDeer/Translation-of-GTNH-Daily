@@ -45,8 +45,8 @@ interface MergePlan {
    * be overwritten per-string after the file-level POST, because PT does not
    * update existing translations through the file upload endpoint. Populated
    * when force mode is on or the current PT file still contains legacy newline
-   * placeholders (`<BR>`, `<br>`, literal `\n`, `%n`), or when the merged
-   * translation/stage differs from current PT.
+   * placeholders (`<BR>`, `<br>`, literal `\n`, literal `\\n`, `%n`), or when
+   * the merged translation/stage differs from current PT.
    */
   overrideTranslations: string[]
 }
@@ -117,10 +117,12 @@ function hasLegacyPlaceholder(items: PtStringItem[] | undefined): boolean {
   return (items ?? []).some(item =>
     (item.original ?? '').includes('<BR>')
     || (item.original ?? '').includes('<br>')
+    || (item.original ?? '').includes('\\\\n')
     || (item.original ?? '').includes('\\n')
     || (item.original ?? '').includes('%n')
     || (item.translation ?? '').includes('<BR>')
     || (item.translation ?? '').includes('<br>')
+    || (item.translation ?? '').includes('\\\\n')
     || (item.translation ?? '').includes('\\n')
     || (item.translation ?? '').includes('%n')
   )
@@ -179,10 +181,16 @@ async function main(): Promise<void> {
   const force = (process.env.FORCE ?? '').length > 0
 
   const enFiles = new Map<string, PtStringItem[]>()
+  let emptyEnFilesSkipped = 0
   for await (const abs of walkJson(enRoot)) {
     const rel = toPosix(relative(enRoot, abs))
     const ptPath = rel.endsWith('.en.json') ? rel.slice(0, -'.en.json'.length) : rel
-    enFiles.set(ptPath, (await loadPtItems(abs)).map(normalizeItem))
+    const items = (await loadPtItems(abs)).map(normalizeItem)
+    if (items.length === 0) {
+      emptyEnFilesSkipped++
+      continue
+    }
+    enFiles.set(ptPath, items)
   }
 
   const currentFiles = new Map<string, CurrentPtFile>()
@@ -373,6 +381,9 @@ async function main(): Promise<void> {
   if (force)
     // eslint-disable-next-line no-console
     console.log('[merge-final] FORCE mode: every merged file will be re-uploaded to PT 18818')
+  if (emptyEnFilesSkipped > 0)
+    // eslint-disable-next-line no-console
+    console.log(`[merge-final] skipped ${emptyEnFilesSkipped} empty English file(s); existing PT copies will be archived`)
 
   // eslint-disable-next-line no-console
   console.log(

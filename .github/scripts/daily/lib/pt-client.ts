@@ -152,7 +152,14 @@ export async function apiPutJsonRaw(path: string, body: unknown): Promise<Respon
 export async function apiDeleteJson<T = unknown>(path: string): Promise<T> {
   const res = await apiRequestRaw('DELETE', path, { headers: jsonHeaders })
   const text = await res.text()
-  return (text ? JSON.parse(text) : {}) as T
+  if (!text)
+    return {} as T
+  try {
+    return JSON.parse(text) as T
+  }
+  catch {
+    return text as T
+  }
 }
 
 async function apiSendJson<T = unknown>(method: 'POST' | 'PUT', path: string, body: unknown): Promise<T> {

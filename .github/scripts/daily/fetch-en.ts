@@ -209,6 +209,8 @@ async function main(): Promise<void> {
 
   const generatedGregTech = await readFile(GENERATED_GREGTECH_LANG, 'utf8')
   const generatedGregTechProcessed = processLangFile(generatedGregTech)
+  if (generatedGregTechProcessed.items.length === 0)
+    throw new Error(`generated GregTech.lang at ${GENERATED_GREGTECH_LANG} produced no translatable entries`)
   collected.set('GregTech.lang', {
     ptPath: 'GregTech.lang',
     source: 'A0',
@@ -238,6 +240,8 @@ async function main(): Promise<void> {
     const ptPath = stripVersionSuffix(raw)
     const content = await readFile(abs, 'utf8')
     const { items, perFile } = processLangFile(content)
+    if (items.length === 0)
+      continue
     const source = rel === 'GregTech.lang' ? 'A' : rel.startsWith('resources/') ? 'B' : 'C'
     const existing = collected.get(ptPath)
     if (existing) {
@@ -264,6 +268,8 @@ async function main(): Promise<void> {
       continue // daily-history wins
     const content = await readFile(abs, 'utf8')
     const { items, perFile } = processLangFile(content)
+    if (items.length === 0)
+      continue
     const source = rel.startsWith('config/txloader/forceload/')
       ? 'D'
       : rel === 'config/amazingtrophies/lang/en_US.lang'
@@ -279,7 +285,8 @@ async function main(): Promise<void> {
   if (existsSync(tipsFile)) {
     const ptPath = 'config/Betterloadingscreen/tips/zh_CN.lang'
     const items = processTipsFile(await readFile(tipsFile, 'utf8'))
-    collected.set(ptPath, { ptPath, source: 'G', entries: items })
+    if (items.length > 0)
+      collected.set(ptPath, { ptPath, source: 'G', entries: items })
   }
 
   // -------- Write .build/en --------

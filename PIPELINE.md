@@ -63,7 +63,7 @@
 - `.build/generated-gregtech/GregTech.lang` 必须存在；`daily-history/GregTech.lang` 不再作为回退来源
 - 枚举 A–G 七类英文源（见脚本顶部说明），按 PT 18818 路径写成统一 JSON 骨架
 - **去重**：同一目标路径同时来自 `daily-history` 与 `Modpack` 时，`daily-history` 胜
-- **换行嗅探**：逐词条识别英文原文使用的是 `<BR>` / `<br>` / 字面 `\n` / `%n`，写入 `.cache/newlines.json`
+- **换行嗅探**：逐词条识别英文原文使用的是 `<BR>` / `<br>` / `%n` / 字面 `\n` / 字面 `\\n`，写入 `.cache/newlines.json`
 - 输出：`.build/en/<pt-path>.en.json`（所有值已归一化为真换行）
 
 ### 2. `pull-current-18818.ts` — 拉取我方 PT 当前态
@@ -89,7 +89,7 @@
 输入 `.build/en/`、`.build/zh-current/`、`.build/zh-4964/`，生成最终要落的 PT 文件。规则：
 
 - 英文 key/original 为主轴；18818 译文在 key + original 都匹配时保留
-- 英文原文 `trim()` 后为空的词条在采集阶段即丢弃，不进入 PT
+- 英文原文 `trim()` 后为空的词条在采集阶段即丢弃；若整份英文文件无有效词条，则不再作为活跃文件进入 PT，现网旧副本会走归档删除
 - 若 4964 对同 key 有新鲜译文（original 与英文匹配），覆盖 18818 当前译文，并保留 4964 的 stage（含 stage=0）
 - 若英文变了而 4964 没跟上，写入 stale 标记：`${新英文}|旧译：|${旧译文}`，stage=0
 - 4964 中英文侧已无的条目/文件一律忽略，不再作为 source-only 补入 18818
@@ -98,7 +98,7 @@
 
 输出：
 - `.build/zh-final/<pt-path>.json` — 最终 PT 文件内容
-- `.build/merge-plan.json` — 本轮要 push / archive 的文件清单；含 `overrideTranslations[]`：需要逐词条覆写现网译文的文件（force 模式 / 现网还带有 `<BR>` 等旧换行占位 / 合成后译文或 stage 与现网不同，都会进这个集合）
+- `.build/merge-plan.json` — 本轮要 push / archive 的文件清单；含 `overrideTranslations[]`：需要逐词条覆写现网译文的文件（force 模式 / 现网还带有 `<BR>`、`\\n` 等旧换行占位 / 合成后译文或 stage 与现网不同，都会进这个集合）
 
 ### 5. `push-final.ts` — 整文件回推 PT 18818
 
@@ -109,7 +109,7 @@
 
 ### 6. `restore-and-pack.ts` — 还原换行 + 打包 7z
 
-- 读 `.cache/newlines.json`，按每条原始占位把真换行还原回 `<BR>` / `<br>` / `\n` / `%n`
+- 读 `.cache/newlines.json`，按每条原始占位把真换行还原回 `<BR>` / `<br>` / `%n` / `\n` / `\\n`
 - 合成 `.lang` / `tips 的 .txt`；空译不写入包内文件（Minecraft 会回落到 `en_US.lang`）
 - 并入 Kiwi 直通文件，按参考包目录结构铺好，`7z -mx=9` 打包到 `$ASSETS_PATH/$ARCHIVE_NAME`
 - `PACK_ONLY=1` 环境变量可跳过重建，只重打包（手动重发版用）
@@ -128,7 +128,7 @@ GitHub Actions `actions/cache@v4`，key 以 branch + 日期为作用域，同 br
 ├─ generated-gregtech/
 │  ├─ GregTech.lang           上次成功生成的 runtime GregTech.lang
 │  └─ metadata.json
-└─ newlines.json              {pt-path → {key → "<BR>"|"<br>"|"\n"|"%n"}}
+└─ newlines.json              {pt-path → {key → "<BR>"|"<br>"|"%n"|"\\n"|"\\\\n"}}
 
 .repo.cache/
 ├─ translations/              GTNewHorizons/GTNH-Translations  sparse-clone
@@ -143,11 +143,11 @@ GitHub Actions `actions/cache@v4`，key 以 branch + 日期为作用域，同 br
 
 ## 换行符处理
 
-Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / 字面 `\n` / `%n`，PT 内部统一存真换行。为保证回游戏时渲染正确：
+Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / `%n` / 字面 `\n` / 字面 `\\n`。流水线内部统一存真换行。为保证回游戏时渲染正确：
 
 - **嗅探**（fetch-en）：逐词条记录英文原文用哪种形式 → `newlines.json`
 - **归一化**（fetch-en + merge-final）：所有形式统一成真换行，避免"格式差异"触发假变更
-- **还原**（restore-and-pack）：按每词条原形式把真换行回写成原字面，`<BR>` 的任务书仍是 `<BR>`，其他 mod 仍是 `\n`
+- **还原**（restore-and-pack）：按每词条原形式把真换行回写成原字面，`<BR>` 的任务书仍是 `<BR>`，使用 `%n` 的仍是 `%n`，使用 `\n` 的仍是 `\n`，使用 `\\n` 的仍是 `\\n`
 
 ---
 
