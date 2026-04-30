@@ -101,11 +101,9 @@ function findGeneratedLang(serverDir: string): string | undefined {
 }
 
 function commandExists(cmd: string): boolean {
-  const checker = process.platform === 'win32' ? 'where' : 'command'
-  const args = process.platform === 'win32' ? [cmd] : ['-v', cmd]
   const r = process.platform === 'win32'
-    ? spawnSync(checker, args, { stdio: 'ignore', shell: false })
-    : spawnSync('sh', ['-lc', `${checker} ${cmd}`], { stdio: 'ignore' })
+    ? spawnSync('where', [cmd], { stdio: 'ignore', shell: false })
+    : spawnSync('sh', ['-lc', 'command -v "$1" >/dev/null 2>&1', 'command-exists', cmd], { stdio: 'ignore' })
   return r.status === 0
 }
 
@@ -117,6 +115,8 @@ async function startDisplay(): Promise<DisplaySession> {
     }
   }
 
+  // eslint-disable-next-line no-console
+  console.log('[gregtech-lang] checking Xvfb availability')
   if (!commandExists('Xvfb'))
     throw new Error('Xvfb is required for GT5U runClient on headless Linux')
 
