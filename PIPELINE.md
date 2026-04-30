@@ -52,7 +52,8 @@
 
 - 克隆/更新 `GTNewHorizons/GT5-Unofficial@master` 到 `.repo.cache/gt5u`
 - 在 GitHub Actions 安装 `xvfb` / `xdotool`，用 Java 25 启动 `./gradlew runClient`
-- 脚本自启虚拟 X display，侦测 `GregTech.log` 的 `GTMod: PostLoad-Phase finished!` 与客户端 ready marker（默认 `Forge Mod Loader has successfully loaded`），再用 `xdotool` 正常关闭 Minecraft 窗口，等待客户端退出后取完整 `GregTech.lang`
+- 脚本自启虚拟 X display，持续读取并向 Actions 输出 `run/client/logs/*` 的进度；当日志出现 `GTMod: PostLoad-Phase finished!` 且出现客户端 ready marker（默认 `Forge Mod Loader has successfully loaded`）时，用 `xdotool` 正常关闭 Minecraft 窗口，等待客户端退出后取完整 `GregTech.lang`
+- 若 ready marker 因日志格式变化未出现，则在 postload 后等待 `GT5U_CLOSE_AFTER_POSTLOAD_MS`（默认 180 秒）再关闭，避免 workflow 长时间无输出卡住
 - 输出 `.build/generated-gregtech/GregTech.lang` 与 metadata；若此步失败，工作流直接失败，不回退 `daily-history/GregTech.lang`
 
 ### 1. `fetch-en.ts` — 英文原文收集

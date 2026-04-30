@@ -4,9 +4,9 @@
  * GT5-Unofficial writes GregTech.lang at runtime through Forge's Configuration
  * API. The checked-in copy in GTNH-Translations is manually uploaded, so the
  * freshest upstream is produced by starting a minimal GT5U dev client under a
- * virtual X display, waiting for the client to reach the main menu, then
+ * virtual X display, waiting until the client logs show a complete load, then
  * closing the Minecraft window normally so Forge/GT flushes the full language
- * file.
+ * file. GregTech.lang is often empty until that clean close happens.
  *
  * Output:
  *   .build/generated-gregtech/GregTech.lang
@@ -27,7 +27,8 @@ const GT5U_REF = process.env.GT5U_REF ?? 'master'
 const TIMEOUT_MS = Number(process.env.GT5U_LANG_TIMEOUT_MS ?? 30 * 60 * 1000)
 const CLOSE_DELAY_MS = Number(process.env.GT5U_CLIENT_CLOSE_DELAY_MS ?? 10_000)
 const SHUTDOWN_TIMEOUT_MS = Number(process.env.GT5U_CLIENT_SHUTDOWN_TIMEOUT_MS ?? 120_000)
-const MIN_ENTRIES = Number(process.env.GT5U_LANG_MIN_ENTRIES ?? 1000)
+const CLOSE_AFTER_POSTLOAD_MS = Number(process.env.GT5U_CLOSE_AFTER_POSTLOAD_MS ?? 180_000)
+const MIN_ENTRIES = Number(process.env.GT5U_LANG_MIN_ENTRIES ?? 2_000)
 const READY_MARKERS = (process.env.GT5U_CLIENT_READY_MARKERS ?? 'Forge Mod Loader has successfully loaded')
   .split('|')
   .map(s => s.trim())
@@ -195,6 +196,14 @@ async function readClientLogs(clientDir: string): Promise<string> {
   return logs.join('\n')
 }
 
+function lastInterestingLine(text: string): string {
+  const lines = text
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(Boolean)
+  return lines.at(-1) ?? ''
+}
+
 async function waitForCompleteClientLang(gt5uRoot: string): Promise<string> {
   const clientDir = join(gt5uRoot, 'run', 'client')
   await rm(clientDir, { recursive: true, force: true })
@@ -210,22 +219,17 @@ async function waitForCompleteClientLang(gt5uRoot: string): Promise<string> {
       GRADLE_OPTS: process.env.GRADLE_OPTS ?? '-Dorg.gradle.daemon=false -Xmx3g',
     },
     shell: false,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    // Keep Gradle/Minecraft stdout and stderr attached to the Actions log.
+    // Marker detection reads the files under run/client/logs, so we do not
+    // need to pipe and replay stdout here.
+    stdio: ['ignore', 'inherit', 'inherit'],
   })
 
   let settled = false
   let checking = false
   let closeRequested = false
-  let bufferedOutput = ''
-
-  function appendOutput(chunk: Buffer): void {
-    const text = chunk.toString()
-    process.stdout.write(text)
-    bufferedOutput = (bufferedOutput + text).slice(-50_000)
-  }
-
-  child.stdout.on('data', appendOutput)
-  child.stderr.on('data', appendOutput)
+  let postloadSince: number | undefined
+  let lastProgressLogAt = 0
 
   return await new Promise<string>((resolvePromise, rejectPromise) => {
     let poll: NodeJS.Timeout | undefined
@@ -255,15 +259,35 @@ async function waitForCompleteClientLang(gt5uRoot: string): Promise<string> {
         return
       checking = true
       try {
-        const logs = `${bufferedOutput}\n${await readClientLogs(clientDir)}`
+        const logs = await readClientLogs(clientDir)
         const sawPostload = logs.includes(POSTLOAD_MARKER)
         const sawReady = READY_MARKERS.some(marker => logs.includes(marker))
-        if (!sawPostload || !sawReady || closeRequested)
+        const now = Date.now()
+        if (sawPostload && postloadSince == null)
+          postloadSince = now
+
+        if (now - lastProgressLogAt > 30_000) {
+          lastProgressLogAt = now
+          const langPath = findGeneratedLang(clientDir)
+          const langBytes = langPath ? statSync(langPath).size : 0
+          // eslint-disable-next-line no-console
+          console.log(
+            `[gregtech-lang] progress postload=${sawPostload} ready=${sawReady} `
+            + `langBytes=${langBytes} last="${lastInterestingLine(logs).slice(0, 240)}"`,
+          )
+        }
+
+        const postloadWaitMs = postloadSince == null ? 0 : now - postloadSince
+        const shouldClose = sawPostload && (sawReady || postloadWaitMs >= CLOSE_AFTER_POSTLOAD_MS)
+        if (!shouldClose || closeRequested)
           return
 
         closeRequested = true
         // eslint-disable-next-line no-console
-        console.log(`[gregtech-lang] client ready; closing window after ${CLOSE_DELAY_MS}ms`)
+        console.log(
+          `[gregtech-lang] client load accepted (ready=${sawReady}, postloadWait=${postloadWaitMs}ms); `
+          + `closing window after ${CLOSE_DELAY_MS}ms`,
+        )
         setTimeout(() => {
           if (settled)
             return
