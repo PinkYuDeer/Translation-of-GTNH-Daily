@@ -59,7 +59,15 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb xdotool
+          sudo apt-get install -y --no-install-recommends \
+            xvfb \
+            xdotool \
+            x11-xserver-utils \
+            mesa-utils \
+            libgl1-mesa-dri \
+            libopenal1 \
+            libxrandr2 \
+            libxxf86vm1
 
       # .cache 里只保留少量可复用状态（fileIds、newlines 等）；正确性不再依赖
       # cache，因为每次都会重拉当前 PT 18818 与上游 4964。上游 sparse-clone
