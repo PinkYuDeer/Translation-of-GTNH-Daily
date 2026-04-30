@@ -33,6 +33,7 @@ const READY_MARKERS = (process.env.GT5U_CLIENT_READY_MARKERS ?? 'Forge Mod Loade
   .split('|')
   .map(s => s.trim())
   .filter(Boolean)
+const XVFB_SCREEN = process.env.GT5U_XVFB_SCREEN ?? '1024x768x24'
 
 const OUT_ROOT = join(BUILD_DIR, 'generated-gregtech')
 const OUT_LANG = join(OUT_ROOT, 'GregTech.lang')
@@ -60,6 +61,14 @@ function runCapture(cmd: string, args: string[], cwd?: string): string {
   if (r.status !== 0)
     throw new Error(`${cmd} ${args.join(' ')} failed (exit ${r.status})`)
   return r.stdout.trim()
+}
+
+function runOptional(cmd: string, args: string[], env?: NodeJS.ProcessEnv): void {
+  const r = spawnSync(cmd, args, { env, stdio: 'inherit', shell: false })
+  if (r.status !== 0) {
+    // eslint-disable-next-line no-console
+    console.warn(`[gregtech-lang] optional command failed: ${cmd} ${args.join(' ')} (exit ${r.status})`)
+  }
 }
 
 function ensureGt5uCheckout(): string {
@@ -122,8 +131,20 @@ async function startDisplay(): Promise<DisplaySession> {
 
   const display = `:${1000 + (process.pid % 1000)}`
   // eslint-disable-next-line no-console
-  console.log(`[gregtech-lang] starting Xvfb on DISPLAY=${display}`)
-  const child = spawn('Xvfb', [display, '-screen', '0', '1280x720x24', '-ac'], {
+  console.log(`[gregtech-lang] starting Xvfb on DISPLAY=${display}, screen=${XVFB_SCREEN}`)
+  const child = spawn('Xvfb', [
+    display,
+    '-screen',
+    '0',
+    XVFB_SCREEN,
+    '-ac',
+    '+extension',
+    'RANDR',
+    '+extension',
+    'GLX',
+    '+render',
+    '-noreset',
+  ], {
     detached: true,
     stdio: 'ignore',
   })
@@ -131,9 +152,30 @@ async function startDisplay(): Promise<DisplaySession> {
 
   // Give Xvfb a moment to bind the display before Java/LWJGL starts.
   await sleep(2_000)
+  const env = {
+    ...process.env,
+    DISPLAY: display,
+    LIBGL_ALWAYS_SOFTWARE: process.env.LIBGL_ALWAYS_SOFTWARE ?? '1',
+    MESA_LOADER_DRIVER_OVERRIDE: process.env.MESA_LOADER_DRIVER_OVERRIDE ?? 'llvmpipe',
+    ALSOFT_DRIVERS: process.env.ALSOFT_DRIVERS ?? 'null',
+  }
+  if (commandExists('xrandr')) {
+    // eslint-disable-next-line no-console
+    console.log('[gregtech-lang] xrandr display modes:')
+    runOptional('xrandr', ['--display', display, '--query'], env)
+  }
+  else {
+    // eslint-disable-next-line no-console
+    console.warn('[gregtech-lang] xrandr is unavailable; LWJGL2 may crash while detecting display modes')
+  }
+  if (commandExists('glxinfo')) {
+    // eslint-disable-next-line no-console
+    console.log('[gregtech-lang] glxinfo summary:')
+    runOptional('glxinfo', ['-display', display, '-B'], env)
+  }
 
   return {
-    env: { ...process.env, DISPLAY: display },
+    env,
     stop() {
       terminateTree(child)
     },
