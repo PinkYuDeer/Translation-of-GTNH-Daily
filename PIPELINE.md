@@ -51,7 +51,8 @@
 ### 0. `generate-gregtech-lang.ts` — 生成 GregTech.lang（实验）
 
 - 克隆/更新 `GTNewHorizons/GT5-Unofficial@master` 到 `.repo.cache/gt5u`
-- 用 `./gradlew runServer` 启动最小 GT5U dev server；侦测 `GregTech.log` 中 `GTMod: PostLoad-Phase finished!` 后终止进程
+- 在 GitHub Actions 安装 `xvfb` / `xdotool`，用 Java 25 启动 `./gradlew runClient`
+- 脚本自启虚拟 X display，侦测 `GregTech.log` 的 `GTMod: PostLoad-Phase finished!` 与客户端 ready marker（默认 `Forge Mod Loader has successfully loaded`），再用 `xdotool` 正常关闭 Minecraft 窗口，等待客户端退出后取完整 `GregTech.lang`
 - 输出 `.build/generated-gregtech/GregTech.lang` 与 metadata；若此步失败，工作流直接失败，不回退 `daily-history/GregTech.lang`
 
 ### 1. `fetch-en.ts` — 英文原文收集

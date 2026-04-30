@@ -3,8 +3,10 @@
  *
  * GT5-Unofficial writes GregTech.lang at runtime through Forge's Configuration
  * API. The checked-in copy in GTNH-Translations is manually uploaded, so the
- * freshest upstream is produced by starting a minimal GT5U dev server and
- * waiting until GT's postload phase saves the language file.
+ * freshest upstream is produced by starting a minimal GT5U dev client under a
+ * virtual X display, waiting for the client to reach the main menu, then
+ * closing the Minecraft window normally so Forge/GT flushes the full language
+ * file.
  *
  * Output:
  *   .build/generated-gregtech/GregTech.lang
@@ -23,13 +25,24 @@ import { parseLang } from './lib/lang-parser.ts'
 const GT5U_REPO = process.env.GT5U_REPO ?? 'https://github.com/GTNewHorizons/GT5-Unofficial.git'
 const GT5U_REF = process.env.GT5U_REF ?? 'master'
 const TIMEOUT_MS = Number(process.env.GT5U_LANG_TIMEOUT_MS ?? 30 * 60 * 1000)
+const CLOSE_DELAY_MS = Number(process.env.GT5U_CLIENT_CLOSE_DELAY_MS ?? 10_000)
+const SHUTDOWN_TIMEOUT_MS = Number(process.env.GT5U_CLIENT_SHUTDOWN_TIMEOUT_MS ?? 120_000)
 const MIN_ENTRIES = Number(process.env.GT5U_LANG_MIN_ENTRIES ?? 1000)
+const READY_MARKERS = (process.env.GT5U_CLIENT_READY_MARKERS ?? 'Forge Mod Loader has successfully loaded')
+  .split('|')
+  .map(s => s.trim())
+  .filter(Boolean)
 
 const OUT_ROOT = join(BUILD_DIR, 'generated-gregtech')
 const OUT_LANG = join(OUT_ROOT, 'GregTech.lang')
 const OUT_META = join(OUT_ROOT, 'metadata.json')
 
 const POSTLOAD_MARKER = 'GTMod: PostLoad-Phase finished!'
+
+interface DisplaySession {
+  env: NodeJS.ProcessEnv
+  stop(): void
+}
 
 function run(cmd: string, args: string[], cwd?: string): void {
   const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', shell: false })
@@ -78,6 +91,44 @@ function findGeneratedLang(serverDir: string): string | undefined {
   return candidates.find(p => existsSync(p) && statSync(p).isFile() && statSync(p).size > 0)
 }
 
+function commandExists(cmd: string): boolean {
+  const checker = process.platform === 'win32' ? 'where' : 'command'
+  const args = process.platform === 'win32' ? [cmd] : ['-v', cmd]
+  const r = process.platform === 'win32'
+    ? spawnSync(checker, args, { stdio: 'ignore', shell: false })
+    : spawnSync('sh', ['-lc', `${checker} ${cmd}`], { stdio: 'ignore' })
+  return r.status === 0
+}
+
+function startDisplay(): DisplaySession {
+  if (process.platform !== 'linux' || process.env.DISPLAY) {
+    return {
+      env: { ...process.env },
+      stop() {},
+    }
+  }
+
+  if (!commandExists('Xvfb'))
+    throw new Error('Xvfb is required for GT5U runClient on headless Linux')
+
+  const display = `:${1000 + (process.pid % 1000)}`
+  const child = spawn('Xvfb', [display, '-screen', '0', '1280x720x24', '-ac'], {
+    detached: true,
+    stdio: 'ignore',
+  })
+  child.unref()
+
+  // Give Xvfb a moment to bind the display before Java/LWJGL starts.
+  spawnSync('sh', ['-lc', 'sleep 2'], { stdio: 'ignore' })
+
+  return {
+    env: { ...process.env, DISPLAY: display },
+    stop() {
+      terminateTree(child)
+    },
+  }
+}
+
 function terminateTree(child: ChildProcess): void {
   if (child.pid == null)
     return
@@ -112,18 +163,50 @@ function terminateTree(child: ChildProcess): void {
   }, 5000).unref()
 }
 
-async function waitForPostloadLang(gt5uRoot: string): Promise<string> {
-  const serverDir = join(gt5uRoot, 'run', 'server')
-  await rm(serverDir, { recursive: true, force: true })
-  await mkdir(serverDir, { recursive: true })
-  await writeFile(join(serverDir, 'eula.txt'), 'eula=true\n', 'utf8')
+function requestClientClose(env: NodeJS.ProcessEnv): boolean {
+  if (process.platform !== 'linux')
+    return false
+  if (!commandExists('xdotool')) {
+    // eslint-disable-next-line no-console
+    console.warn('[gregtech-lang] xdotool is unavailable; cannot close client window cleanly')
+    return false
+  }
+
+  const attempts: string[][] = [
+    ['search', '--name', 'Minecraft', 'windowclose'],
+    ['search', '--class', 'Minecraft', 'windowclose'],
+    ['search', '--class', 'LWJGL', 'windowclose'],
+    ['key', '--clearmodifiers', 'Alt+F4'],
+  ]
+  for (const args of attempts) {
+    const r = spawnSync('xdotool', args, { env, stdio: 'inherit', shell: false })
+    if (r.status === 0)
+      return true
+  }
+  return false
+}
+
+async function readClientLogs(clientDir: string): Promise<string> {
+  const logs = await Promise.all([
+    readIfExists(join(clientDir, 'logs', 'GregTech.log')),
+    readIfExists(join(clientDir, 'logs', 'latest.log')),
+    readIfExists(join(clientDir, 'logs', 'fml-client-latest.log')),
+  ])
+  return logs.join('\n')
+}
+
+async function waitForCompleteClientLang(gt5uRoot: string): Promise<string> {
+  const clientDir = join(gt5uRoot, 'run', 'client')
+  await rm(clientDir, { recursive: true, force: true })
+  await mkdir(clientDir, { recursive: true })
 
   const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
-  const child = spawn(gradlew, ['--no-daemon', '--stacktrace', 'runServer'], {
+  const display = startDisplay()
+  const child = spawn(gradlew, ['--no-daemon', '--stacktrace', 'runClient'], {
     cwd: gt5uRoot,
     detached: process.platform !== 'win32',
     env: {
-      ...process.env,
+      ...display.env,
       GRADLE_OPTS: process.env.GRADLE_OPTS ?? '-Dorg.gradle.daemon=false -Xmx3g',
     },
     shell: false,
@@ -132,8 +215,8 @@ async function waitForPostloadLang(gt5uRoot: string): Promise<string> {
 
   let settled = false
   let checking = false
+  let closeRequested = false
   let bufferedOutput = ''
-  const logPath = join(serverDir, 'logs', 'GregTech.log')
 
   function appendOutput(chunk: Buffer): void {
     const text = chunk.toString()
@@ -156,7 +239,9 @@ async function waitForPostloadLang(gt5uRoot: string): Promise<string> {
         clearInterval(poll)
       if (timeout)
         clearTimeout(timeout)
-      terminateTree(child)
+      if (err)
+        terminateTree(child)
+      display.stop()
       if (err)
         rejectPromise(err)
       else if (langPath)
@@ -170,14 +255,28 @@ async function waitForPostloadLang(gt5uRoot: string): Promise<string> {
         return
       checking = true
       try {
-        const gtLog = await readIfExists(logPath)
-        const sawPostload = bufferedOutput.includes(POSTLOAD_MARKER) || gtLog.includes(POSTLOAD_MARKER)
-        if (!sawPostload)
+        const logs = `${bufferedOutput}\n${await readClientLogs(clientDir)}`
+        const sawPostload = logs.includes(POSTLOAD_MARKER)
+        const sawReady = READY_MARKERS.some(marker => logs.includes(marker))
+        if (!sawPostload || !sawReady || closeRequested)
           return
-        const langPath = findGeneratedLang(serverDir)
-        if (!langPath)
-          return
-        finish(undefined, langPath)
+
+        closeRequested = true
+        // eslint-disable-next-line no-console
+        console.log(`[gregtech-lang] client ready; closing window after ${CLOSE_DELAY_MS}ms`)
+        setTimeout(() => {
+          if (settled)
+            return
+          const ok = requestClientClose(display.env)
+          if (!ok)
+            finish(new Error('failed to close Minecraft client window; install xdotool or provide a DISPLAY'))
+
+          setTimeout(() => {
+            if (settled)
+              return
+            finish(new Error(`client did not exit within ${SHUTDOWN_TIMEOUT_MS}ms after close request`))
+          }, SHUTDOWN_TIMEOUT_MS).unref()
+        }, CLOSE_DELAY_MS).unref()
       }
       catch (err) {
         finish(err instanceof Error ? err : new Error(String(err)))
@@ -189,18 +288,24 @@ async function waitForPostloadLang(gt5uRoot: string): Promise<string> {
 
     poll = setInterval(() => void check(), 1000)
     timeout = setTimeout(() => {
-      const langPath = findGeneratedLang(serverDir)
+      const langPath = findGeneratedLang(clientDir)
       const suffix = langPath ? `; partial file exists at ${langPath}` : ''
-      finish(new Error(`timed out waiting for GT5U postload after ${TIMEOUT_MS}ms${suffix}`))
+      finish(new Error(`timed out waiting for GT5U client readiness after ${TIMEOUT_MS}ms${suffix}`))
     }, TIMEOUT_MS)
 
     child.on('error', err => finish(err))
     child.on('exit', (code, signal) => {
       if (settled)
         return
-      const langPath = findGeneratedLang(serverDir)
-      const hint = langPath ? `; generated file exists but ${POSTLOAD_MARKER} was not observed` : ''
-      finish(new Error(`GT5U runServer exited before GregTech.lang was complete (code=${code}, signal=${signal})${hint}`))
+      const langPath = findGeneratedLang(clientDir)
+      if (closeRequested && langPath) {
+        finish(undefined, langPath)
+        return
+      }
+      const hint = langPath
+        ? `; generated file exists but readiness markers were incomplete`
+        : ''
+      finish(new Error(`GT5U runClient exited before GregTech.lang was complete (code=${code}, signal=${signal})${hint}`))
     })
   })
 }
@@ -215,7 +320,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console
   console.log(`[gregtech-lang] generating from ${GT5U_REPO}@${commit}`)
 
-  const generated = await waitForPostloadLang(gt5uRoot)
+  const generated = await waitForCompleteClientLang(gt5uRoot)
   const content = await readFile(generated, 'utf8')
   const entries = parseLang(content)
   if (entries.length < MIN_ENTRIES)
@@ -229,6 +334,8 @@ async function main(): Promise<void> {
       repo: GT5U_REPO,
       ref: GT5U_REF,
       commit,
+      mode: 'runClient',
+      readyMarkers: READY_MARKERS,
       sourcePath: resolve(generated),
       outputPath: resolve(OUT_LANG),
       entries: entries.length,
