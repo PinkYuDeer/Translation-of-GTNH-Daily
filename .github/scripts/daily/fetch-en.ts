@@ -25,7 +25,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, readdir } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import { dirname, join, relative, sep } from 'node:path'
 
 import { BUILD_DIR, REPO_CACHE_DIR, UPSTREAM } from './lib/config.ts'
@@ -135,14 +135,25 @@ function processLangFile(
   content: string,
 ): { items: PtStringItem[], perFile: Record<string, NewlineForm> } {
   const entries = parseLang(content)
+  const items: PtStringItem[] = []
   const perFile: Record<string, NewlineForm> = {}
   for (const e of entries) {
+    if (e.key.length === 0)
+      continue
+    const normalized = normalizeNewlines(e.value)
+    if (normalized.trim().length === 0)
+      continue
     const form = sniffNewline(e.value)
     if (form)
       perFile[e.key] = form
-    e.value = normalizeNewlines(e.value)
+    items.push({
+      key: e.key,
+      original: normalized,
+      translation: '',
+      stage: 0,
+    })
   }
-  return { items: langToPtItems(entries), perFile }
+  return { items, perFile }
 }
 
 /**
@@ -273,6 +284,7 @@ async function main(): Promise<void> {
 
   // -------- Write .build/en --------
   const outRoot = join(BUILD_DIR, 'en')
+  await rm(outRoot, { recursive: true, force: true })
   for (const f of collected.values()) {
     const outPath = join(outRoot, `${f.ptPath}.en.json`)
     await mkdir(dirname(outPath), { recursive: true })

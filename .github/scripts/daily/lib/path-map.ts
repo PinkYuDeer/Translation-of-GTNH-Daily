@@ -15,7 +15,7 @@
 
 /** `resources/<seg>/lang/<file>` → `config/txloader/forceload/<seg>/lang/<file>`. */
 const RESOURCES_LANG_RE = /^resources\/(.+\/lang\/.+)$/
-const ARCHIVE_SUFFIX_RE = /\.achive(?:\.\d+)?$/
+const ARCHIVE_SUFFIX_RE = /\.(?:achive|archive|disable|disabled)(?:\.\d+)?$/
 
 /** Match PT 18818's forceload path, capturing the modid from the brackets. */
 export const TARGET_FORCELOAD_RE = /^config\/txloader\/forceload\/[^/]*\[([^\]]+)\]\/lang\//
@@ -76,15 +76,14 @@ export function stripPtJsonSuffix(ptPath: string): string {
   return ptPath.endsWith('.json') ? ptPath.slice(0, -'.json'.length) : ptPath
 }
 
-/** Append the requested archive suffix used for files retired from the active daily set. */
-export function toArchivePtPath(ptPath: string): string {
-  const short = stripPtJsonSuffix(ptPath)
-  return isArchivedPtPath(short) ? short : `${short}.achive`
-}
-
 /** Whether a PT path (short or `.json` form) is an archived file. */
 export function isArchivedPtPath(ptPath: string): boolean {
   return ARCHIVE_SUFFIX_RE.test(stripPtJsonSuffix(ptPath))
+}
+
+/** Remove legacy PT-side retirement suffixes such as `.achive` or `.disable`. */
+export function stripArchiveSuffix(ptPath: string): string {
+  return stripPtJsonSuffix(ptPath).replace(ARCHIVE_SUFFIX_RE, '')
 }
 
 /**
@@ -130,17 +129,6 @@ export function resolve4964To18818<T extends { name: string }>(
     return targetByModId.get(modId)
 
   return undefined
-}
-
-/**
- * Fallback mapping for 4964 files that have no English counterpart in 18818 yet.
- * This lets us preserve reviewed upstream files instead of dropping them.
- */
-export function map4964PathTo18818(source4964Name: string): string {
-  const canonical = canonicalize4964SourcePath(source4964Name)
-  if (canonical.startsWith('resources/'))
-    return `config/txloader/forceload/${canonical.slice('resources/'.length)}`
-  return canonical
 }
 
 /**

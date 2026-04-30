@@ -3,7 +3,8 @@
  *
  * Upload the merged local final state from `.build/zh-final/` back to PT 18818
  * as full-file replacements. Files retired from the active English source are
- * renamed to `*.achive.json` instead of deleted.
+ * written to the repository `archive/` tree using their pack path, then deleted
+ * from PT so the project does not keep `.disable` / `.achive` leftovers.
  *
  * Special case: if an English file is brand-new and 18818 does not have it
  * yet, we do NOT create it with translated rows inline. Instead we:
@@ -15,16 +16,17 @@
  *
  * This script consumes `.build/merge-plan.json`:
  *   - `push[]`    — active files to create/replace via POST /files
- *   - `archive[]` — active files to rename away via PUT /files/{id}
+ *   - `archive[]` — retired PT files to write under archive/ and delete
  */
 
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 
 import { BUILD_DIR, CONCURRENCY, PT_18818_ID, assertToken } from './lib/config.ts'
-import { readFileIds, writeFileIds } from './lib/cache.ts'
+import { readFileIds, readNewlines, writeFileIds } from './lib/cache.ts'
 import {
+  apiDeleteJson,
   apiPostMultipart,
   apiPutJson,
   indexFilesByLowerName,
@@ -32,9 +34,18 @@ import {
   listProjectFiles,
   runBounded,
 } from './lib/pt-client.ts'
-import type { PtStringItem } from './lib/lang-parser.ts'
-import { toPtNewlines } from './lib/newlines.ts'
-import { toArchivePtPath, toPtJsonPath } from './lib/path-map.ts'
+import {
+  type LangEntry,
+  type PtStringItem,
+  serializeGregTechLang,
+  serializeLang,
+} from './lib/lang-parser.ts'
+import { restoreNewlines, toPtNewlines } from './lib/newlines.ts'
+import { stripArchiveSuffix, toPtJsonPath } from './lib/path-map.ts'
+import { entriesToTips } from './lib/tips-parser.ts'
+
+const REPO_ARCHIVE_DIR = process.env.REPO_ARCHIVE_DIR ?? 'archive'
+const TIPS_PT_PATH = 'config/Betterloadingscreen/tips/zh_CN.lang'
 
 interface PtFileMutationResponse {
   file?: { id: number, name: string }
@@ -101,6 +112,71 @@ function toEnglishOnlyItems(items: PtStringItem[]): PtStringItem[] {
   }))
 }
 
+function archivePackPath(ptPath: string): string {
+  const activePtPath = stripArchiveSuffix(ptPath)
+  if (activePtPath === 'GregTech.lang')
+    return 'GregTech_zh_CN.lang'
+  if (activePtPath === TIPS_PT_PATH)
+    return 'config/Betterloadingscreen/tips/zh_CN.txt'
+  return activePtPath
+}
+
+async function loadCurrentItems(ptPath: string, fileId: number): Promise<PtStringItem[]> {
+  const abs = join(BUILD_DIR, 'zh-current', `${ptPath}.json`)
+  if (existsSync(abs))
+    return JSON.parse(await readFile(abs, 'utf8')) as PtStringItem[]
+
+  const rows = await listFileStrings(PT_18818_ID, fileId)
+  return rows.map(r => ({
+    key: r.key,
+    original: r.original,
+    translation: r.translation ?? '',
+    stage: r.stage ?? 0,
+    ...(r.context != null ? { context: r.context } : {}),
+  }))
+}
+
+function archivedText(
+  ptPath: string,
+  items: PtStringItem[],
+  newlineForms: Record<string, string> | undefined,
+): string {
+  const entries: LangEntry[] = []
+  for (const item of items) {
+    if (!item.key)
+      continue
+    const valueSource = item.translation && item.translation.length > 0
+      ? item.translation
+      : (item.original ?? '')
+    if (valueSource.length === 0)
+      continue
+    const form = newlineForms?.[item.key] as '<BR>' | '<br>' | '\\n' | undefined
+    entries.push({
+      key: item.key,
+      value: restoreNewlines(valueSource, form),
+    })
+  }
+
+  const activePtPath = stripArchiveSuffix(ptPath)
+  if (activePtPath === 'GregTech.lang')
+    return serializeGregTechLang(entries)
+  if (activePtPath === TIPS_PT_PATH)
+    return entriesToTips(entries)
+  return serializeLang(entries)
+}
+
+async function writeRetiredFileArchive(
+  ptPath: string,
+  items: PtStringItem[],
+  newlineForms: Record<string, string> | undefined,
+): Promise<string> {
+  const rel = archivePackPath(ptPath)
+  const out = join(REPO_ARCHIVE_DIR, rel)
+  await mkdir(dirname(out), { recursive: true })
+  await writeFile(out, archivedText(ptPath, items, newlineForms), 'utf8')
+  return rel
+}
+
 function normalizeMutationResult(
   ptPath: string,
   response: PtFileMutationResponse,
@@ -156,14 +232,16 @@ async function pushTranslationsPerString(
   items: PtStringItem[],
   label: 'new-file' | 'override',
 ): Promise<void> {
-  const syncable = items.filter(item => item.translation.length > 0 || (item.stage ?? 0) > 0)
-  if (syncable.length === 0)
+  const candidates = label === 'new-file'
+    ? items.filter(item => item.translation.length > 0 || (item.stage ?? 0) > 0)
+    : items
+  if (candidates.length === 0)
     return
 
   const remoteRows = await listFileStrings(PT_18818_ID, fileId)
   const remoteByKey = new Map(remoteRows.map(row => [row.key, row]))
   const rowTasks: Array<() => Promise<void>> = []
-  for (const item of syncable) {
+  for (const item of candidates) {
     const remote = remoteByKey.get(item.key)
     if (!remote) {
       if (label === 'new-file')
@@ -216,16 +294,10 @@ async function overrideTranslationsForFile(ptPath: string, fileId: number, items
   return pushTranslationsPerString(ptPath, fileId, items, 'override')
 }
 
-async function renameOne(
-  oldPtPath: string,
+async function deleteOne(
   existingFileId: number,
-  newPtPath: string,
-): Promise<PtFileMutationResult> {
-  const res = await apiPutJson<PtFileMutationResponse>(
-    `/projects/${PT_18818_ID}/files/${existingFileId}`,
-    { name: toPtJsonPath(newPtPath) },
-  )
-  return normalizeMutationResult(oldPtPath, res, existingFileId)
+): Promise<void> {
+  await apiDeleteJson(`/projects/${PT_18818_ID}/files/${existingFileId}`)
 }
 
 async function hydrateMissingFileIds(
@@ -270,6 +342,7 @@ async function main(): Promise<void> {
     console.log(`[push-final] recovered ${recovered} fileId(s) from remote file list`)
 
   const overrideSet = new Set(plan.overrideTranslations ?? [])
+  const newlineCache = await readNewlines()
 
   const pushTasks = plan.push.map(ptPath => async () => {
     const items = await loadItems(ptPath)
@@ -292,13 +365,16 @@ async function main(): Promise<void> {
     const existing = fileIds[ptPath]
     if (existing == null)
       return `${ptPath} (missing-fileId, skipped)`
-    const archivedPtPath = toArchivePtPath(ptPath)
-    const res = await renameOne(ptPath, existing, archivedPtPath)
-    const expected = toPtJsonPath(archivedPtPath)
-    if (res.name !== expected)
-      throw new Error(`archive rename did not stick for ${ptPath}: expected ${expected}, got ${res.name}`)
+    const items = await loadCurrentItems(ptPath, existing)
+    const activePtPath = stripArchiveSuffix(ptPath)
+    const archivedRel = await writeRetiredFileArchive(
+      ptPath,
+      items,
+      newlineCache[activePtPath] ?? newlineCache[ptPath],
+    )
+    await deleteOne(existing)
     delete fileIds[ptPath]
-    return `${ptPath} -> ${archivedPtPath}`
+    return `${ptPath} -> archive/${archivedRel} (deleted from PT)`
   })
 
   const pushRun = await runBounded(pushTasks, CONCURRENCY, {
