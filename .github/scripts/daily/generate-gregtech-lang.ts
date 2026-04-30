@@ -153,8 +153,12 @@ async function writeLangCache(content: string, meta: Record<string, unknown>): P
 }
 
 async function restoreFromLangCache(mode: 'cache-only' | 'cache-fallback', reason?: unknown): Promise<void> {
-  if (!existsSync(CACHE_LANG))
-    throw new Error(`missing cached GregTech.lang at ${CACHE_LANG}`)
+  if (!existsSync(CACHE_LANG)) {
+    const message = mode === 'cache-only'
+      ? `missing cached GregTech.lang at ${CACHE_LANG}; GT5U_LANG_USE_CACHE_ONLY=1 will not run GT5U as a fallback`
+      : `missing cached GregTech.lang at ${CACHE_LANG}`
+    throw new Error(message)
+  }
 
   const content = await readFile(CACHE_LANG, 'utf8')
   const { entries, sha256 } = validateLangContent(content, 'cached')

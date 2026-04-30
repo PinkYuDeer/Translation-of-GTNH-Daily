@@ -17,7 +17,7 @@
 整条流水线由 [`.github/workflows/daily.yml`](.github/workflows/daily.yml) 触发：
 
 - 定时：中国时间每天凌晨 1 点（UTC 17:00）
-- 手动：Actions 页 `workflow_dispatch`，支持 `force=true` 把合并后的所有文件重新推到 PT 18818，也支持 `skip_gt5u=true` 跳过 GT5U runClient 并直接使用缓存的 GregTech.lang
+- 手动：Actions 页 `workflow_dispatch`，支持 `force=true` 把合并后的所有文件重新推到 PT 18818，也支持 `skip_gt5u=true` 跳过 GT5U runClient 并直接使用缓存的 GregTech.lang；若该缓存未命中，跳过模式会直接失败，不会回退运行 GT5U
 
 设计目标：**以英文原文为准**、**尽量少打 PT API**、**换行符逐词条原样还原**、**打包结构对齐线下参考包**。
 
@@ -55,7 +55,7 @@
 - 脚本自启虚拟 X display，持续读取并向 Actions 输出 `run/client/logs/*` 的进度；当日志出现 `GTMod: PostLoad-Phase finished!` 且出现客户端 ready marker（默认 `Forge Mod Loader has successfully loaded`）时，用 `xdotool` 正常关闭 Minecraft 窗口，等待客户端退出后取完整 `GregTech.lang`
 - 若 ready marker 因日志格式变化未出现，则在 postload 后等待 `GT5U_CLOSE_AFTER_POSTLOAD_MS`（默认 180 秒）再关闭，避免 workflow 长时间无输出卡住
 - 输出 `.build/generated-gregtech/GregTech.lang` 与 metadata；成功后同步写入 `.cache/generated-gregtech/`
-- 若最新 GT5U 构建或 runClient 失败，自动尝试使用 `.cache/generated-gregtech/GregTech.lang`；若手动运行时设置 `skip_gt5u=true`，则直接使用该缓存
+- 若最新 GT5U 构建或 runClient 失败，自动尝试使用 `.cache/generated-gregtech/GregTech.lang`；若手动运行时设置 `skip_gt5u=true`，则只使用该缓存，未命中时直接报错
 
 ### 1. `fetch-en.ts` — 英文原文收集
 
@@ -120,7 +120,10 @@
 
 ## 缓存
 
-GitHub Actions `actions/cache@v4`，key 以 branch + 日期为作用域，同 branch 向后回溯：
+GitHub Actions `actions/cache@v4` 有两层：
+
+- `gt5u-lang-<branch>-<run_id>-<attempt>`：只存 `.cache/generated-gregtech/`，在 GT5U 步骤成功产出或成功从旧缓存恢复后立刻保存。这样即使后续 PT push / release 失败，也能供下一次 `skip_gt5u=true` 使用。
+- `daily-<branch>-<date>`：存 `.cache` 与 `.repo.cache` 的其余流水线缓存，按日期保存，同 branch 向后回溯。
 
 ```
 .cache/

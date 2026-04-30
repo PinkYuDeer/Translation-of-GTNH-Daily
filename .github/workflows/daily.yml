@@ -94,6 +94,19 @@ jobs:
           restore-keys: |
             daily-${{ github.ref_name }}-
 
+      # GregTech.lang is needed before the rest of the pipeline can proceed.
+      # Keep it in a small dedicated cache, restored independently from the
+      # broader daily cache and saved immediately after the GT5U step succeeds.
+      - name: Restore GregTech.lang Cache
+        id: restore-gregtech-lang-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/generated-gregtech
+          key: gt5u-lang-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            gt5u-lang-${{ github.ref_name }}-
+            gt5u-lang-
+
       # ========== 三源整合流水线 ==========
       - name: Generate GregTech.lang from Latest GT5U
         shell: bash
@@ -103,6 +116,13 @@ jobs:
           GT5U_CLOSE_AFTER_POSTLOAD_MS: 180000
           GT5U_LANG_USE_CACHE_ONLY: ${{ inputs.skip_gt5u == true && '1' || '' }}
         run: stdbuf -oL -eL bun .github/scripts/daily/generate-gregtech-lang.ts
+
+      - name: Save GregTech.lang Cache
+        if: ${{ hashFiles('.cache/generated-gregtech/GregTech.lang') != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/generated-gregtech
+          key: gt5u-lang-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Fetch English (A–G) + Normalize Newlines
         shell: bash
