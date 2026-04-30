@@ -87,6 +87,8 @@ jobs:
         shell: bash
         env:
           GT5U_LANG_TIMEOUT_MS: 2400000
+          GT5U_LANG_MIN_ENTRIES: 2000
+          GT5U_CLOSE_AFTER_POSTLOAD_MS: 180000
         run: stdbuf -oL -eL bun .github/scripts/daily/generate-gregtech-lang.ts
 
       - name: Fetch English (A–G) + Normalize Newlines
