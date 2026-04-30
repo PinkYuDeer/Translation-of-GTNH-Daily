@@ -53,7 +53,13 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '25'
+
+      - name: Setup Headless Client Tools
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xdotool
 
       # .cache 里只保留少量可复用状态（fileIds、newlines 等）；正确性不再依赖
       # cache，因为每次都会重拉当前 PT 18818 与上游 4964。上游 sparse-clone
@@ -80,7 +86,7 @@ jobs:
       - name: Generate GregTech.lang from Latest GT5U
         shell: bash
         env:
-          GT5U_LANG_TIMEOUT_MS: 1800000
+          GT5U_LANG_TIMEOUT_MS: 2400000
         run: stdbuf -oL -eL bun .github/scripts/daily/generate-gregtech-lang.ts
 
       - name: Fetch English (A–G) + Normalize Newlines
