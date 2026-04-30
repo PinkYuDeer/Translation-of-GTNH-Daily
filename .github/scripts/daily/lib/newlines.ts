@@ -4,7 +4,9 @@
  * Different .lang files across the pack use different newline conventions:
  *   - `<BR>`     — quest-book style, common in betterquesting
  *   - `<br>`     — some mod lang files
- *   - literal `\n` (two chars: backslash + n) — most "plain" Minecraft lang
+ *   - `%n`       — Java/formatter-style newline marker used by a few entries
+ *   - literal `\n`  (two chars: one backslash + n)
+ *   - literal `\\n` (three chars: two backslashes + n)
  *
  * PT normalizes everything to a real newline (`\n`) on upload, and translators
  * enter real newlines when they press Enter. If we naively wrote those real
@@ -14,26 +16,32 @@
  * upstream, carry that form around in `newlines.json`, and restore it after
  * downloading translations.
  *
- * Normalization is lossy — once `<BR>` / `<br>` / literal `\n` are all
- * collapsed to a real newline, we can't tell which was which without the
- * sniff cache. That's fine because the sniff runs every build from the
- * up-to-date English source.
+ * Normalization is lossy — once `<BR>` / `<br>` / `%n` / literal `\n` /
+ * literal `\\n` are all collapsed to a real newline, we can't tell which was
+ * which without the sniff cache. That's fine because the sniff runs every
+ * build from the up-to-date English source.
  */
 
 import type { NewlineForm } from './cache.ts'
 
 /**
- * Detect which placeholder the value uses. Preference order is `<BR>` > `<br>`
- * > literal `\n` to match what Minecraft itself prefers for quest book text.
- * Returns undefined if the value contains no newline placeholder at all.
+ * Detect which placeholder the value uses. Preference order is `<BR>` >
+ * `<br>` > literal `\\n` > literal `\n` > `%n`. The escaped form must be
+ * checked before the single-backslash form because `\\n` contains `\n` as a
+ * suffix. Returns undefined if the value contains no newline placeholder at
+ * all.
  */
 export function sniffNewline(value: string): NewlineForm | undefined {
   if (value.includes('<BR>'))
     return '<BR>'
   if (value.includes('<br>'))
     return '<br>'
+  if (value.includes('\\\\n'))
+    return '\\\\n'
   if (value.includes('\\n'))
     return '\\n'
+  if (value.includes('%n'))
+    return '%n'
   return undefined
 }
 
@@ -45,24 +53,25 @@ export function normalizeNewlines(value: string): string {
   return value
     .replaceAll('<BR>', '\n')
     .replaceAll('<br>', '\n')
+    .replaceAll('\\\\n', '\n')
     .replaceAll('\\n', '\n')
+    .replaceAll('%n', '\n')
 }
 
 /**
- * PT exports / UI sometimes surface stored line breaks as `%n`. That marker is
- * not part of the upstream lang files, so only apply this variant when reading
- * PT-sourced values (current 18818 / reviewed 4964), never when ingesting the
- * raw English source tree.
+ * PT exports / UI sometimes surface stored line breaks as `%n`; raw upstream
+ * files can also contain it. Keep this helper for call sites that conceptually
+ * read PT values, even though normalizeNewlines already covers every form.
  */
 export function normalizePtNewlines(value: string): string {
-  return normalizeNewlines(value).replaceAll('%n', '\n')
+  return normalizeNewlines(value)
 }
 
 /**
  * Canonicalize values for upload to PT. PT normalizes all newline markers to a
  * real LF on ingest, so we send real LF too — this keeps `<BR>`, `<br>`,
- * literal `\n`, and `%n` all collapsed to the same LF form regardless of what
- * shape the value arrived in.
+ * literal `\n`, literal `\\n`, and `%n` all collapsed to the same LF form
+ * regardless of what shape the value arrived in.
  */
 export function toPtNewlines(value: string): string {
   return normalizePtNewlines(value)
@@ -70,6 +79,8 @@ export function toPtNewlines(value: string): string {
 
 /** Expand a real newline back to the given placeholder form. */
 export function restoreNewlines(value: string, form: NewlineForm | undefined): string {
+  if (form === '\\\\n')
+    return value.replaceAll('\n', '\\\\n')
   if (!form || form === '\\n')
     return value.replaceAll('\n', '\\n')
   return value.replaceAll('\n', form)

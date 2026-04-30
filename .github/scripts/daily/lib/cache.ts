@@ -91,9 +91,9 @@ export async function deleteStringIds(ptPath: string): Promise<void> {
   await rm(stringIdsFile(ptPath), { force: true })
 }
 
-export type NewlineForm = '<BR>' | '<br>' | '\\n'
+export type NewlineForm = '<BR>' | '<br>' | '\\n' | '\\\\n' | '%n'
 
-/** `{ptPath: {key: '<BR>'|'<br>'|'\\n'}}` – per-entry newline placeholder. */
+/** `{ptPath: {key: '<BR>'|'<br>'|'\\n'|'\\\\n'|'%n'}}` – per-entry newline placeholder. */
 export async function readNewlines(): Promise<Record<string, Record<string, NewlineForm>>> {
   return (await readJson<Record<string, Record<string, NewlineForm>>>(
     join(CACHE_DIR, CACHE_PATHS.newlines),
