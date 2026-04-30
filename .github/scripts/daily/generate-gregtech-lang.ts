@@ -45,6 +45,10 @@ interface DisplaySession {
   stop(): void
 }
 
+async function sleep(ms: number): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, ms))
+}
+
 function run(cmd: string, args: string[], cwd?: string): void {
   const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', shell: false })
   if (r.status !== 0)
@@ -84,6 +88,10 @@ async function readIfExists(path: string): Promise<string> {
   }
 }
 
+async function rmIfExists(path: string): Promise<void> {
+  await rm(path, { recursive: true, force: true })
+}
+
 function findGeneratedLang(serverDir: string): string | undefined {
   const candidates = [
     join(serverDir, 'GregTech.lang'),
@@ -101,7 +109,7 @@ function commandExists(cmd: string): boolean {
   return r.status === 0
 }
 
-function startDisplay(): DisplaySession {
+async function startDisplay(): Promise<DisplaySession> {
   if (process.platform !== 'linux' || process.env.DISPLAY) {
     return {
       env: { ...process.env },
@@ -113,6 +121,8 @@ function startDisplay(): DisplaySession {
     throw new Error('Xvfb is required for GT5U runClient on headless Linux')
 
   const display = `:${1000 + (process.pid % 1000)}`
+  // eslint-disable-next-line no-console
+  console.log(`[gregtech-lang] starting Xvfb on DISPLAY=${display}`)
   const child = spawn('Xvfb', [display, '-screen', '0', '1280x720x24', '-ac'], {
     detached: true,
     stdio: 'ignore',
@@ -120,7 +130,7 @@ function startDisplay(): DisplaySession {
   child.unref()
 
   // Give Xvfb a moment to bind the display before Java/LWJGL starts.
-  spawnSync('sh', ['-lc', 'sleep 2'], { stdio: 'ignore' })
+  await sleep(2_000)
 
   return {
     env: { ...process.env, DISPLAY: display },
@@ -196,6 +206,24 @@ async function readClientLogs(clientDir: string): Promise<string> {
   return logs.join('\n')
 }
 
+async function prepareClientDir(clientDir: string): Promise<void> {
+  // Do not remove the whole run/client directory: it can contain restored
+  // Minecraft/Gradle assets and deleting it can be a long silent operation in
+  // Actions. Remove only the stale language files and logs that affect this run.
+  // eslint-disable-next-line no-console
+  console.log(`[gregtech-lang] preparing client dir ${clientDir}`)
+  await mkdir(clientDir, { recursive: true })
+  await Promise.all([
+    rmIfExists(join(clientDir, 'GregTech.lang')),
+    rmIfExists(join(clientDir, 'config', 'GregTech.lang')),
+    rmIfExists(join(clientDir, 'logs', 'GregTech.log')),
+    rmIfExists(join(clientDir, 'logs', 'latest.log')),
+    rmIfExists(join(clientDir, 'logs', 'fml-client-latest.log')),
+  ])
+  // eslint-disable-next-line no-console
+  console.log('[gregtech-lang] client dir prepared')
+}
+
 function lastInterestingLine(text: string): string {
   const lines = text
     .split(/\r?\n/)
@@ -206,11 +234,12 @@ function lastInterestingLine(text: string): string {
 
 async function waitForCompleteClientLang(gt5uRoot: string): Promise<string> {
   const clientDir = join(gt5uRoot, 'run', 'client')
-  await rm(clientDir, { recursive: true, force: true })
-  await mkdir(clientDir, { recursive: true })
+  await prepareClientDir(clientDir)
 
   const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew'
-  const display = startDisplay()
+  const display = await startDisplay()
+  // eslint-disable-next-line no-console
+  console.log(`[gregtech-lang] starting ${gradlew} --no-daemon --stacktrace runClient`)
   const child = spawn(gradlew, ['--no-daemon', '--stacktrace', 'runClient'], {
     cwd: gt5uRoot,
     detached: process.platform !== 'win32',
@@ -230,6 +259,8 @@ async function waitForCompleteClientLang(gt5uRoot: string): Promise<string> {
   let closeRequested = false
   let postloadSince: number | undefined
   let lastProgressLogAt = 0
+  // eslint-disable-next-line no-console
+  console.log(`[gregtech-lang] runClient pid=${child.pid ?? 'unknown'}`)
 
   return await new Promise<string>((resolvePromise, rejectPromise) => {
     let poll: NodeJS.Timeout | undefined
