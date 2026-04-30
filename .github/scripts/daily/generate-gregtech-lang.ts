@@ -11,6 +11,10 @@
  * Output:
  *   .build/generated-gregtech/GregTech.lang
  *   .build/generated-gregtech/metadata.json
+ *
+ * Cache:
+ *   .cache/generated-gregtech/GregTech.lang
+ *   .cache/generated-gregtech/metadata.json
  */
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
@@ -19,7 +23,7 @@ import { existsSync, statSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
-import { BUILD_DIR, REPO_CACHE_DIR } from './lib/config.ts'
+import { BUILD_DIR, CACHE_DIR, REPO_CACHE_DIR } from './lib/config.ts'
 import { parseLang } from './lib/lang-parser.ts'
 
 const GT5U_REPO = process.env.GT5U_REPO ?? 'https://github.com/GTNewHorizons/GT5-Unofficial.git'
@@ -29,6 +33,7 @@ const CLOSE_DELAY_MS = Number(process.env.GT5U_CLIENT_CLOSE_DELAY_MS ?? 10_000)
 const SHUTDOWN_TIMEOUT_MS = Number(process.env.GT5U_CLIENT_SHUTDOWN_TIMEOUT_MS ?? 120_000)
 const CLOSE_AFTER_POSTLOAD_MS = Number(process.env.GT5U_CLOSE_AFTER_POSTLOAD_MS ?? 180_000)
 const MIN_ENTRIES = Number(process.env.GT5U_LANG_MIN_ENTRIES ?? 2_000)
+const USE_CACHE_ONLY = envFlag(process.env.GT5U_LANG_USE_CACHE_ONLY)
 const READY_MARKERS = (process.env.GT5U_CLIENT_READY_MARKERS ?? 'Forge Mod Loader has successfully loaded')
   .split('|')
   .map(s => s.trim())
@@ -38,12 +43,19 @@ const XVFB_SCREEN = process.env.GT5U_XVFB_SCREEN ?? '1024x768x24'
 const OUT_ROOT = join(BUILD_DIR, 'generated-gregtech')
 const OUT_LANG = join(OUT_ROOT, 'GregTech.lang')
 const OUT_META = join(OUT_ROOT, 'metadata.json')
+const CACHE_ROOT = join(CACHE_DIR, 'generated-gregtech')
+const CACHE_LANG = join(CACHE_ROOT, 'GregTech.lang')
+const CACHE_META = join(CACHE_ROOT, 'metadata.json')
 
 const POSTLOAD_MARKER = 'GTMod: PostLoad-Phase finished!'
 
 interface DisplaySession {
   env: NodeJS.ProcessEnv
   stop(): void
+}
+
+function envFlag(value: string | undefined): boolean {
+  return /^(?:1|true|yes|on)$/i.test((value ?? '').trim())
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -99,6 +111,68 @@ async function readIfExists(path: string): Promise<string> {
 
 async function rmIfExists(path: string): Promise<void> {
   await rm(path, { recursive: true, force: true })
+}
+
+function validateLangContent(content: string, label: string): { entries: number, sha256: string } {
+  const entries = parseLang(content)
+  if (entries.length < MIN_ENTRIES)
+    throw new Error(`${label} GregTech.lang has only ${entries.length} entries (min ${MIN_ENTRIES})`)
+  return {
+    entries: entries.length,
+    sha256: createHash('sha256').update(content).digest('hex'),
+  }
+}
+
+async function readJsonIfExists(path: string): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(path, 'utf8')) as unknown
+  }
+  catch {
+    return undefined
+  }
+}
+
+async function writeGeneratedOutput(content: string, meta: Record<string, unknown>): Promise<void> {
+  await mkdir(OUT_ROOT, { recursive: true })
+  await writeFile(OUT_LANG, content, 'utf8')
+  await writeFile(OUT_META, `${JSON.stringify(meta, null, 2)}\n`, 'utf8')
+}
+
+async function writeLangCache(content: string, meta: Record<string, unknown>): Promise<void> {
+  await mkdir(CACHE_ROOT, { recursive: true })
+  await writeFile(CACHE_LANG, content, 'utf8')
+  await writeFile(
+    CACHE_META,
+    `${JSON.stringify({
+      ...meta,
+      cachePath: resolve(CACHE_LANG),
+      cachedAt: new Date().toISOString(),
+    }, null, 2)}\n`,
+    'utf8',
+  )
+}
+
+async function restoreFromLangCache(mode: 'cache-only' | 'cache-fallback', reason?: unknown): Promise<void> {
+  if (!existsSync(CACHE_LANG))
+    throw new Error(`missing cached GregTech.lang at ${CACHE_LANG}`)
+
+  const content = await readFile(CACHE_LANG, 'utf8')
+  const { entries, sha256 } = validateLangContent(content, 'cached')
+  const cachedMeta = await readJsonIfExists(CACHE_META)
+  const meta = {
+    mode,
+    cachePath: resolve(CACHE_LANG),
+    outputPath: resolve(OUT_LANG),
+    entries,
+    sha256,
+    restoredAt: new Date().toISOString(),
+    ...(cachedMeta != null ? { cachedMeta } : {}),
+    ...(reason instanceof Error ? { fallbackReason: reason.message } : reason != null ? { fallbackReason: String(reason) } : {}),
+  }
+
+  await writeGeneratedOutput(content, meta)
+  // eslint-disable-next-line no-console
+  console.log(`[gregtech-lang] restored ${OUT_LANG} from cache (${entries} entries, sha256=${sha256}, mode=${mode})`)
 }
 
 function findGeneratedLang(serverDir: string): string | undefined {
@@ -407,11 +481,7 @@ async function waitForCompleteClientLang(gt5uRoot: string): Promise<string> {
   })
 }
 
-async function main(): Promise<void> {
-  await mkdir(REPO_CACHE_DIR, { recursive: true })
-  await rm(OUT_ROOT, { recursive: true, force: true })
-  await mkdir(OUT_ROOT, { recursive: true })
-
+async function generateFresh(): Promise<void> {
   const gt5uRoot = ensureGt5uCheckout()
   const commit = runCapture('git', ['rev-parse', 'HEAD'], gt5uRoot)
   // eslint-disable-next-line no-console
@@ -419,31 +489,58 @@ async function main(): Promise<void> {
 
   const generated = await waitForCompleteClientLang(gt5uRoot)
   const content = await readFile(generated, 'utf8')
-  const entries = parseLang(content)
-  if (entries.length < MIN_ENTRIES)
-    throw new Error(`generated GregTech.lang has only ${entries.length} entries (min ${MIN_ENTRIES})`)
+  const { entries, sha256 } = validateLangContent(content, 'generated')
 
-  await writeFile(OUT_LANG, content, 'utf8')
-  const sha256 = createHash('sha256').update(content).digest('hex')
-  await writeFile(
-    OUT_META,
-    `${JSON.stringify({
-      repo: GT5U_REPO,
-      ref: GT5U_REF,
-      commit,
-      mode: 'runClient',
-      readyMarkers: READY_MARKERS,
-      sourcePath: resolve(generated),
-      outputPath: resolve(OUT_LANG),
-      entries: entries.length,
-      sha256,
-      generatedAt: new Date().toISOString(),
-    }, null, 2)}\n`,
-    'utf8',
-  )
+  const meta = {
+    repo: GT5U_REPO,
+    ref: GT5U_REF,
+    commit,
+    mode: 'runClient',
+    readyMarkers: READY_MARKERS,
+    sourcePath: resolve(generated),
+    outputPath: resolve(OUT_LANG),
+    entries,
+    sha256,
+    generatedAt: new Date().toISOString(),
+  }
+  await writeGeneratedOutput(content, meta)
+  await writeLangCache(content, meta)
 
   // eslint-disable-next-line no-console
-  console.log(`[gregtech-lang] wrote ${OUT_LANG} (${entries.length} entries, sha256=${sha256})`)
+  console.log(`[gregtech-lang] wrote ${OUT_LANG} (${entries} entries, sha256=${sha256})`)
+  // eslint-disable-next-line no-console
+  console.log(`[gregtech-lang] cached ${CACHE_LANG}`)
+}
+
+async function main(): Promise<void> {
+  await mkdir(REPO_CACHE_DIR, { recursive: true })
+  await rm(OUT_ROOT, { recursive: true, force: true })
+  await mkdir(OUT_ROOT, { recursive: true })
+
+  if (USE_CACHE_ONLY) {
+    // eslint-disable-next-line no-console
+    console.log('[gregtech-lang] GT5U run skipped by GT5U_LANG_USE_CACHE_ONLY=1')
+    await restoreFromLangCache('cache-only')
+    return
+  }
+
+  try {
+    await generateFresh()
+  }
+  catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(`[gregtech-lang] fresh GT5U generation failed; trying cache: ${err instanceof Error ? err.message : err}`)
+    try {
+      await restoreFromLangCache('cache-fallback', err)
+    }
+    catch (cacheErr) {
+      throw new Error(
+        'fresh GT5U generation failed and cached GregTech.lang could not be used: '
+        + `fresh=${err instanceof Error ? err.message : err}; `
+        + `cache=${cacheErr instanceof Error ? cacheErr.message : cacheErr}`,
+      )
+    }
+  }
 }
 
 void main().catch((err) => {
