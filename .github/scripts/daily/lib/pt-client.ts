@@ -73,7 +73,7 @@ async function readResponseTextSafe(res: Response): Promise<string> {
 }
 
 async function apiRequestRaw(
-  method: 'GET' | 'POST' | 'PUT',
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
   path: string,
   init: { headers: HeadersInit, body?: BodyInit } = { headers: authHeaders },
 ): Promise<Response> {
@@ -147,6 +147,12 @@ export async function apiPutJson<T = unknown>(path: string, body: unknown): Prom
 
 export async function apiPutJsonRaw(path: string, body: unknown): Promise<Response> {
   return apiSendJsonRaw('PUT', path, body)
+}
+
+export async function apiDeleteJson<T = unknown>(path: string): Promise<T> {
+  const res = await apiRequestRaw('DELETE', path, { headers: jsonHeaders })
+  const text = await res.text()
+  return (text ? JSON.parse(text) : {}) as T
 }
 
 async function apiSendJson<T = unknown>(method: 'POST' | 'PUT', path: string, body: unknown): Promise<T> {

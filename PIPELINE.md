@@ -73,7 +73,8 @@
 
 ### 3. `pull-zh-4964.ts` — 拉取上游校对译文 + Kiwi 直通
 
-- 分页拉取 PT 4964 全部译文，按 18818 的路径规则重写
+- 通过 ParaTranz artifact 端点下载 4964 全量 JSON；artifact 不可用时退回逐文件 `/strings`
+- 下载后统一清理 4964 旧 key 前缀（如 `lang|` / `gt-lang|`），后续合并再按 18818 目标文件解析
 - 同时从 `Kiwi233/Translation-of-GTNH` 拷贝 **不进 PT** 的直通文件（见下文"直通文件"一节）到临时目录供打包用
 - 输出：`.build/zh-4964/<pt-path>.json`
 
@@ -87,11 +88,12 @@
 输入 `.build/en/`、`.build/zh-current/`、`.build/zh-4964/`，生成最终要落的 PT 文件。规则：
 
 - 英文 key/original 为主轴；18818 译文在 key + original 都匹配时保留
-- 若 4964 对同 key 有新鲜译文（original 与英文匹配），覆盖 18818 当前译文
+- 英文原文 `trim()` 后为空的词条在采集阶段即丢弃，不进入 PT
+- 若 4964 对同 key 有新鲜译文（original 与英文匹配），覆盖 18818 当前译文，并保留 4964 的 stage（含 stage=0）
 - 若英文变了而 4964 没跟上，写入 stale 标记：`${新英文}|旧译：|${旧译文}`，stage=0
 - 4964 中英文侧已无的条目/文件一律忽略，不再作为 source-only 补入 18818
-- 最终译文 `trim()` 后为空的条目，以原文填入译文并置 stage=1
-- 退役文件（英文侧消失）单独记录，后续改名而非删除
+- 最终译文 `trim()` 后为空的条目保持空译并置 stage=0；历史上由空译误回填出的 `译文=原文`，在能由 4964 空译确认时清回空译
+- 退役文件（英文侧消失，或已带 `.disable` / `.achive` 等旧后缀）单独记录，后续归档到仓库并从 PT 删除
 
 输出：
 - `.build/zh-final/<pt-path>.json` — 最终 PT 文件内容
@@ -99,14 +101,15 @@
 
 ### 5. `push-final.ts` — 整文件回推 PT 18818
 
-- 按 `merge-plan.push[]` 用 `POST /files` 整文件替换；`merge-plan.archive[]` 改名为 `*.achive.json`（PT 的归档语义）
+- 按 `merge-plan.push[]` 用 `POST /files` 整文件替换
+- `merge-plan.archive[]` 先按打包路径写入仓库 `archive/`，再调用 `DELETE /projects/{projectId}/files/{fileId}` 从 PT 删除
 - 新文件：先用英文原文 + 空译建文件拿到 stringId，再逐词条补译 —— 这是 PT 对全新文件最稳的路径
 - `overrideTranslations[]` 中的文件会在整文件 POST 之后再逐词条覆写（PT 的文件上传接口不更新已有译文）
 
 ### 6. `restore-and-pack.ts` — 还原换行 + 打包 7z
 
 - 读 `.cache/newlines.json`，按每条原始占位把真换行还原回 `<BR>` / `<br>` / `\n` / `%n`
-- 合成 `.lang` / `tips 的 .txt`；空译写成 `key=`（Minecraft 会回落到 `en_US.lang`）
+- 合成 `.lang` / `tips 的 .txt`；空译不写入包内文件（Minecraft 会回落到 `en_US.lang`）
 - 并入 Kiwi 直通文件，按参考包目录结构铺好，`7z -mx=9` 打包到 `$ASSETS_PATH/$ARCHIVE_NAME`
 - `PACK_ONLY=1` 环境变量可跳过重建，只重打包（手动重发版用）
 
@@ -165,7 +168,7 @@ Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / 
 │   │   ├── config.ts          常量 / 环境变量
 │   │   ├── lang-parser.ts     .lang ↔ PT JSON
 │   │   ├── newlines.ts        嗅探 / 归一 / 还原
-│   │   ├── path-map.ts        4964 ↔ 18818 路径映射、归档后缀
+│   │   ├── path-map.ts        4964 ↔ 18818 路径映射、退役后缀
 │   │   ├── pt-client.ts       PT REST 客户端（429 退避 / 并发池）
 │   │   └── tips-parser.ts     tips.txt ↔ 合成 .lang
 │   ├── generate-gregtech-lang.ts 步骤 0

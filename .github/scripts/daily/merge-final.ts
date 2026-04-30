@@ -12,20 +12,19 @@
  *   - Current PT 18818 translations are preserved when key+original still match.
  *   - If English changed and 4964 has no fresh exact match, emit a stale marker
  *     `${newEnglish}|旧译：|${oldTranslation}` at stage=0.
- *   - If 4964 has a fresh exact match, it overrides current PT.
- *   - If 4964 has the key but with older English, it also becomes a stale
+ *   - If 4964 has a non-blank fresh exact match, it overrides current PT while
+ *     preserving 4964's stage, including stage=0.
+ *   - If 4964 has a translated key but with older English, it also becomes a stale
  *     marker, overriding current PT's older translation payload.
  *   - 4964 rows/files without an English counterpart are ignored. The upstream
  *     PT project is a translation source only, never an English key source.
- *   - Final rows whose translation is blank after trim are copied from original
- *     and marked stage=1 so PT does not retain empty untranslated strings.
+ *   - Final rows whose translation is blank after trim stay blank at stage=0.
  *
  * Outputs:
  *   - `.build/zh-final/<pt-path>.json` — final PT-shaped files
  *   - `.build/merge-plan.json`         — which files need upload / archive
  */
 
-import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, sep } from 'node:path'
 
@@ -35,8 +34,6 @@ import type { PtStringItem } from './lib/lang-parser.ts'
 import { normalizeNewlines, normalizePtNewlines } from './lib/newlines.ts'
 import {
   indexByModId,
-  isArchivedPtPath,
-  map4964PathTo18818,
   resolve4964To18818,
 } from './lib/path-map.ts'
 
@@ -73,7 +70,8 @@ interface MergeStats {
   staleFromCurrent: number
   staleFrom4964: number
   unresolved4964: number
-  originalFallbacks: number
+  blankTranslations: number
+  originalFallbacksCleared: number
 }
 
 function toPosix(p: string): string {
@@ -153,17 +151,8 @@ function staleMarker(newOriginal: string, oldTranslation: string): string {
   return `${normalizeNewlines(newOriginal)}|旧译：|${normalizeNewlines(oldTranslation)}`
 }
 
-function fillBlankTranslation(item: PtStringItem): { item: PtStringItem, filled: boolean } {
-  if ((item.translation ?? '').trim().length > 0)
-    return { item, filled: false }
-  return {
-    item: {
-      ...item,
-      translation: item.original ?? '',
-      stage: 1,
-    },
-    filled: true,
-  }
+function hasText(value: string | undefined): value is string {
+  return (value ?? '').trim().length > 0
 }
 
 function needsTranslationOverride(
@@ -172,11 +161,10 @@ function needsTranslationOverride(
 ): boolean {
   const currentByKey = new Map(currentItems.map(item => [item.key, item]))
   return finalItems.some((item) => {
-    if (item.translation.length === 0 && (item.stage ?? 0) === 0)
-      return false
     const current = currentByKey.get(item.key)
-    return current == null
-      || current.translation !== item.translation
+    if (current == null)
+      return item.translation.length > 0 || (item.stage ?? 0) > 0
+    return current.translation !== item.translation
       || (current.stage ?? 0) !== (item.stage ?? 0)
   })
 }
@@ -201,8 +189,6 @@ async function main(): Promise<void> {
   for await (const abs of walkJson(currentRoot)) {
     const rel = toPosix(relative(currentRoot, abs))
     const ptPath = rel.endsWith('.json') ? rel.slice(0, -'.json'.length) : rel
-    if (isArchivedPtPath(ptPath))
-      continue
     const raw = await loadPtItems(abs)
     currentFiles.set(ptPath, {
       raw,
@@ -216,6 +202,7 @@ async function main(): Promise<void> {
 
   const sourceFiles = new Map<string, PtStringItem[]>()
   const duplicateExamples: string[] = []
+  let unresolved4964 = 0
 
   // Multiple 4964 source files can resolve to the same 18818 ptPath — typically
   // a canonical `config/txloader/forceload/Foo[foo]/...` co-existing with a
@@ -227,9 +214,11 @@ async function main(): Promise<void> {
   for await (const abs of walkJson(sourceRoot)) {
     const sourceName = toPosix(relative(sourceRoot, abs))
     const resolved = resolve4964To18818(sourceName, targetByName, targetByModId)
-    const ptPath = resolved
-      ? resolved.name.slice(0, -'.json'.length)
-      : map4964PathTo18818(sourceName)
+    if (!resolved) {
+      unresolved4964++
+      continue
+    }
+    const ptPath = resolved.name.slice(0, -'.json'.length)
     const incoming = (await loadPtItems(abs)).map(normalizeItem)
     const existing = sourceFiles.get(ptPath)
     if (existing == null) {
@@ -262,8 +251,9 @@ async function main(): Promise<void> {
     sourceApplied: 0,
     staleFromCurrent: 0,
     staleFrom4964: 0,
-    unresolved4964: 0,
-    originalFallbacks: 0,
+    unresolved4964,
+    blankTranslations: 0,
+    originalFallbacksCleared: 0,
   }
 
   for (const [ptPath, enItems] of enFiles) {
@@ -285,46 +275,47 @@ async function main(): Promise<void> {
       let stage = 0
       const context = current?.context ?? enItem.context
       const hasCurrentExactTranslation = current?.original === enItem.original && !!current.translation
-      const sourceReviewed = (source?.stage ?? 0) > 0
+      const sourceHasTranslation = hasText(source?.translation)
+      const sourceExact = source?.original === enItem.original
+      const currentLooksLikeOriginalFallback = current != null
+        && current.original === enItem.original
+        && current.translation === enItem.original
+        && (current.stage ?? 0) > 0
+        && source != null
+        && sourceExact
+        && !sourceHasTranslation
       let handledBySource = false
 
-      if (current && current.original === enItem.original) {
+      if (current && current.original === enItem.original && !currentLooksLikeOriginalFallback) {
         translation = current.translation
         stage = current.stage ?? 0
         if (translation)
           stats.currentPreserved++
       }
-      else if (current?.translation) {
+      else if (current?.translation && !currentLooksLikeOriginalFallback) {
         currentDrift.set(enItem.key, { translation: current.translation })
       }
+      else if (currentLooksLikeOriginalFallback) {
+        stats.originalFallbacksCleared++
+      }
 
-      if (source && sourceReviewed) {
-        if (source.original === enItem.original) {
-          translation = source.translation ?? ''
-          stage = Math.max(source.stage ?? 0, 1)
-          currentDrift.delete(enItem.key)
-          stats.sourceApplied++
-          handledBySource = true
-        }
-        else if (!hasCurrentExactTranslation) {
-          if (source.translation) {
-            translation = staleMarker(enItem.original, source.translation)
-            stage = 0
-            currentDrift.delete(enItem.key)
-            stats.staleFrom4964++
-            handledBySource = true
-          }
-        }
-      }
-      else if (source?.translation) {
-        if (source.original === enItem.original) {
+      if (source && sourceHasTranslation) {
+        if (sourceExact) {
           translation = source.translation
-          stage = Math.max(source.stage ?? 0, 1)
+          stage = source.stage ?? 0
           currentDrift.delete(enItem.key)
           stats.sourceApplied++
           handledBySource = true
         }
+        else if ((source.stage ?? 0) > 0 && !hasCurrentExactTranslation) {
+          translation = staleMarker(enItem.original, source.translation)
+          stage = 0
+          currentDrift.delete(enItem.key)
+          stats.staleFrom4964++
+          handledBySource = true
+        }
       }
+
       if (!handledBySource) {
         const drift = currentDrift.get(enItem.key)
         if (drift) {
@@ -334,16 +325,18 @@ async function main(): Promise<void> {
         }
       }
 
-      const fallback = fillBlankTranslation({
+      if (!hasText(translation)) {
+        translation = ''
+        stage = 0
+        stats.blankTranslations++
+      }
+      finalItems.push({
         key: enItem.key,
         original: enItem.original,
         translation,
         stage,
         ...(context != null && context !== '' ? { context } : {}),
       })
-      if (fallback.filled)
-        stats.originalFallbacks++
-      finalItems.push(fallback.item)
     }
 
     const out = join(finalRoot, `${ptPath}.json`)
@@ -366,7 +359,7 @@ async function main(): Promise<void> {
   }
 
   for (const ptPath of currentFiles.keys()) {
-    if (enFiles.has(ptPath) || isArchivedPtPath(ptPath))
+    if (enFiles.has(ptPath))
       continue
     plan.archive.push(ptPath)
     stats.filesArchived++
@@ -387,7 +380,8 @@ async function main(): Promise<void> {
     + `override=${plan.overrideTranslations.length} `
     + `created=${stats.filesCreated} preserved=${stats.currentPreserved} source-applied=${stats.sourceApplied} `
     + `stale-current=${stats.staleFromCurrent} stale-4964=${stats.staleFrom4964} `
-    + `original-fallback=${stats.originalFallbacks} unresolved-4964=${stats.unresolved4964}`,
+    + `blank=${stats.blankTranslations} cleared-original-fallback=${stats.originalFallbacksCleared} `
+    + `unresolved-4964=${stats.unresolved4964}`,
   )
   if (duplicateExamples.length > 0)
     // eslint-disable-next-line no-console

@@ -1,9 +1,9 @@
 /**
- * Step 4 — pull-zh-4964.
+ * Step 3 — pull-zh-4964.
  *
- * Download every file from PT 4964 (the human-reviewed source project) into
- * `.build/zh-4964/` as one JSON per file, keyed on the 4964 path. No 18818
- * fetch happens here — the path map is applied later in diff-zh.
+ * Download PT 4964 (the human-reviewed source project) through the artifact
+ * endpoint into `.build/zh-4964/` as one JSON per file, keyed on the 4964 path.
+ * No 18818 fetch happens here — the path map is applied later in diff-zh.
  *
  * In parallel, we stage four Kiwi233-sourced extras that bypass PT entirely:
  *
@@ -19,8 +19,9 @@
  * The Kiwi233 checkout is reused from fetch-en's sparse-clone (`.repo.cache/kiwi`).
  */
 
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { copyFile, cp, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { copyFile, cp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import {
@@ -30,11 +31,26 @@ import {
   REPO_CACHE_DIR,
   assertToken,
 } from './lib/config.ts'
-import { listFileStrings, listProjectFiles, runBounded } from './lib/pt-client.ts'
+import {
+  apiGet,
+  apiGetRaw,
+  apiPostJson,
+  listFileStrings,
+  listProjectFiles,
+  runBounded,
+  sleep,
+} from './lib/pt-client.ts'
 import { writeJson } from './lib/cache.ts'
 import { parseTipsLines, tipsToEntries } from './lib/tips-parser.ts'
 import { stripPtJsonSuffix } from './lib/path-map.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
+
+const POLL_INTERVAL_MS = 15_000
+const POLL_MAX = 20
+
+interface ArtifactInfo {
+  createdAt?: string
+}
 
 /**
  * TEMPORARY OVERRIDE: Kiwi233 master hasn't merged the latest zh_CN.txt yet,
@@ -53,6 +69,113 @@ const TIPS_ZH_PATH_IN_KIWI = 'config/Betterloadingscreen/tips/zh_CN.txt'
  */
 function normalize4964Key(key: string): string {
   return key.replace(/^(?:gt-)?lang\|/, '').trim()
+}
+
+async function flattenIfSingleDir(root: string): Promise<void> {
+  const ents = await readdir(root, { withFileTypes: true, encoding: 'utf8' })
+  if (ents.length !== 1 || !ents[0].isDirectory())
+    return
+  const inner = join(root, ents[0].name)
+  const innerEnts = await readdir(inner, { withFileTypes: true, encoding: 'utf8' })
+  for (const e of innerEnts)
+    await rename(join(inner, e.name), join(root, e.name))
+  await rm(inner, { recursive: true, force: true })
+}
+
+async function* walkJson(dir: string): AsyncGenerator<string> {
+  let ents
+  try {
+    ents = await readdir(dir, { withFileTypes: true, encoding: 'utf8' })
+  }
+  catch {
+    return
+  }
+  for (const e of ents) {
+    const p = join(dir, e.name)
+    if (e.isDirectory())
+      yield* walkJson(p)
+    else if (e.isFile() && e.name.endsWith('.json'))
+      yield p
+  }
+}
+
+function loadItemsFromJson(data: unknown): PtStringItem[] {
+  if (Array.isArray(data))
+    return data as PtStringItem[]
+  const results = (data as { results?: PtStringItem[] }).results
+  return Array.isArray(results) ? results : []
+}
+
+function normalize4964Items(items: PtStringItem[]): PtStringItem[] {
+  return items.map(item => ({
+    key: normalize4964Key(item.key),
+    original: item.original ?? '',
+    translation: item.translation ?? '',
+    stage: item.stage ?? 0,
+    ...(item.context != null ? { context: item.context } : {}),
+  }))
+}
+
+async function normalizeArtifactFiles(outRoot: string): Promise<{ files: number, rows: number }> {
+  let files = 0
+  let rows = 0
+  for await (const abs of walkJson(outRoot)) {
+    const items = normalize4964Items(loadItemsFromJson(JSON.parse(await readFile(abs, 'utf8'))))
+    await writeJson(abs, items)
+    files++
+    rows += items.length
+  }
+  return { files, rows }
+}
+
+async function tryArtifactFlow(outRoot: string): Promise<boolean> {
+  try {
+    const before = await apiGet<ArtifactInfo>(`/projects/${PT_4964_ID}/artifacts`).catch(() => ({} as ArtifactInfo))
+    const beforeTs = before.createdAt ?? ''
+    await apiPostJson(`/projects/${PT_4964_ID}/artifacts`, {})
+    // eslint-disable-next-line no-console
+    console.log('[pull-zh-4964] artifact build triggered; polling...')
+
+    let ready = false
+    for (let i = 0; i < POLL_MAX; i++) {
+      await sleep(POLL_INTERVAL_MS)
+      const info = await apiGet<ArtifactInfo>(`/projects/${PT_4964_ID}/artifacts`).catch(() => ({} as ArtifactInfo))
+      if (info.createdAt && info.createdAt !== beforeTs) {
+        ready = true
+        // eslint-disable-next-line no-console
+        console.log(`[pull-zh-4964] artifact ready after ${(i + 1) * POLL_INTERVAL_MS / 1000}s`)
+        break
+      }
+    }
+    if (!ready)
+      // eslint-disable-next-line no-console
+      console.warn('[pull-zh-4964] artifact poll timed out; attempting download anyway')
+
+    const res = await apiGetRaw(`/projects/${PT_4964_ID}/artifacts/download`)
+    const buf = Buffer.from(await res.arrayBuffer())
+    const zipPath = join(BUILD_DIR, 'source-4964.zip')
+    await mkdir(dirname(zipPath), { recursive: true })
+    await writeFile(zipPath, buf)
+    await rm(outRoot, { recursive: true, force: true })
+    await mkdir(outRoot, { recursive: true })
+
+    const unzip = spawnSync('unzip', ['-o', '-q', zipPath, '-d', outRoot], { stdio: 'inherit' })
+    if (unzip.status !== 0)
+      throw new Error(`unzip exited ${unzip.status}`)
+
+    await flattenIfSingleDir(outRoot)
+    const stats = await normalizeArtifactFiles(outRoot)
+    if (stats.files === 0)
+      throw new Error('artifact contained no JSON files')
+    // eslint-disable-next-line no-console
+    console.log(`[pull-zh-4964] artifact: ${stats.files} files / ${stats.rows} rows normalized`)
+    return true
+  }
+  catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(`[pull-zh-4964] artifact flow failed, falling back: ${err instanceof Error ? err.message : err}`)
+    return false
+  }
 }
 
 async function applyTipsZhOverride(): Promise<void> {
@@ -140,16 +263,11 @@ async function copyExtras(): Promise<void> {
   await cp(minecraftSrc, minecraftDst, { recursive: true, force: true })
 }
 
-async function main(): Promise<void> {
-  assertToken()
-
-  await applyTipsZhOverride()
-
+async function fallbackFileByFile(outRoot: string): Promise<void> {
   const files = await listProjectFiles(PT_4964_ID)
   // eslint-disable-next-line no-console
-  console.log(`[pull-zh-4964] ${files.length} files in project ${PT_4964_ID}`)
-
-  const outRoot = join(BUILD_DIR, 'zh-4964')
+  console.log(`[pull-zh-4964] fallback: pulling ${files.length} files in project ${PT_4964_ID}`)
+  await rm(outRoot, { recursive: true, force: true })
   const tasks = files.map(f => async () => {
     const rows = await listFileStrings(PT_4964_ID, f.id)
     // Convert rows into the same PtStringItem shape used elsewhere, dropping
@@ -177,7 +295,7 @@ async function main(): Promise<void> {
     },
   })
   // eslint-disable-next-line no-console
-  console.log(`[pull-zh-4964] files: ${successes} ok / ${failures} failed`)
+  console.log(`[pull-zh-4964] fallback: ${successes} ok / ${failures} failed`)
   if (failures > 0) {
     for (let i = 0; i < results.length; i++) {
       const r = results[i]
@@ -187,6 +305,17 @@ async function main(): Promise<void> {
     }
     process.exit(1)
   }
+}
+
+async function main(): Promise<void> {
+  assertToken()
+
+  await applyTipsZhOverride()
+
+  const outRoot = join(BUILD_DIR, 'zh-4964')
+  const ok = await tryArtifactFlow(outRoot)
+  if (!ok)
+    await fallbackFileByFile(outRoot)
 
   // Synthetic tips file — lives under zh-4964 so diff-zh finds it via the
   // same path-map logic. Slot: 4964-style `config/Betterloadingscreen/tips/zh_CN.lang.json`

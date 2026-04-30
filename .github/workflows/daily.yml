@@ -125,6 +125,19 @@ jobs:
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/push-final.ts
 
+      - name: Commit Archived Retired PT Files
+        shell: bash
+        run: |
+          if [ -z "$(git status --porcelain -- archive)" ]; then
+            echo "[archive] no retired PT files to commit"
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add archive
+          git commit -m "Archive retired PT files"
+          git push
+
       - name: Rebuild .lang Files and Pack 7z
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/restore-and-pack.ts

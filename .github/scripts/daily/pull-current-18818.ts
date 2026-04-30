@@ -12,10 +12,11 @@
  *
  * Preferred path: artifact endpoint (one build + one download) for file
  * contents, plus a regular `/files` listing for numeric ids. Fallback: per-file
- * `/strings` fetch for active files.
+ * `/strings` fetch for files missing from the artifact payload.
  */
 
 import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
@@ -35,7 +36,7 @@ import {
   runBounded,
   sleep,
 } from './lib/pt-client.ts'
-import { isArchivedPtPath, stripPtJsonSuffix } from './lib/path-map.ts'
+import { stripPtJsonSuffix } from './lib/path-map.ts'
 
 const POLL_INTERVAL_MS = 15_000
 const POLL_MAX = 20
@@ -100,13 +101,12 @@ async function tryArtifactFlow(outRoot: string): Promise<boolean> {
   }
 }
 
-async function fallbackFileByFile(outRoot: string, activeEntries: Array<[string, number]>): Promise<void> {
-  await rm(outRoot, { recursive: true, force: true })
+async function fetchFilesById(outRoot: string, entries: Array<[string, number]>, label: string): Promise<void> {
   await mkdir(outRoot, { recursive: true })
   // eslint-disable-next-line no-console
-  console.log(`[pull-current] fallback: pulling ${activeEntries.length} active files per-file`)
+  console.log(`[pull-current] ${label}: pulling ${entries.length} file(s) per-file`)
 
-  const tasks = activeEntries.map(([ptPath, fileId]) => async () => {
+  const tasks = entries.map(([ptPath, fileId]) => async () => {
     const rows = await listFileStrings(PT_18818_ID, fileId)
     const items = rows.map(r => ({
       key: r.key,
@@ -124,20 +124,32 @@ async function fallbackFileByFile(outRoot: string, activeEntries: Array<[string,
     onSettled: ({ completed, total, failures, result }) => {
       if (completed === 1 || completed === total || completed % 25 === 0 || result instanceof Error)
         // eslint-disable-next-line no-console
-        console.log(`[pull-current] fallback progress ${completed}/${total} files (fail=${failures})`)
+        console.log(`[pull-current] ${label} progress ${completed}/${total} files (fail=${failures})`)
     },
   })
   // eslint-disable-next-line no-console
-  console.log(`[pull-current] fallback: ${successes} ok / ${failures} failed`)
+  console.log(`[pull-current] ${label}: ${successes} ok / ${failures} failed`)
   if (failures > 0) {
     for (let i = 0; i < results.length; i++) {
       const r = results[i]
       if (r instanceof Error)
         // eslint-disable-next-line no-console
-        console.error(`  fail ${activeEntries[i][0]}: ${r.message}`)
+        console.error(`  fail ${entries[i][0]}: ${r.message}`)
     }
     process.exit(1)
   }
+}
+
+async function fallbackFileByFile(outRoot: string, entries: Array<[string, number]>): Promise<void> {
+  await rm(outRoot, { recursive: true, force: true })
+  await fetchFilesById(outRoot, entries, 'fallback')
+}
+
+async function hydrateMissingArtifactFiles(outRoot: string, entries: Array<[string, number]>): Promise<void> {
+  const missing = entries.filter(([ptPath]) => !existsSync(join(outRoot, `${ptPath}.json`)))
+  if (missing.length === 0)
+    return
+  await fetchFilesById(outRoot, missing, 'artifact-missing')
 }
 
 async function main(): Promise<void> {
@@ -147,14 +159,16 @@ async function main(): Promise<void> {
   const fileIds = Object.fromEntries(files.map(f => [stripPtJsonSuffix(f.name), f.id]))
   await writeFileIds(fileIds)
 
-  const activeEntries = Object.entries(fileIds).filter(([ptPath]) => !isArchivedPtPath(ptPath))
+  const fileEntries = Object.entries(fileIds)
   // eslint-disable-next-line no-console
-  console.log(`[pull-current] ${files.length} total files (${activeEntries.length} active) in project ${PT_18818_ID}`)
+  console.log(`[pull-current] ${files.length} total files in project ${PT_18818_ID}`)
 
   const outRoot = join(BUILD_DIR, 'zh-current')
   const ok = await tryArtifactFlow(outRoot)
   if (!ok)
-    await fallbackFileByFile(outRoot, activeEntries)
+    await fallbackFileByFile(outRoot, fileEntries)
+  else
+    await hydrateMissingArtifactFiles(outRoot, fileEntries)
 
   // eslint-disable-next-line no-console
   console.log(`[pull-current] wrote ${outRoot}`)
