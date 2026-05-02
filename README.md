@@ -14,7 +14,9 @@
 ## 汉化使用方式
 
 1. 在 [Releases](../../releases) 找到最新或对应日期的版本（tag 形如 `0-nightly-build/YYYY-MM-DD`）
-2. 下载 7z 压缩包，覆盖解压到 `.minecraft/` 目录即可
+2. 下载 7z 压缩包
+3. （旧汉化遗留临时解决方案）对于只使用英文与汉化的玩家来说，把.minecraft\config\txloader\forceload清空；对于想要使用多国语言的玩家来说，找到其中每一个带(+n)的文件夹删除其中的zh_CN.lang
+4. 覆盖解压到 `.minecraft/` 目录即可
 
 任务书无法正确显示时，可在游戏内输入 `/bq_admin default load`，或右键整合包提供的"默认加载方块"命令方块重载。
 
