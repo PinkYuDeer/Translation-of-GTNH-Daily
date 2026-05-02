@@ -24,7 +24,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { BUILD_DIR, CONCURRENCY, PT_18818_ID, assertToken } from './lib/config.ts'
-import { readFileIds, readNewlines, writeFileIds } from './lib/cache.ts'
+import { readFileIds, readNewlines, resolveNewlineForm, writeFileIds, type NewlineFileForms } from './lib/cache.ts'
 import {
   apiDeleteJson,
   apiPostMultipart,
@@ -139,7 +139,7 @@ async function loadCurrentItems(ptPath: string, fileId: number): Promise<PtStrin
 function archivedText(
   ptPath: string,
   items: PtStringItem[],
-  newlineForms: Record<string, string> | undefined,
+  newlineForms: NewlineFileForms | undefined,
 ): string {
   const entries: LangEntry[] = []
   for (const item of items) {
@@ -150,7 +150,7 @@ function archivedText(
       : (item.original ?? '')
     if (valueSource.length === 0)
       continue
-    const form = newlineForms?.[item.key] as '<BR>' | '<br>' | '\\n' | '\\\\n' | '%n' | undefined
+    const form = resolveNewlineForm(newlineForms, item.key)
     entries.push({
       key: item.key,
       value: restoreNewlines(valueSource, form),
@@ -168,7 +168,7 @@ function archivedText(
 async function writeRetiredFileArchive(
   ptPath: string,
   items: PtStringItem[],
-  newlineForms: Record<string, string> | undefined,
+  newlineForms: NewlineFileForms | undefined,
 ): Promise<string> {
   const rel = archivePackPath(ptPath)
   const out = join(REPO_ARCHIVE_DIR, rel)

@@ -29,7 +29,7 @@ import { mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import { dirname, join, relative, sep } from 'node:path'
 
 import { BUILD_DIR, REPO_CACHE_DIR, UPSTREAM } from './lib/config.ts'
-import { writeJson, readNewlines, writeNewlines, type NewlineForm } from './lib/cache.ts'
+import { writeJson, readNewlines, writeNewlines, type NewlineFileForms, type NewlineForm } from './lib/cache.ts'
 import { parseLang, langToPtItems, type PtStringItem } from './lib/lang-parser.ts'
 import { parseTipsLines, tipsToEntries } from './lib/tips-parser.ts'
 import { normalizeNewlines, sniffNewline } from './lib/newlines.ts'
@@ -133,10 +133,10 @@ function modpackToPtPath(rel: string): string | undefined {
  */
 function processLangFile(
   content: string,
-): { items: PtStringItem[], perFile: Record<string, NewlineForm> } {
+): { items: PtStringItem[], newlineForms: NewlineFileForms } {
   const entries = parseLang(content)
   const items: PtStringItem[] = []
-  const perFile: Record<string, NewlineForm> = {}
+  const newlineEntries: Record<string, NewlineForm> = {}
   for (const e of entries) {
     if (e.key.length === 0)
       continue
@@ -145,7 +145,7 @@ function processLangFile(
       continue
     const form = sniffNewline(e.value)
     if (form)
-      perFile[e.key] = form
+      newlineEntries[e.key] = form
     items.push({
       key: e.key,
       original: normalized,
@@ -153,7 +153,35 @@ function processLangFile(
       stage: 0,
     })
   }
-  return { items, perFile }
+  return { items, newlineForms: withFileDefault(newlineEntries) }
+}
+
+function withFileDefault(entries: Record<string, NewlineForm>): NewlineFileForms {
+  let defaultForm: NewlineForm | undefined
+  let defaultCount = 0
+  const counts = new Map<NewlineForm, number>()
+  for (const form of Object.values(entries)) {
+    const count = (counts.get(form) ?? 0) + 1
+    counts.set(form, count)
+    if (count > defaultCount) {
+      defaultForm = form
+      defaultCount = count
+    }
+  }
+  return {
+    ...(defaultForm != null ? { default: defaultForm } : {}),
+    entries,
+  }
+}
+
+function mergeNewlineForms(
+  existing: NewlineFileForms | undefined,
+  incoming: NewlineFileForms,
+): NewlineFileForms {
+  return withFileDefault({
+    ...incoming.entries,
+    ...(existing?.entries ?? {}),
+  })
 }
 
 /**
@@ -177,8 +205,8 @@ function processTipsFile(content: string): PtStringItem[] {
 function mergeInto(
   existing: FetchedFile,
   newItems: PtStringItem[],
-  newlinesMap: Record<string, Record<string, NewlineForm>>,
-  perFileIncoming: Record<string, NewlineForm> | undefined,
+  newlinesMap: Record<string, NewlineFileForms>,
+  incomingForms: NewlineFileForms,
 ): void {
   const byKey = new Map(existing.entries.map(e => [e.key, e]))
   for (const item of newItems) {
@@ -186,10 +214,7 @@ function mergeInto(
       byKey.set(item.key, item)
   }
   existing.entries = [...byKey.values()]
-  if (perFileIncoming) {
-    const merged = { ...perFileIncoming, ...(newlinesMap[existing.ptPath] ?? {}) }
-    newlinesMap[existing.ptPath] = merged
-  }
+  newlinesMap[existing.ptPath] = mergeNewlineForms(newlinesMap[existing.ptPath], incomingForms)
 }
 
 async function main(): Promise<void> {
@@ -199,7 +224,7 @@ async function main(): Promise<void> {
   sparseClone('kiwi', UPSTREAM.kiwi) // used by pull-zh-4964, but clone here so CI caches it once
 
   const collected = new Map<string, FetchedFile>()
-  const newlinesMap: Record<string, Record<string, NewlineForm>> = {}
+  const newlinesMap: Record<string, NewlineFileForms> = {}
 
   // -------- A0: runtime-generated GT5U GregTech.lang. This is required:
   // daily-history/GregTech.lang is a manually uploaded snapshot and can be far
@@ -216,8 +241,7 @@ async function main(): Promise<void> {
     source: 'A0',
     entries: generatedGregTechProcessed.items,
   })
-  if (Object.keys(generatedGregTechProcessed.perFile).length > 0)
-    newlinesMap['GregTech.lang'] = generatedGregTechProcessed.perFile
+  newlinesMap['GregTech.lang'] = generatedGregTechProcessed.newlineForms
   // eslint-disable-next-line no-console
   console.log(`[fetch-en] using generated GT5U GregTech.lang (${generatedGregTechProcessed.items.length} entries)`)
 
@@ -239,18 +263,17 @@ async function main(): Promise<void> {
     // path, their entries are merged (first-wins on key conflicts).
     const ptPath = stripVersionSuffix(raw)
     const content = await readFile(abs, 'utf8')
-    const { items, perFile } = processLangFile(content)
+    const { items, newlineForms } = processLangFile(content)
     if (items.length === 0)
       continue
     const source = rel === 'GregTech.lang' ? 'A' : rel.startsWith('resources/') ? 'B' : 'C'
     const existing = collected.get(ptPath)
     if (existing) {
-      mergeInto(existing, items, newlinesMap, perFile)
+      mergeInto(existing, items, newlinesMap, newlineForms)
     }
     else {
       collected.set(ptPath, { ptPath, source, entries: items })
-      if (Object.keys(perFile).length > 0)
-        newlinesMap[ptPath] = perFile
+      newlinesMap[ptPath] = newlineForms
     }
   }
 
@@ -267,7 +290,7 @@ async function main(): Promise<void> {
     if (collected.has(ptPath))
       continue // daily-history wins
     const content = await readFile(abs, 'utf8')
-    const { items, perFile } = processLangFile(content)
+    const { items, newlineForms } = processLangFile(content)
     if (items.length === 0)
       continue
     const source = rel.startsWith('config/txloader/forceload/')
@@ -276,8 +299,7 @@ async function main(): Promise<void> {
         ? 'F'
         : 'E'
     collected.set(ptPath, { ptPath, source, entries: items })
-    if (Object.keys(perFile).length > 0)
-      newlinesMap[ptPath] = perFile
+    newlinesMap[ptPath] = newlineForms
   }
 
   // -------- G: tips synthesised as a PT file --------

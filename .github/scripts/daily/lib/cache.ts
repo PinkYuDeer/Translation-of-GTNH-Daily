@@ -93,17 +93,94 @@ export async function deleteStringIds(ptPath: string): Promise<void> {
 
 export type NewlineForm = '<BR>' | '<br>' | '\\n' | '\\\\n' | '%n'
 
-/** `{ptPath: {key: '<BR>'|'<br>'|'\\n'|'\\\\n'|'%n'}}` – per-entry newline placeholder. */
-export async function readNewlines(): Promise<Record<string, Record<string, NewlineForm>>> {
-  return (await readJson<Record<string, Record<string, NewlineForm>>>(
-    join(CACHE_DIR, CACHE_PATHS.newlines),
-  )) ?? {}
+export interface NewlineFileForms {
+  /** Most frequent placeholder form in this file, used when a key has no exact entry hit. */
+  default?: NewlineForm
+  /** Exact per-entry placeholder forms keyed by translation key. */
+  entries: Record<string, NewlineForm>
+}
+
+export type NewlinesCache = Record<string, NewlineFileForms>
+
+function isNewlineForm(value: unknown): value is NewlineForm {
+  return value === '<BR>'
+    || value === '<br>'
+    || value === '\\n'
+    || value === '\\\\n'
+    || value === '%n'
+}
+
+function mostFrequentNewlineForm(entries: Record<string, NewlineForm>): NewlineForm | undefined {
+  let defaultForm: NewlineForm | undefined
+  let defaultCount = 0
+  const counts = new Map<NewlineForm, number>()
+  for (const form of Object.values(entries)) {
+    const count = (counts.get(form) ?? 0) + 1
+    counts.set(form, count)
+    if (count > defaultCount) {
+      defaultForm = form
+      defaultCount = count
+    }
+  }
+  return defaultForm
+}
+
+function normalizeNewlineFileForms(value: unknown): NewlineFileForms {
+  if (value && typeof value === 'object' && 'entries' in value) {
+    const raw = value as { default?: unknown, entries?: unknown }
+    const entries: Record<string, NewlineForm> = {}
+    if (raw.entries && typeof raw.entries === 'object') {
+      for (const [key, form] of Object.entries(raw.entries)) {
+        if (isNewlineForm(form))
+          entries[key] = form
+      }
+    }
+    const defaultForm = isNewlineForm(raw.default)
+      ? raw.default
+      : mostFrequentNewlineForm(entries)
+    return {
+      ...(defaultForm != null ? { default: defaultForm } : {}),
+      entries,
+    }
+  }
+
+  const entries: Record<string, NewlineForm> = {}
+  if (value && typeof value === 'object') {
+    for (const [key, form] of Object.entries(value)) {
+      if (isNewlineForm(form))
+        entries[key] = form
+    }
+  }
+  const defaultForm = mostFrequentNewlineForm(entries)
+  return {
+    ...(defaultForm != null ? { default: defaultForm } : {}),
+    entries,
+  }
+}
+
+/** `{ptPath: {default?: form, entries: {key: form}}}` – per-file and per-entry newline placeholders. */
+export async function readNewlines(): Promise<NewlinesCache> {
+  const raw = await readJson<Record<string, unknown>>(join(CACHE_DIR, CACHE_PATHS.newlines))
+  if (raw == null)
+    return {}
+
+  const out: NewlinesCache = {}
+  for (const [ptPath, value] of Object.entries(raw))
+    out[ptPath] = normalizeNewlineFileForms(value)
+  return out
 }
 
 export async function writeNewlines(
-  map: Record<string, Record<string, NewlineForm>>,
+  map: NewlinesCache,
 ): Promise<void> {
   await writeJson(join(CACHE_DIR, CACHE_PATHS.newlines), map)
+}
+
+export function resolveNewlineForm(
+  forms: NewlineFileForms | undefined,
+  key: string,
+): NewlineForm | undefined {
+  return forms?.entries[key] ?? forms?.default
 }
 
 export interface PendingUpdateEntry {
