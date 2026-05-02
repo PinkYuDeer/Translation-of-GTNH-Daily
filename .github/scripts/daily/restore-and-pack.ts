@@ -49,7 +49,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 
 import { BUILD_DIR, REPO_CACHE_DIR } from './lib/config.ts'
-import { readNewlines } from './lib/cache.ts'
+import { readNewlines, resolveNewlineForm, type NewlineFileForms } from './lib/cache.ts'
 import { entriesToTips } from './lib/tips-parser.ts'
 import {
   type LangEntry,
@@ -111,7 +111,7 @@ async function loadPtItems(abs: string): Promise<PtStringItem[]> {
 function reassemble(
   finalItems: PtStringItem[],
   enItems: PtStringItem[] | undefined,
-  newlinesForFile: Record<string, string> | undefined,
+  newlinesForFile: NewlineFileForms | undefined,
 ): LangEntry[] {
   const finalByKey = new Map(finalItems.map(i => [i.key, i]))
   const enKeys = new Set((enItems ?? []).map(item => item.key))
@@ -130,7 +130,7 @@ function reassemble(
       : (!enKeys.has(key) ? (item?.original ?? '') : '')
     if (valueSource.length === 0)
       return
-    const form = newlinesForFile?.[key] as '<BR>' | '<br>' | '\\n' | '\\\\n' | '%n' | undefined
+    const form = resolveNewlineForm(newlinesForFile, key)
     const value = restoreNewlines(valueSource, form)
     out.push({ key, value })
   }
