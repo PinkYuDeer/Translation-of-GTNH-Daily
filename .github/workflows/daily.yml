@@ -54,12 +54,14 @@ jobs:
           bun-version: latest
 
       - name: Setup Java for GT5U
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_gt5u != true }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
 
       - name: Setup Headless Client Tools
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_gt5u != true }}
         shell: bash
         run: |
           sudo apt-get update
