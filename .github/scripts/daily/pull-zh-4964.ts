@@ -35,7 +35,7 @@ import {
   apiGet,
   apiGetRaw,
   apiPostJson,
-  listFileStrings,
+  listFileTranslations,
   listProjectFiles,
   runBounded,
   sleep,
@@ -251,7 +251,7 @@ async function fallbackFileByFile(outRoot: string): Promise<void> {
   console.log(`[pull-zh-4964] fallback: pulling ${files.length} files in project ${PT_4964_ID}`)
   await rm(outRoot, { recursive: true, force: true })
   const tasks = files.map(f => async () => {
-    const rows = await listFileStrings(PT_4964_ID, f.id)
+    const rows = await listFileTranslations(PT_4964_ID, f.id)
     // Convert rows into the same PtStringItem shape used elsewhere, dropping
     // only unrelated server fields; `id` / timestamps are useful for manual
     // conflict investigation when the artifact path does not expose them.

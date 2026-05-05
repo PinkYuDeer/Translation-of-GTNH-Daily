@@ -28,6 +28,7 @@ import {
   apiPostMultipart,
   importFileTranslations,
   indexFilesByLowerName,
+  listFileTranslations,
   listFileStrings,
   listProjectFiles,
   runBounded,
@@ -106,7 +107,7 @@ async function loadCurrentItems(ptPath: string, fileId: number): Promise<PtStrin
   if (existsSync(abs))
     return JSON.parse(await readFile(abs, 'utf8')) as PtStringItem[]
 
-  const rows = await listFileStrings(PT_18818_ID, fileId)
+  const rows = await listFileTranslations(PT_18818_ID, fileId)
   return rows.map(r => ({
     key: r.key,
     original: r.original,
@@ -287,7 +288,7 @@ async function importChangedTranslations(
   fileId: number,
   items: PtStringItem[],
 ): Promise<{ imported: number, forced: number }> {
-  const remoteRows = await listFileStrings(PT_18818_ID, fileId)
+  const remoteRows = await listFileTranslations(PT_18818_ID, fileId)
   const remoteByKey = new Map(remoteRows.map(row => [row.key, row]))
   const normal: PtStringItem[] = []
   const forced: PtStringItem[] = []

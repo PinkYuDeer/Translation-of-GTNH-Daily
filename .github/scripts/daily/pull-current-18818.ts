@@ -31,8 +31,8 @@ import {
   apiGet,
   apiGetRaw,
   apiPostJson,
+  listFileTranslations,
   listProjectFiles,
-  listFileStrings,
   runBounded,
   sleep,
 } from './lib/pt-client.ts'
@@ -107,7 +107,7 @@ async function fetchFilesById(outRoot: string, entries: Array<[string, number]>,
   console.log(`[pull-current] ${label}: pulling ${entries.length} file(s) per-file`)
 
   const tasks = entries.map(([ptPath, fileId]) => async () => {
-    const rows = await listFileStrings(PT_18818_ID, fileId)
+    const rows = await listFileTranslations(PT_18818_ID, fileId)
     const items = rows.map(r => ({
       id: r.id,
       key: r.key,
