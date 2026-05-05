@@ -20,6 +20,7 @@ jobs:
   export:
     name: Export PT Lang Package
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -44,10 +45,17 @@ jobs:
 
           src = Path(os.environ["PT_LANG_PACKAGE_DIR"])
           dst = Path(os.environ["ASSETS_PATH"]) / os.environ["PACKAGE_ZIP"]
+
           with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
               for path in sorted(p for p in src.rglob("*") if p.is_file()):
                   zf.write(path, path.relative_to(src).as_posix())
-          print(f"[pt-lang-package] zipped {dst}")
+
+          with zipfile.ZipFile(dst) as zf:
+              names = sorted(zf.namelist())
+              print(f"[pt-lang-package] zipped {dst} ({len(names)} files)")
+              print("[pt-lang-package] first entries:")
+              for name in names[:40]:
+                  print(f"  {name}")
           PY
 
       - name: Publish Latest Package Release
@@ -56,9 +64,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release delete "$RELEASE_TAG" -y --cleanup-tag || true
+
           git tag -f "$RELEASE_TAG"
           git push -f origin "$RELEASE_TAG"
+
           gh release create "$RELEASE_TAG" "$ASSETS_PATH/$PACKAGE_ZIP" \
             --title "PT Lang Package Latest" \
-            --notes "从 PT 18818 导出的最新逐文件原文/译文包，供 ParaTranz 辅助脚本导入。" \
+            --notes "从 PT 18818 导出的最新纯 lang 原文/译文包；zip 根目录直接是 lang 文件结构，供 ParaTranz 辅助脚本导入。" \
             --latest
