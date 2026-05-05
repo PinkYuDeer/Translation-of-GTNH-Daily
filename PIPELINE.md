@@ -68,13 +68,13 @@
 
 ### 2. `pull-current-18818.ts` — 拉取我方 PT 当前态
 
-- 通过 ParaTranz artifact 端点下载 18818 全量 JSON；artifact 不可用时退回逐文件 `/strings`
+- 通过 ParaTranz artifact 端点下载 18818 全量 JSON；artifact 不可用时退回逐文件 `/files/{fileId}/translation`，避免 `/strings?file=` 漏掉隐藏/未翻译阶段词条
 - 顺带刷新 `.cache/file-ids/files.json`（PT 路径 → fileId 映射），后续 push/archive 靠它定位
 - 输出：`.build/zh-current/<pt-path>.json`（含现网译文 + stage）
 
 ### 3. `pull-zh-4964.ts` — 拉取上游校对译文 + Kiwi 直通
 
-- 通过 ParaTranz artifact 端点下载 4964 全量 JSON；artifact 不可用时退回逐文件 `/strings`
+- 通过 ParaTranz artifact 端点下载 4964 全量 JSON；artifact 不可用时退回逐文件 `/files/{fileId}/translation`
 - 下载后统一清理 4964 旧 key 前缀（如 `lang|` / `gt-lang|`），后续合并再按 18818 目标文件解析
 - 同时从 `Kiwi233/Translation-of-GTNH` 拷贝 **不进 PT** 的直通文件（见下文"直通文件"一节）到临时目录供打包用
 - 输出：`.build/zh-4964/<pt-path>.json`

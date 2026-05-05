@@ -1,7 +1,7 @@
 /**
  * Thin ParaTranz REST client with retry/back-off, plus a few PT-specific
- * helpers (`listProjectFiles`, `listFileStrings`) inspired by the upstream
- * GTNH tooling.
+ * helpers (`listProjectFiles`, `listFileStrings`, `listFileTranslations`)
+ * inspired by the upstream GTNH tooling.
  *
  * Two practical lessons we keep from upstream:
  *   1. fileIds should be recoverable by remote filename when local cache is
@@ -386,6 +386,14 @@ export async function listFileStrings(
   return fetchAllPages<PtStringRow>(page =>
     apiGet(`/projects/${projectId}/strings?file=${fileId}&page=${page}&pageSize=${pageSize}`),
   )
+}
+
+export async function listFileTranslations(
+  projectId: string,
+  fileId: number,
+): Promise<PtStringRow[]> {
+  const data = await apiGet<unknown>(`/projects/${projectId}/files/${fileId}/translation`)
+  return Array.isArray(data) ? data as PtStringRow[] : []
 }
 
 export async function listProjectHistory(
