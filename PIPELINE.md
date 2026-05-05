@@ -18,6 +18,7 @@
 
 - 定时：中国时间每天凌晨 1 点（UTC 17:00）
 - 手动：Actions 页 `workflow_dispatch`，支持 `force=true` 把合并后的所有文件重新推到 PT 18818，也支持 `skip_gt5u=true` 跳过 GT5U runClient 并直接使用缓存的 GregTech.lang；此模式也跳过 Java 与 headless 客户端依赖安装，若该缓存未命中则直接失败，不会回退运行 GT5U
+- Issue：Issues 页 `触发 DailySync` 模板会由 [`.github/workflows/issue-dispatch.yml`](.github/workflows/issue-dispatch.yml) 转发为 `workflow_dispatch`，支持同样的 `force` 与 `skip_gt5u` 选项；`触发 Export` 模板会转发到 [`.github/workflows/export-pt-lang-package.yml`](.github/workflows/export-pt-lang-package.yml)
 
 设计目标：**以英文原文为准**、**尽量少打 PT API**、**换行符逐词条原样还原**、**打包结构对齐线下参考包**。
 
@@ -189,8 +190,13 @@ Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / 
 │   └── restore-and-pack.ts    步骤 6
 ├── workflows/
 │   ├── daily.yml              每日 sync + build（含 force 手动模式）
+│   ├── export-pt-lang-package.yml
+│   ├── issue-dispatch.yml     Issue 表单触发固定工作流
 │   └── release.yml            手动发版（含 NotEnoughCharacters 字库）
-└── ISSUE_TEMPLATE/0-FOS.md
+└── ISSUE_TEMPLATE/
+    ├── 0-FOS.md
+    ├── 1-daily-sync.yml
+    └── 2-export-pt-lang-package.yml
 ```
 
 ---

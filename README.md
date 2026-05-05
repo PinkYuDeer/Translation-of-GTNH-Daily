@@ -18,6 +18,8 @@
 3. （旧汉化遗留临时解决方案）对于只使用英文与汉化的玩家来说，把.minecraft\config\txloader\forceload清空；对于想要使用多国语言的玩家来说，找到其中每一个带(+n)的文件夹删除其中的zh_CN.lang
 4. 覆盖解压到 `.minecraft/` 目录即可
 
+需要立即同步并打包最新版本时，在 Issues 选择 `触发 DailySync` 模板提交；仅需要导出给 ParaTranz 辅助脚本使用的纯 lang 包时，选择 `触发 Export` 模板提交。
+
 任务书无法正确显示时，可在游戏内输入 `/bq_admin default load`，或右键整合包提供的"默认加载方块"命令方块重载。
 
 ---
