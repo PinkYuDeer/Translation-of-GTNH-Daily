@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GTNH Daily ParaTranz Helper
 // @namespace    paratranz-auto-100
-// @version      5.1
-// @description  1) 导入发布的逐文件 PT 压缩包,按当前文件回填旧汉化并 Ctrl+S; 2) 兼容旧 GregTech_US.lang / zh_CN.lang; 3) 翻译记忆 ≥100% 匹配复制保存; 4) "在文本中"全字相等仅复制; 5) 数字/电压差异迁移
+// @version      5.2
+// @description  1) 导入发布的逐文件 PT 压缩包,按当前文件回填旧汉化并 Ctrl+S; 2) 翻译记忆 ≥100% 匹配复制保存; 3) "在文本中"全字相等仅复制; 4) 数字/电压差异迁移
 // @match        https://paratranz.cn/*
 // @run-at       document-idle
 // @require      https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js
@@ -19,17 +19,13 @@
     const COPY_TO_SAVE_DELAY = 450;
     const FILL_TO_SAVE_DELAY = 250;
     const LOG = true;
-    const STORE_EN = 'lang_en_raw_v1';
-    const STORE_ZH = 'lang_zh_raw_v1';
-    const STORE_EN_META = 'lang_en_meta_v1';
-    const STORE_ZH_META = 'lang_zh_meta_v1';
     const STORE_PKG_INDEX = 'lang_pkg_index_v2';
     const STORE_PKG_META = 'lang_pkg_meta_v2';
     const STORE_PKG_FILE_PREFIX = 'lang_pkg_file_v2:';
     const STORE_CONFIG = 'config_v1';
 
     const DEFAULT_CONFIG = {
-        enableLangFill: true,         // A 旧 lang 回填
+        enableLangFill: true,         // A 逐文件发布包回填
         enableTmPerfect: true,        // B 翻译记忆 ≥100% 匹配
         enableTokenDiffTransfer: true,// D 顶部 TM 原文仅数字/电压差异时自动迁移
         enableTmInText: true,         // C "在文本中" 全字相等仅复制
@@ -70,34 +66,9 @@
         return false;
     }
 
-    // ============ .lang / 发布包解析 ============
-    function parseLang(text, { reverse }) {
-        const map = new Map();
-        const re = /^\s*(?:S:)?(?:"([^"]+)"|([^=\s]+))\s*=(.*)$/;
-        for (const line of text.split(/\r?\n/)) {
-            const trimmed = line.trimStart();
-            if (!trimmed || trimmed.startsWith('#')) continue;
-            const m = line.match(re);
-            if (!m) continue;
-            const key = m[1] || m[2];
-            const val = decodeLangValue(m[3]);
-            if (reverse) {
-                if (!map.has(val)) map.set(val, key);
-            } else {
-                map.set(key, val);
-            }
-        }
-        return map;
-    }
-
-    let enToKey = null;
-    let zhByKey = null;
+    // ============ 发布包解析 ============
     let packageIndex = null;
     const packageFileCache = new Map();
-
-    function decodeLangValue(value) {
-        return String(value).replace(/\\n/g, '\n');
-    }
 
     function normalizePtPath(path) {
         let out = String(path || '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
@@ -232,77 +203,29 @@
         return { ptPath, aliases: [...aliases].map(a => String(a).toLowerCase()), entries };
     }
 
-    function parseLangEntries(text) {
-        const out = new Map();
-        const re = /^\s*(?:S:)?(?:"([^"]+)"|([^=\s]+))\s*=(.*)$/;
-        for (const line of text.split(/\r?\n/)) {
-            const trimmed = line.trimStart();
-            if (!trimmed || trimmed.startsWith('#')) continue;
-            const m = line.match(re);
-            if (!m) continue;
-            out.set(m[1] || m[2], decodeLangValue(m[3]));
-        }
-        return out;
-    }
-
-    function ptPathFromZhPackPath(path) {
-        const p = normalizePtPath(path);
-        if (p === 'GregTech_zh_CN.lang' || p === 'GregTech_US.lang') return 'GregTech.lang';
-        return p.replace(/en_US\.lang$/, 'zh_CN.lang');
-    }
-
-    async function filesFromLangZip(zip) {
-        const names = Object.keys(zip.files).filter(name => !zip.files[name].dir);
-        const byName = new Map(names.map(name => [normalizePtPath(name).toLowerCase(), name]));
-        const files = [];
-        for (const name of names) {
-            const norm = normalizePtPath(name);
-            if (!/(?:^|\/|_)en_US\.lang$/i.test(norm) && norm !== 'GregTech_US.lang') continue;
-            const zhNorm = norm === 'GregTech_US.lang'
-                ? 'GregTech_zh_CN.lang'
-                : norm.replace(/en_US\.lang$/i, 'zh_CN.lang');
-            const zhName = byName.get(normalizePtPath(zhNorm).toLowerCase());
-            if (!zhName) continue;
-            const enText = await zip.files[name].async('string');
-            const zhText = await zip.files[zhName].async('string');
-            const en = parseLangEntries(enText);
-            const zh = parseLangEntries(zhText);
-            const entries = [];
-            for (const [key, original] of en) {
-                entries.push({
-                    key,
-                    original,
-                    translation: zh.get(key) || '',
-                    stage: zh.has(key) && zh.get(key) ? 1 : 0,
-                });
-            }
-            files.push(normalizePackageFile({
-                ptPath: ptPathFromZhPackPath(zhNorm),
-                entries,
-            }, files.length));
-        }
-        return files;
-    }
-
     async function importPackageZip(file) {
         if (typeof JSZip === 'undefined') throw new Error('JSZip 未加载,无法解析 zip');
+        showImportProgress(`读取 ${file.name}...`);
+        await delay(0);
         const zip = await JSZip.loadAsync(await file.arrayBuffer());
-        const manifestEntry = zip.file('pt-lang-package.json') || zip.file('manifest.json');
-        let manifest = null;
-        let files = [];
-        if (manifestEntry) {
-            manifest = JSON.parse(await manifestEntry.async('string'));
-            files = (manifest.files || []).map(normalizePackageFile);
-        } else {
-            files = await filesFromLangZip(zip);
-        }
-        if (files.length === 0) throw new Error('压缩包内未找到 pt-lang-package.json 或可配对的 en_US/zh_CN.lang');
+        showImportProgress('解析发布包清单...');
+        await delay(0);
+        const manifestEntry = zip.file('pt-lang-package.json') ||
+            Object.values(zip.files).find(entry => !entry.dir && /(?:^|\/)pt-lang-package\.json$/i.test(entry.name));
+        if (!manifestEntry)
+            throw new Error('压缩包内未找到 pt-lang-package.json,请导入手动 workflow 发布的 pt-lang-package.zip');
+        const manifest = JSON.parse(await manifestEntry.async('string'));
+        const files = (manifest.files || []).map(normalizePackageFile);
+        if (files.length === 0) throw new Error('发布包清单内没有文件');
 
+        showImportProgress('清理旧发布包...');
+        await delay(0);
         clearPackageStore();
         const byAlias = {};
         const summaries = [];
         let entryCount = 0;
-        files.forEach((f, i) => {
+        for (let i = 0; i < files.length; i++) {
+            const f = files[i];
             const id = packageStorageId(i, f);
             const entries = f.entries.filter(e => e.original && e.translation && String(e.translation).trim());
             entryCount += entries.length;
@@ -312,7 +235,11 @@
                 (byAlias[key] ||= []).push(id);
             }
             summaries.push({ id, ptPath: f.ptPath, aliases: f.aliases, entryCount: entries.length });
-        });
+            if (i === 0 || i + 1 === files.length || (i + 1) % 25 === 0) {
+                showImportProgress(`写入油猴存储 ${i + 1}/${files.length} 文件...`);
+                await delay(0);
+            }
+        }
         const idx = {
             version: 2,
             importedAt: Date.now(),
@@ -334,72 +261,74 @@
         packageIndex = idx;
         packageFileCache.clear();
         log(`已导入逐文件发布包:${file.name} (${summaries.length} 文件, ${entryCount} 条可回填译文)`);
+        showImportProgress(`导入完成:${summaries.length} 文件 / ${entryCount} 条译文`);
         return idx;
     }
 
     function loadFromStore() {
-        const hasPackage = loadPackageIndex();
-        try {
-            const us = GM_getValue(STORE_EN, '');
-            const zh = GM_getValue(STORE_ZH, '');
-            if (!us || !zh) return hasPackage;
-            enToKey = parseLang(us, { reverse: true });
-            zhByKey = parseLang(zh, { reverse: false });
-            log(`已从油猴存储加载 .lang:US ${enToKey.size} 条, zh ${zhByKey.size} 条`);
-            return true;
-        } catch (e) {
-            log('解析已存储的 .lang 失败:', e);
-            return hasPackage;
-        }
+        return loadPackageIndex();
     }
 
-    function saveToStore(which, fileName, text) {
-        const meta = { name: fileName, size: text.length, mtime: Date.now() };
-        if (which === 'en') {
-            GM_setValue(STORE_EN, text);
-            GM_setValue(STORE_EN_META, meta);
-        } else {
-            GM_setValue(STORE_ZH, text);
-            GM_setValue(STORE_ZH_META, meta);
-        }
-    }
-
-    function clearStore() {
-        [STORE_EN, STORE_ZH, STORE_EN_META, STORE_ZH_META].forEach(GM_deleteValue);
-        enToKey = null;
-        zhByKey = null;
+    function purgeLegacyLangStore() {
+        [
+            'lang_en_raw_v1',
+            'lang_zh_raw_v1',
+            'lang_en_meta_v1',
+            'lang_zh_meta_v1',
+        ].forEach(GM_deleteValue);
     }
 
     const storeStatus = () => ({
-        en: GM_getValue(STORE_EN_META, null),
-        zh: GM_getValue(STORE_ZH_META, null),
         pkg: GM_getValue(STORE_PKG_META, null),
     });
 
     // ============ 上传 ============
-    function promptUpload(which, onDone) {
+    let importProgressEl = null;
+    function showImportProgress(message) {
+        if (!importProgressEl) {
+            importProgressEl = document.createElement('div');
+            importProgressEl.style.cssText = [
+                'position:fixed', 'top:10px', 'right:10px', 'z-index:100000',
+                'background:#111827', 'color:#fff', 'padding:12px 14px',
+                'border-radius:8px', 'box-shadow:0 4px 16px rgba(0,0,0,.35)',
+                'font:13px/1.5 system-ui,sans-serif', 'max-width:360px',
+            ].join(';');
+            document.body.appendChild(importProgressEl);
+        }
+        importProgressEl.textContent = message;
+    }
+
+    function hideImportProgress(ms = 1800) {
+        const el = importProgressEl;
+        if (!el) return;
+        setTimeout(() => {
+            if (importProgressEl === el) importProgressEl = null;
+            el.remove();
+        }, ms);
+    }
+
+    function promptUpload(onDone) {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = which === 'pkg' ? '.zip,application/zip' : '.lang,.txt,text/plain';
+        input.accept = '.zip,application/zip';
         input.style.display = 'none';
         input.addEventListener('change', async () => {
             const file = input.files && input.files[0];
             input.remove();
             if (!file) return;
             try {
-                if (which === 'pkg') {
-                    if (!/\.zip$/i.test(file.name))
-                        throw new Error('请导入 GitHub Release 发布的 .zip 包');
-                    await importPackageZip(file);
-                } else {
-                    const text = await file.text();
-                    saveToStore(which, file.name, text);
-                    log(`已保存 ${which === 'en' ? 'US.lang' : 'zh_CN.lang'}:${file.name} (${file.size} 字节)`);
-                }
+                if (!/\.zip$/i.test(file.name))
+                    throw new Error('请导入 GitHub Release 发布的 .zip 包');
+                const idx = await importPackageZip(file);
                 loadFromStore();
+                showToast('A', `发布包导入完成 · ${idx.files.length} 文件`);
+                hideImportProgress();
                 if (onDone) onDone(file);
             } catch (err) {
-                alert('读取文件失败:' + (err && err.message ? err.message : err));
+                const msg = err && err.message ? err.message : String(err);
+                showImportProgress(`导入失败:${msg}`);
+                alert('导入发布包失败:' + msg);
+                hideImportProgress(5000);
             }
         });
         document.body.appendChild(input);
@@ -420,15 +349,11 @@
             'font:13px/1.5 system-ui,sans-serif', 'max-width:320px',
         ].join(';');
         bar.innerHTML =
-            '<div style="font-weight:600;margin-bottom:6px;">旧汉化回填未就绪</div>' +
-            '<div style="margin-bottom:8px;opacity:.85;">优先导入 GitHub Release 发布的逐文件 .zip 包；旧双 .lang 仍可兼容。</div>' +
+            '<div style="font-weight:600;margin-bottom:6px;">发布包未导入</div>' +
+            '<div style="margin-bottom:8px;opacity:.85;">请导入 GitHub Release 发布的逐文件 .zip 包。</div>' +
             '<div style="display:grid;gap:6px;">' +
             '<button data-act="pkg" style="padding:5px 8px;border:0;border-radius:5px;cursor:pointer;background:#059669;color:#fff;">' +
             (st.pkg ? '✓ 发布包已存(重新导入)' : '导入发布压缩包(.zip)') + '</button>' +
-            '<button data-act="en" style="padding:5px 8px;border:0;border-radius:5px;cursor:pointer;background:#2563eb;color:#fff;">' +
-            (st.en ? '✓ US.lang 已存(重新上传)' : '① 上传 GregTech_US.lang') + '</button>' +
-            '<button data-act="zh" style="padding:5px 8px;border:0;border-radius:5px;cursor:pointer;background:#2563eb;color:#fff;">' +
-            (st.zh ? '✓ zh_CN.lang 已存(重新上传)' : '② 上传 GregTech_zh_CN.lang') + '</button>' +
             '<button data-act="close" style="padding:5px 8px;border:0;border-radius:5px;cursor:pointer;background:#374151;color:#ddd;">稍后</button>' +
             '</div>';
         bar.addEventListener('click', (ev) => {
@@ -436,11 +361,11 @@
             if (!btn) return;
             const act = btn.dataset.act;
             if (act === 'close') { bar.remove(); bannerEl = null; return; }
-            promptUpload(act, () => {
+            promptUpload(() => {
                 bar.remove();
                 bannerEl = null;
                 const s = storeStatus();
-                if (s.pkg || (s.en && s.zh)) log('回填数据已就绪');
+                if (s.pkg) log('回填数据已就绪');
                 else showUploadBanner();
             });
         });
@@ -470,9 +395,6 @@
         overlay.appendChild(panel);
 
         const st = storeStatus();
-        const metaLine = (m) => m
-            ? `${m.name} · ${(m.size/1024).toFixed(1)} KB · ${new Date(m.mtime).toLocaleString()}`
-            : '未上传';
         const pkgLine = (m) => m
             ? `${m.name} · ${m.files || 0} 文件 · ${m.entries || 0} 条 · ${(m.size/1024/1024).toFixed(1)} MB`
             : '未导入';
@@ -481,7 +403,7 @@
             '<div style="font-size:15px;font-weight:600;margin-bottom:12px;">ParaTranz 辅助脚本 · 配置</div>' +
 
             '<div style="margin-bottom:10px;font-weight:600;opacity:.85;">功能开关</div>' +
-            row('enableLangFill', 'A · 逐文件发布包 / 旧 .lang 回填(填入 + Ctrl+S)') +
+            row('enableLangFill', 'A · 逐文件发布包回填(填入 + Ctrl+S)') +
             row('enableTmPerfect', 'B · 翻译记忆 ≥100% 匹配(复制 + Ctrl+S)') +
             row('enableTokenDiffTransfer', 'D · 顶部 TM 仅数字/电压差异时,迁移译文(仅填入,需手动确认)') +
             row('enableTmInText', 'C · "在文本中" 且原文全字相等(仅复制,不保存)') +
@@ -493,15 +415,6 @@
             '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">' +
             btn('up-pkg', '导入 / 更新发布包(.zip)', '#059669') +
             btn('clear-pkg', '清除发布包', '#b45309') +
-            '</div>' +
-
-            '<div style="margin:14px 0 8px;font-weight:600;opacity:.85;">旧双 .lang 兼容</div>' +
-            `<div style="opacity:.8;margin-bottom:4px;">US.lang:${escapeHtml(metaLine(st.en))}</div>` +
-            `<div style="opacity:.8;margin-bottom:10px;">zh_CN.lang:${escapeHtml(metaLine(st.zh))}</div>` +
-            '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">' +
-            btn('up-en', '上传 / 更新 US.lang', '#2563eb') +
-            btn('up-zh', '上传 / 更新 zh_CN.lang', '#2563eb') +
-            btn('clear', '清除已保存的 .lang', '#b45309') +
             '</div>' +
 
             '<div style="display:flex;justify-content:flex-end;gap:8px;">' +
@@ -538,19 +451,10 @@
             if (act === 'close') {
                 overlay.remove(); configEl = null;
             } else if (act === 'up-pkg') {
-                promptUpload('pkg', () => { overlay.remove(); configEl = null; showConfigPanel(); });
-            } else if (act === 'up-en') {
-                promptUpload('en', () => { overlay.remove(); configEl = null; showConfigPanel(); });
-            } else if (act === 'up-zh') {
-                promptUpload('zh', () => { overlay.remove(); configEl = null; showConfigPanel(); });
+                promptUpload(() => { overlay.remove(); configEl = null; showConfigPanel(); });
             } else if (act === 'clear-pkg') {
                 if (confirm('确定要清除已保存的发布包吗?')) {
                     clearPackageStore();
-                    overlay.remove(); configEl = null; showConfigPanel();
-                }
-            } else if (act === 'clear') {
-                if (confirm('确定要清除已保存的 US.lang 和 zh_CN.lang 吗?')) {
-                    clearStore();
                     overlay.remove(); configEl = null; showConfigPanel();
                 }
             } else if (act === 'reset') {
@@ -666,7 +570,7 @@
     // ============ 油猴菜单 ============
     try {
         GM_registerMenuCommand('打开配置窗口', showConfigPanel);
-        GM_registerMenuCommand('导入发布压缩包', () => promptUpload('pkg'));
+        GM_registerMenuCommand('导入发布压缩包', () => promptUpload());
     } catch (e) {
         log('菜单注册失败:', e);
     }
@@ -901,7 +805,7 @@
                 }
             }
 
-            // A. 逐文件发布包 / 旧 .lang 回填
+            // A. 逐文件发布包回填
             if (config.enableLangFill && packageIndex) {
                 const hit = findPackageTranslation(mainOri);
                 if (hit && hit.translation && hit.translation.trim() !== '') {
@@ -919,29 +823,6 @@
                     await delay(FILL_TO_SAVE_DELAY);
                     pressCtrlS();
                     return;
-                }
-            }
-
-            if (config.enableLangFill && enToKey && zhByKey) {
-                const key = enToKey.get(mainOri) || enToKey.get(mainOri.trim());
-                if (key) {
-                    const zh = zhByKey.get(key);
-                    if (zh && zh.trim() !== '') {
-                        const zhFinal = transformForFill(zh);
-                        lastSig = sig;
-                        if (ta.value.trim() === zhFinal.trim()) {
-                            log('旧 lang 命中且内容已一致,仅保存:', key);
-                            showToast('A', `内容已一致,仅保存 · ${key}`);
-                            pressCtrlS();
-                            return;
-                        }
-                        log('旧 lang 命中:', key, '→', zhFinal);
-                        showToast('A', `lang 回填 · ${key}`);
-                        setTextareaValue(zhFinal);
-                        await delay(FILL_TO_SAVE_DELAY);
-                        pressCtrlS();
-                        return;
-                    }
                 }
             }
 
@@ -1021,9 +902,10 @@
 
     function start() {
         obs.observe(document.documentElement, { childList: true, subtree: true });
+        purgeLegacyLangStore();
         const ok = loadFromStore();
         if (!ok) {
-            log('未检测到已上传的 .lang 文件,显示上传引导');
+            log('未检测到已导入的发布包,显示上传引导');
             setTimeout(showUploadBanner, 600);
         }
         renderAutoFillPanel();
