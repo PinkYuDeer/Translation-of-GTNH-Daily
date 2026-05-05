@@ -1,0 +1,61 @@
+name: 触发 Export
+description: 通过 issue 触发 Export PT Lang Package
+title: "[Export] "
+labels:
+  - workflow-trigger
+  - export-pt-lang-package
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交后会触发 `0. Export PT Lang Package`, 从 PT 18818 导出纯 lang 原文/译文包并更新最新 Release.
+
+  - type: dropdown
+    id: target
+    attributes:
+      label: 触发目标 target
+      description: 选择要触发的固定工作流.
+      options:
+        - Export PT Lang Package - 导出 PT 18818 当前纯 lang 原文/译文包
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source_project
+    attributes:
+      label: 数据来源 source_project
+      description: 选择导出数据来源.
+      options:
+        - "PT 18818 - Daily 项目当前全部 lang 文件"
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: release_target
+    attributes:
+      label: 发布目标 release_target
+      description: 选择导出包发布位置.
+      options:
+        - "latest - 覆盖 pt-lang-package-latest Release 和 pt-lang-package.zip"
+      default: 0
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: 触发原因
+      description: 简单说明为什么需要手动导出.
+      placeholder: "例如: ParaTranz 辅助脚本需要导入最新 PT lang 包."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 确认
+      options:
+        - label: 我了解该 issue 会触发 GitHub Actions, 并覆盖最新 PT lang package Release.
+          required: true

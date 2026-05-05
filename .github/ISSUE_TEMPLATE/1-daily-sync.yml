@@ -1,0 +1,63 @@
+name: 触发 DailySync
+description: 通过 issue 触发 Daily Sync & Build
+title: "[DailySync] "
+labels:
+  - workflow-trigger
+  - daily-sync
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交后会触发 `0. Daily Sync & Build`, 用于同步 PT 18818 并发布每日构建 Release.
+
+  - type: dropdown
+    id: target
+    attributes:
+      label: 触发目标 target
+      description: 选择要触发的固定工作流.
+      options:
+        - Daily Sync & Build - 运行每日同步, 回推 PT 18818 并发布每日构建
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: force
+    attributes:
+      label: 强制同步 force
+      description: 控制是否把所有合并后的文件重新推送到 PT 18818.
+      options:
+        - "false - 普通同步, 只推送本轮检测到的差异"
+        - "true - 强制同步, 将合并和换行规范化后的所有文件重新推送到 PT 18818"
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: skip_gt5u
+    attributes:
+      label: 跳过 GT5U skip_gt5u
+      description: 控制是否跳过 GT5U runClient 生成 GregTech.lang.
+      options:
+        - "false - 运行 GT5U runClient, 生成最新 GregTech.lang"
+        - "true - 跳过 GT5U runClient, 只使用上次成功缓存的 GregTech.lang; 缓存未命中会失败"
+      default: 0
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: 触发原因
+      description: 简单说明为什么需要手动运行.
+      placeholder: "例如: PT 18818 刚完成一批翻译, 需要立即打包测试."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 确认
+      options:
+        - label: 我了解该 issue 会触发 GitHub Actions, 可能更新 PT 18818 并发布每日构建 Release.
+          required: true

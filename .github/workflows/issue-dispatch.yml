@@ -1,0 +1,33 @@
+name: 0. Issue Dispatch
+
+on:
+  issues:
+    types:
+      - opened
+
+permissions:
+  actions: write
+  contents: read
+  issues: write
+
+jobs:
+  dispatch:
+    name: Dispatch Requested Workflow
+    runs-on: ubuntu-latest
+    if: >-
+      startsWith(github.event.issue.title, '[DailySync]') ||
+      startsWith(github.event.issue.title, '[Export]') ||
+      contains(github.event.issue.body, 'Daily Sync & Build') ||
+      contains(github.event.issue.body, 'Export PT Lang Package')
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Dispatch Requested Workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { pathToFileURL } = await import('node:url')
+            const modulePath = `${process.env.GITHUB_WORKSPACE}/.github/scripts/dispatch-issue-workflow.js`
+            const { dispatchIssueWorkflow } = await import(pathToFileURL(modulePath).href)
+            await dispatchIssueWorkflow({ github, context, core })
