@@ -81,7 +81,7 @@ interface MergeStats {
   staleFrom4964: number
   unresolved4964: number
   blankTranslations: number
-  originalFallbacksCleared: number
+  originalFallbacksPreserved: number
 }
 
 function toPosix(p: string): string {
@@ -428,7 +428,7 @@ async function main(): Promise<void> {
     staleFrom4964: 0,
     unresolved4964,
     blankTranslations: 0,
-    originalFallbacksCleared: 0,
+    originalFallbacksPreserved: 0,
   }
   const remoteTimestamps = new RemoteTimestampResolver()
 
@@ -456,26 +456,28 @@ async function main(): Promise<void> {
       const sourceHasTranslation = hasText(source?.translation)
       const sourceExact = source?.original === enItem.original
       const currentExact = current?.original === enItem.original
-      const currentLooksLikeOriginalFallback = current != null
+      let handledBySource = false
+
+      if (current && currentExact) {
+        translation = current.translation
+        stage = current.stage ?? 0
+        if (translation)
+          stats.currentPreserved++
+      }
+      else if (current?.translation) {
+        currentDrift.set(enItem.key, { translation: current.translation })
+      }
+
+      if (
+        current != null
         && currentExact
         && current.translation === enItem.original
         && (current.stage ?? 0) > 0
         && source != null
         && sourceExact
         && !sourceHasTranslation
-      let handledBySource = false
-
-      if (current && currentExact && !currentLooksLikeOriginalFallback) {
-        translation = current.translation
-        stage = current.stage ?? 0
-        if (translation)
-          stats.currentPreserved++
-      }
-      else if (current?.translation && !currentLooksLikeOriginalFallback) {
-        currentDrift.set(enItem.key, { translation: current.translation })
-      }
-      else if (currentLooksLikeOriginalFallback) {
-        stats.originalFallbacksCleared++
+      ) {
+        stats.originalFallbacksPreserved++
       }
 
       if (source && sourceHasTranslation) {
@@ -600,7 +602,7 @@ async function main(): Promise<void> {
     + `remote-time-checks=${stats.remoteTimeChecks} `
     + `stale-current=${stats.staleFromCurrent} stale-4964=${stats.staleFrom4964} `
     + `blank=${stats.blankTranslations} archived-strings=${stats.stringsArchived} `
-    + `cleared-original-fallback=${stats.originalFallbacksCleared} `
+    + `preserved-original-equals-translation=${stats.originalFallbacksPreserved} `
     + `unresolved-4964=${stats.unresolved4964}`,
   )
   if (duplicateExamples.length > 0)
