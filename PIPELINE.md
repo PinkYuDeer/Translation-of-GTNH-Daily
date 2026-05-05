@@ -17,7 +17,7 @@
 整条流水线由 [`.github/workflows/daily.yml`](.github/workflows/daily.yml) 触发：
 
 - 定时：中国时间每天凌晨 1 点（UTC 17:00）
-- 手动：Actions 页 `workflow_dispatch`，支持 `force=true` 把合并后的所有文件重新推到 PT 18818，也支持 `skip_gt5u=true` 跳过 GT5U runClient 并直接使用缓存的 GregTech.lang；若该缓存未命中，跳过模式会直接失败，不会回退运行 GT5U
+- 手动：Actions 页 `workflow_dispatch`，支持 `force=true` 把合并后的所有文件重新推到 PT 18818，也支持 `skip_gt5u=true` 跳过 GT5U runClient 并直接使用缓存的 GregTech.lang；此模式也跳过 Java 与 headless 客户端依赖安装，若该缓存未命中则直接失败，不会回退运行 GT5U
 
 设计目标：**以英文原文为准**、**尽量少打 PT API**、**换行符逐词条原样还原**、**打包结构对齐线下参考包**。
 
