@@ -168,6 +168,14 @@ async function main(): Promise<void> {
   console.log(`[pull-current] ${files.length} total files in project ${PT_18818_ID}`)
 
   const outRoot = join(BUILD_DIR, 'zh-current')
+  if (files.length === 0) {
+    await rm(outRoot, { recursive: true, force: true })
+    await mkdir(outRoot, { recursive: true })
+    // eslint-disable-next-line no-console
+    console.log('[pull-current] project has no files; skipping artifact build')
+    return
+  }
+
   const ok = await tryArtifactFlow(outRoot)
   if (!ok)
     await fallbackFileByFile(outRoot, fileEntries)
