@@ -12,8 +12,9 @@
  *   - Current PT 18818 translations are preserved when key+original still match.
  *   - If English changed and 4964 has no fresh exact match, emit a stale marker
  *     `${newEnglish}|旧译：|${oldTranslation}` at stage=0.
- *   - If 4964 has a non-blank fresh exact match, it overrides current PT while
- *     preserving 4964's stage, including stage=0.
+ *   - If 4964 has a non-blank fresh exact match, it fills current PT gaps.
+ *     When both 18818 and 4964 already have different exact translations, query
+ *     row timestamps; 4964 wins if it is newer or timestamps are unavailable.
  *   - If 4964 has a translated key but with older English, it also becomes a stale
  *     marker, overriding current PT's older translation payload.
  *   - 4964 rows/files without an English counterpart are ignored. The upstream
@@ -22,31 +23,35 @@
  *
  * Outputs:
  *   - `.build/zh-final/<pt-path>.json` — final PT-shaped files
- *   - `.build/merge-plan.json`         — which files need upload / archive
+ *   - `.build/merge-plan.json`         — which files/strings need upload / archive
  */
 
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, sep } from 'node:path'
 
-import { BUILD_DIR } from './lib/config.ts'
-import { writeJson } from './lib/cache.ts'
+import { BUILD_DIR, PT_18818_ID, PT_4964_ID, assertToken } from './lib/config.ts'
+import { readFileIds, writeJson } from './lib/cache.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
 import { normalizeNewlines, normalizePtNewlines } from './lib/newlines.ts'
 import {
+  indexFilesByLowerName,
+  listFileStrings,
+  listProjectFiles,
+  type PtStringRow,
+} from './lib/pt-client.ts'
+import {
   indexByModId,
   resolve4964To18818,
+  toPtJsonPath,
 } from './lib/path-map.ts'
 
 interface MergePlan {
   push: string[]
   archive: string[]
+  archiveStrings: Record<string, string[]>
   /**
-   * Subset of `push`: files whose existing translations on PT 18818 must also
-   * be overwritten per-string after the file-level POST, because PT does not
-   * update existing translations through the file upload endpoint. Populated
-   * when force mode is on or the current PT file still contains legacy newline
-   * placeholders (`<BR>`, `<br>`, literal `\n`, literal `\\n`, `%n`), or when
-   * the merged translation/stage differs from current PT.
+   * Backward-compatible diagnostic list. push-final now imports translation
+   * deltas through POST /files/{fileId}/translation instead of per-string PUTs.
    */
   overrideTranslations: string[]
 }
@@ -65,8 +70,13 @@ interface MergeStats {
   filesChanged: number
   filesCreated: number
   filesArchived: number
+  stringsArchived: number
   currentPreserved: number
   sourceApplied: number
+  sourceAppliedByRemoteTime: number
+  sourceAppliedNoRemoteTime: number
+  sourceSkippedByCurrent: number
+  remoteTimeChecks: number
   staleFromCurrent: number
   staleFrom4964: number
   unresolved4964: number
@@ -105,10 +115,14 @@ async function loadPtItems(abs: string): Promise<PtStringItem[]> {
 
 function normalizeItem(item: PtStringItem): PtStringItem {
   return {
+    ...(item.id != null ? { id: item.id } : {}),
     key: item.key,
     original: normalizePtNewlines(item.original ?? ''),
     translation: normalizePtNewlines(item.translation ?? ''),
     stage: item.stage ?? 0,
+    ...(item.createdAt != null ? { createdAt: item.createdAt } : {}),
+    ...(item.updatedAt != null ? { updatedAt: item.updatedAt } : {}),
+    ...(item.uid != null ? { uid: item.uid } : {}),
     ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
   }
 }
@@ -155,6 +169,147 @@ function staleMarker(newOriginal: string, oldTranslation: string): string {
 
 function hasText(value: string | undefined): value is string {
   return (value ?? '').trim().length > 0
+}
+
+function normalize4964Key(key: string): string {
+  return key.replace(/^(?:gt-)?lang\|/, '').trim()
+}
+
+function timestampMs(item: PtStringItem | undefined): number | undefined {
+  const raw = item?.updatedAt ?? item?.createdAt
+  if (!raw)
+    return undefined
+  const ms = Date.parse(raw)
+  return Number.isFinite(ms) ? ms : undefined
+}
+
+function rowToItem(row: PtStringRow, normalizeKey: (key: string) => string): PtStringItem {
+  return normalizeItem({
+    id: row.id,
+    key: normalizeKey(row.key),
+    original: row.original,
+    translation: row.translation ?? '',
+    stage: row.stage ?? 0,
+    ...(row.createdAt != null ? { createdAt: row.createdAt } : {}),
+    ...(row.updatedAt != null ? { updatedAt: row.updatedAt } : {}),
+    ...(row.uid != null ? { uid: row.uid } : {}),
+    ...(row.context != null ? { context: row.context } : {}),
+  })
+}
+
+function findRemoteExact(items: PtStringItem[], key: string, original: string): PtStringItem | undefined {
+  return items.find(item => item.key === key && item.original === original)
+}
+
+type RemoteTimeDecision = 'source-newer' | 'current-newer-or-equal' | 'missing-time'
+
+class RemoteTimestampResolver {
+  remoteTimeChecks = 0
+
+  private tokenAsserted = false
+  private currentFileIds: Record<string, number> | undefined
+  private currentRemoteFiles: Promise<Map<string, { id: number, name: string }>> | undefined
+  private sourceRemoteFiles: Promise<Map<string, { id: number, name: string }>> | undefined
+  private currentStrings = new Map<string, Promise<PtStringItem[]>>()
+  private sourceStrings = new Map<string, Promise<PtStringItem[]>>()
+
+  async compare(
+    ptPath: string,
+    sourceName: string | undefined,
+    key: string,
+    original: string,
+    current: PtStringItem,
+    source: PtStringItem,
+  ): Promise<RemoteTimeDecision> {
+    this.remoteTimeChecks++
+    const [remoteCurrent, remoteSource] = await Promise.all([
+      this.currentItem(ptPath, key, original),
+      sourceName != null ? this.sourceItem(sourceName, key, original) : Promise.resolve(undefined),
+    ])
+    const currentForTime = remoteCurrent ?? current
+    const sourceForTime = remoteSource ?? source
+    const currentMs = timestampMs(currentForTime)
+    const sourceMs = timestampMs(sourceForTime)
+    if (currentMs == null || sourceMs == null)
+      return 'missing-time'
+    return sourceMs > currentMs ? 'source-newer' : 'current-newer-or-equal'
+  }
+
+  private assertTokenOnce(): void {
+    if (this.tokenAsserted)
+      return
+    assertToken()
+    this.tokenAsserted = true
+  }
+
+  private async currentFileId(ptPath: string): Promise<number | undefined> {
+    this.currentFileIds ??= await readFileIds()
+    const cached = this.currentFileIds[ptPath]
+    if (typeof cached === 'number')
+      return cached
+    const files = await this.currentFiles()
+    return files.get(toPtJsonPath(ptPath).toLowerCase())?.id
+  }
+
+  private async sourceFileId(sourceName: string): Promise<number | undefined> {
+    const files = await this.sourceFiles()
+    return files.get(sourceName.toLowerCase())?.id
+      ?? files.get(toPtJsonPath(sourceName).toLowerCase())?.id
+  }
+
+  private async currentFiles(): Promise<Map<string, { id: number, name: string }>> {
+    this.assertTokenOnce()
+    this.currentRemoteFiles ??= listProjectFiles(PT_18818_ID)
+      .then(files => indexFilesByLowerName(files))
+    return this.currentRemoteFiles
+  }
+
+  private async sourceFiles(): Promise<Map<string, { id: number, name: string }>> {
+    this.assertTokenOnce()
+    this.sourceRemoteFiles ??= listProjectFiles(PT_4964_ID)
+      .then(files => indexFilesByLowerName(files))
+    return this.sourceRemoteFiles
+  }
+
+  private async currentItem(ptPath: string, key: string, original: string): Promise<PtStringItem | undefined> {
+    const items = await this.currentFileStrings(ptPath)
+    return findRemoteExact(items, key, original)
+  }
+
+  private async sourceItem(sourceName: string, key: string, original: string): Promise<PtStringItem | undefined> {
+    const items = await this.sourceFileStrings(sourceName)
+    return findRemoteExact(items, key, original)
+  }
+
+  private currentFileStrings(ptPath: string): Promise<PtStringItem[]> {
+    const cached = this.currentStrings.get(ptPath)
+    if (cached)
+      return cached
+    const promise = this.currentFileId(ptPath).then(async (fileId) => {
+      if (fileId == null)
+        return []
+      this.assertTokenOnce()
+      const rows = await listFileStrings(PT_18818_ID, fileId)
+      return rows.map(row => rowToItem(row, key => key))
+    })
+    this.currentStrings.set(ptPath, promise)
+    return promise
+  }
+
+  private sourceFileStrings(sourceName: string): Promise<PtStringItem[]> {
+    const cached = this.sourceStrings.get(sourceName)
+    if (cached)
+      return cached
+    const promise = this.sourceFileId(sourceName).then(async (fileId) => {
+      if (fileId == null)
+        return []
+      this.assertTokenOnce()
+      const rows = await listFileStrings(PT_4964_ID, fileId)
+      return rows.map(row => rowToItem(row, normalize4964Key))
+    })
+    this.sourceStrings.set(sourceName, promise)
+    return promise
+  }
 }
 
 function needsTranslationOverride(
@@ -209,6 +364,7 @@ async function main(): Promise<void> {
   const targetByModId = indexByModId(targetEntries)
 
   const sourceFiles = new Map<string, PtStringItem[]>()
+  const sourceOrigins = new Map<string, Map<string, string>>()
   const duplicateExamples: string[] = []
   let unresolved4964 = 0
 
@@ -229,8 +385,12 @@ async function main(): Promise<void> {
     const ptPath = resolved.name.slice(0, -'.json'.length)
     const incoming = (await loadPtItems(abs)).map(normalizeItem)
     const existing = sourceFiles.get(ptPath)
+    const origins = sourceOrigins.get(ptPath) ?? new Map<string, string>()
     if (existing == null) {
       sourceFiles.set(ptPath, incoming)
+      for (const item of incoming)
+        origins.set(item.key, sourceName)
+      sourceOrigins.set(ptPath, origins)
       continue
     }
     const byKey = new Map(existing.map(item => [item.key, item]))
@@ -238,10 +398,12 @@ async function main(): Promise<void> {
     for (const item of incoming) {
       if (!byKey.has(item.key)) {
         byKey.set(item.key, item)
+        origins.set(item.key, sourceName)
         added++
       }
     }
     sourceFiles.set(ptPath, [...byKey.values()])
+    sourceOrigins.set(ptPath, origins)
     if (duplicateExamples.length < 10)
       duplicateExamples.push(`${sourceName} -> ${ptPath} (+${added} keys)`)
   }
@@ -249,29 +411,37 @@ async function main(): Promise<void> {
   await rm(finalRoot, { recursive: true, force: true })
   await mkdir(finalRoot, { recursive: true })
 
-  const plan: MergePlan = { push: [], archive: [], overrideTranslations: [] }
+  const plan: MergePlan = { push: [], archive: [], archiveStrings: {}, overrideTranslations: [] }
   const stats: MergeStats = {
     files: enFiles.size,
     filesChanged: 0,
     filesCreated: 0,
     filesArchived: 0,
+    stringsArchived: 0,
     currentPreserved: 0,
     sourceApplied: 0,
+    sourceAppliedByRemoteTime: 0,
+    sourceAppliedNoRemoteTime: 0,
+    sourceSkippedByCurrent: 0,
+    remoteTimeChecks: 0,
     staleFromCurrent: 0,
     staleFrom4964: 0,
     unresolved4964,
     blankTranslations: 0,
     originalFallbacksCleared: 0,
   }
+  const remoteTimestamps = new RemoteTimestampResolver()
 
   for (const [ptPath, enItems] of enFiles) {
     const currentFile = currentFiles.get(ptPath)
     const currentItems = currentFile?.normalized ?? []
     const sourceItems = sourceFiles.get(ptPath) ?? []
+    const sourceOriginByKey = sourceOrigins.get(ptPath) ?? new Map<string, string>()
     const hasReviewedSource = sourceItems.some(item => (item.stage ?? 0) > 0)
 
     const currentByKey = new Map(currentItems.map(item => [item.key, item]))
     const sourceByKey = new Map(sourceItems.map(item => [item.key, item]))
+    const enByKey = new Set(enItems.map(item => item.key))
     const currentDrift = new Map<string, DriftEntry>()
     const finalItems: PtStringItem[] = []
 
@@ -285,8 +455,9 @@ async function main(): Promise<void> {
       const hasCurrentExactTranslation = current?.original === enItem.original && !!current.translation
       const sourceHasTranslation = hasText(source?.translation)
       const sourceExact = source?.original === enItem.original
+      const currentExact = current?.original === enItem.original
       const currentLooksLikeOriginalFallback = current != null
-        && current.original === enItem.original
+        && currentExact
         && current.translation === enItem.original
         && (current.stage ?? 0) > 0
         && source != null
@@ -294,7 +465,7 @@ async function main(): Promise<void> {
         && !sourceHasTranslation
       let handledBySource = false
 
-      if (current && current.original === enItem.original && !currentLooksLikeOriginalFallback) {
+      if (current && currentExact && !currentLooksLikeOriginalFallback) {
         translation = current.translation
         stage = current.stage ?? 0
         if (translation)
@@ -309,11 +480,36 @@ async function main(): Promise<void> {
 
       if (source && sourceHasTranslation) {
         if (sourceExact) {
-          translation = source.translation
-          stage = source.stage ?? 0
-          currentDrift.delete(enItem.key)
-          stats.sourceApplied++
-          handledBySource = true
+          const sourceConflictsWithCurrent = currentExact
+            && hasText(current?.translation)
+            && current.translation !== source.translation
+          const remoteDecision = sourceConflictsWithCurrent
+            ? await remoteTimestamps.compare(
+                ptPath,
+                sourceOriginByKey.get(enItem.key),
+                enItem.key,
+                enItem.original,
+                current,
+                source,
+              )
+            : undefined
+          const useSource = !sourceConflictsWithCurrent
+            || remoteDecision === 'source-newer'
+            || remoteDecision === 'missing-time'
+          if (useSource) {
+            translation = source.translation
+            stage = source.stage ?? 0
+            currentDrift.delete(enItem.key)
+            stats.sourceApplied++
+            if (remoteDecision === 'source-newer')
+              stats.sourceAppliedByRemoteTime++
+            else if (remoteDecision === 'missing-time')
+              stats.sourceAppliedNoRemoteTime++
+            handledBySource = true
+          }
+          else {
+            stats.sourceSkippedByCurrent++
+          }
         }
         else if ((source.stage ?? 0) > 0 && !hasCurrentExactTranslation) {
           translation = staleMarker(enItem.original, source.translation)
@@ -352,6 +548,13 @@ async function main(): Promise<void> {
     await writeJson(out, finalItems)
 
     const existed = currentFile != null
+    const removedKeys = currentItems
+      .filter(item => !enByKey.has(item.key))
+      .map(item => item.key)
+    if (removedKeys.length > 0) {
+      plan.archiveStrings[ptPath] = removedKeys
+      stats.stringsArchived += removedKeys.length
+    }
     const legacyPlaceholderRewrite = hasLegacyPlaceholder(currentFile?.raw)
     if (!existed)
       stats.filesCreated++
@@ -374,6 +577,7 @@ async function main(): Promise<void> {
   }
 
   stats.files = enFiles.size
+  stats.remoteTimeChecks = remoteTimestamps.remoteTimeChecks
 
   await writeFile(mergeStatsPath, `${JSON.stringify(stats, null, 2)}\n`, 'utf8')
   await writeJson(mergePlanPath, plan)
@@ -390,8 +594,13 @@ async function main(): Promise<void> {
     `[merge-final] files=${stats.files} push=${plan.push.length} archive=${plan.archive.length} `
     + `override=${plan.overrideTranslations.length} `
     + `created=${stats.filesCreated} preserved=${stats.currentPreserved} source-applied=${stats.sourceApplied} `
+    + `source-applied-by-time=${stats.sourceAppliedByRemoteTime} `
+    + `source-applied-no-time=${stats.sourceAppliedNoRemoteTime} `
+    + `source-skipped-current=${stats.sourceSkippedByCurrent} `
+    + `remote-time-checks=${stats.remoteTimeChecks} `
     + `stale-current=${stats.staleFromCurrent} stale-4964=${stats.staleFrom4964} `
-    + `blank=${stats.blankTranslations} cleared-original-fallback=${stats.originalFallbacksCleared} `
+    + `blank=${stats.blankTranslations} archived-strings=${stats.stringsArchived} `
+    + `cleared-original-fallback=${stats.originalFallbacksCleared} `
     + `unresolved-4964=${stats.unresolved4964}`,
   )
   if (duplicateExamples.length > 0)

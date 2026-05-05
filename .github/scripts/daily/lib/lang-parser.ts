@@ -13,10 +13,14 @@ export interface LangEntry {
 }
 
 export interface PtStringItem {
+  id?: number
   key: string
   original: string
   translation: string
   stage: number
+  createdAt?: string | null
+  updatedAt?: string | null
+  uid?: number | null
   context?: string
 }
 

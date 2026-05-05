@@ -10,7 +10,7 @@
  *      - empty translations are omitted from the packed output entirely;
  *        Minecraft falls back to en_US.lang automatically
  *    Tips are handled specially: PT only stores a synthetic keyed mirror, but
- *    the authoritative zh_CN.txt lives in the Kiwi/MagicYuDeer repo branch.
+ *    the authoritative zh_CN.txt lives in Kiwi233/Translation-of-GTNH master.
  *    Pack output therefore prefers that direct file and only falls back to
  *    reassembling PT data if the repo copy is unavailable.
  *
@@ -184,9 +184,8 @@ async function rebuildLangTree(): Promise<string> {
 }
 
 /**
- * Tips are maintained outside PT. Prefer the direct repo copy (already
- * overridden to MagicYuDeer/patch-1 upstream in pull-zh-4964); only if that
- * file is absent do we fall back to reassembling the synthetic PT mirror.
+ * Tips are maintained outside PT. Prefer the direct Kiwi233 repo copy; only if
+ * that file is absent do we fall back to reassembling the synthetic PT mirror.
  *
  * Fallback mode converts the keyed mirror back to the `.txt` layout Minecraft
  * expects; the first 8 lines of Kiwi233's zh_CN.txt (7 comment lines + the PT

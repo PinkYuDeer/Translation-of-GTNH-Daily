@@ -53,16 +53,6 @@ interface ArtifactInfo {
 }
 
 /**
- * TEMPORARY OVERRIDE: Kiwi233 master hasn't merged the latest zh_CN.txt yet,
- * so we fetch the file from MagicYuDeer/patch-1 and stage it over the Kiwi233
- * checkout. Remove this block (and the call in main) once the PR merges back
- * into Kiwi233 master.
- */
-const TIPS_ZH_OVERRIDE_URL
-  = 'https://raw.githubusercontent.com/MagicYuDeer/Translation-of-GTNH/patch-1/config/Betterloadingscreen/tips/zh_CN.txt'
-const TIPS_ZH_PATH_IN_KIWI = 'config/Betterloadingscreen/tips/zh_CN.txt'
-
-/**
  * PT 4964 stores legacy per-file prefixes in `key`, notably `lang|...` and
  * `gt-lang|...`. PT 18818 and our `.build/en` snapshots use raw Minecraft keys,
  * so strip those prefixes at ingest time.
@@ -108,10 +98,14 @@ function loadItemsFromJson(data: unknown): PtStringItem[] {
 
 function normalize4964Items(items: PtStringItem[]): PtStringItem[] {
   return items.map(item => ({
+    ...(item.id != null ? { id: item.id } : {}),
     key: normalize4964Key(item.key),
     original: item.original ?? '',
     translation: item.translation ?? '',
     stage: item.stage ?? 0,
+    ...(item.createdAt != null ? { createdAt: item.createdAt } : {}),
+    ...(item.updatedAt != null ? { updatedAt: item.updatedAt } : {}),
+    ...(item.uid != null ? { uid: item.uid } : {}),
     ...(item.context != null ? { context: item.context } : {}),
   }))
 }
@@ -176,18 +170,6 @@ async function tryArtifactFlow(outRoot: string): Promise<boolean> {
     console.warn(`[pull-zh-4964] artifact flow failed, falling back: ${err instanceof Error ? err.message : err}`)
     return false
   }
-}
-
-async function applyTipsZhOverride(): Promise<void> {
-  const dst = join(REPO_CACHE_DIR, 'kiwi', TIPS_ZH_PATH_IN_KIWI)
-  const res = await fetch(TIPS_ZH_OVERRIDE_URL)
-  if (!res.ok)
-    throw new Error(`tips-override fetch failed: ${res.status} ${res.statusText}`)
-  const body = await res.text()
-  await mkdir(dirname(dst), { recursive: true })
-  await writeFile(dst, body, 'utf8')
-  // eslint-disable-next-line no-console
-  console.log(`[pull-zh-4964] tips override staged (${body.length} bytes) from MagicYuDeer/patch-1`)
 }
 
 /**
@@ -271,13 +253,17 @@ async function fallbackFileByFile(outRoot: string): Promise<void> {
   const tasks = files.map(f => async () => {
     const rows = await listFileStrings(PT_4964_ID, f.id)
     // Convert rows into the same PtStringItem shape used elsewhere, dropping
-    // the server `id` — diff-zh doesn't need it, and keeping it would just
-    // balloon the cache.
+    // only unrelated server fields; `id` / timestamps are useful for manual
+    // conflict investigation when the artifact path does not expose them.
     const items = rows.map(r => ({
+      id: r.id,
       key: normalize4964Key(r.key),
       original: r.original,
       translation: r.translation ?? '',
       stage: r.stage ?? 0,
+      ...(r.createdAt != null ? { createdAt: r.createdAt } : {}),
+      ...(r.updatedAt != null ? { updatedAt: r.updatedAt } : {}),
+      ...(r.uid != null ? { uid: r.uid } : {}),
       ...(r.context != null ? { context: r.context } : {}),
     }))
     const relPath = stripPtJsonSuffix(f.name)
@@ -309,8 +295,6 @@ async function fallbackFileByFile(outRoot: string): Promise<void> {
 
 async function main(): Promise<void> {
   assertToken()
-
-  await applyTipsZhOverride()
 
   const outRoot = join(BUILD_DIR, 'zh-4964')
   const ok = await tryArtifactFlow(outRoot)

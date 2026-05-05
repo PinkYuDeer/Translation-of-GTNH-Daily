@@ -180,7 +180,8 @@ export function resolveNewlineForm(
   forms: NewlineFileForms | undefined,
   key: string,
 ): NewlineForm | undefined {
-  return forms?.entries[key] ?? forms?.default
+  return forms?.entries[key]
+    ?? (key.toLowerCase().includes('research_page') ? '<BR>' : forms?.default)
 }
 
 export interface PendingUpdateEntry {
