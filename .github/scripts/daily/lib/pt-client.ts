@@ -27,11 +27,46 @@ export interface PtFileSummary {
 
 export interface PtStringRow {
   id: number
+  createdAt?: string | null
+  updatedAt?: string | null
   key: string
   original: string
   translation: string
   stage: number
+  uid?: number | null
   context?: string | null
+}
+
+export interface PtHistoryRow {
+  id: number
+  createdAt?: string | null
+  updatedAt?: string | null
+  field?: string | null
+  uid?: number | null
+  tid?: number | null
+  type?: string | null
+  key?: string | null
+  from?: string | null
+  to?: string | null
+  target?: string | null
+  operation?: string | null
+}
+
+export interface PtRevisionRow {
+  id: number
+  createdAt?: string | null
+  name?: string | null
+  filename?: string | null
+  type?: 'create' | 'update' | 'import' | string
+  file?: number | { id: number, name?: string, project?: number } | null
+  uid?: number | null
+  project?: number | null
+  insert?: number | null
+  update?: number | null
+  remove?: number | null
+  hash?: string | null
+  force?: boolean | null
+  incremental?: boolean | null
 }
 
 export interface PtTermRow {
@@ -198,6 +233,29 @@ export async function apiPutMultipart<T = unknown>(
   return apiMultipart('PUT', path, fields, fileField)
 }
 
+export async function importFileTranslations<T = unknown>(
+  projectId: string,
+  fileId: number,
+  filename: string,
+  content: string,
+  options: { force?: boolean, skip?: boolean } = {},
+): Promise<T> {
+  const fields: Record<string, string> = {}
+  if (options.force != null)
+    fields.force = String(options.force)
+  if (options.skip != null)
+    fields.skip = String(options.skip)
+  return apiPostMultipart<T>(
+    `/projects/${projectId}/files/${fileId}/translation`,
+    fields,
+    { name: 'file', filename, content },
+  )
+}
+
+export async function deleteString(projectId: string, stringId: number): Promise<void> {
+  await apiDeleteJson(`/projects/${projectId}/strings/${stringId}`)
+}
+
 async function apiMultipart<T = unknown>(
   method: 'POST' | 'PUT',
   path: string,
@@ -283,14 +341,18 @@ export async function runBounded<T>(
  * `fetchPage(page)` that returns one page; we concatenate up to `pageCount`.
  */
 export async function fetchAllPages<T>(
-  fetchPage: (page: number) => Promise<{ pageCount: number, results: T[] }>,
+  fetchPage: (page: number) => Promise<{ pageCount?: number, results?: T[] } | T[]>,
 ): Promise<T[]> {
   let page = 1
   const all: T[] = []
   while (true) {
     const data = await fetchPage(page)
+    if (Array.isArray(data)) {
+      all.push(...data)
+      break
+    }
     all.push(...(data.results ?? []))
-    if (page >= data.pageCount)
+    if (page >= (data.pageCount ?? 1))
       break
     page++
   }
@@ -323,6 +385,30 @@ export async function listFileStrings(
 ): Promise<PtStringRow[]> {
   return fetchAllPages<PtStringRow>(page =>
     apiGet(`/projects/${projectId}/strings?file=${fileId}&page=${page}&pageSize=${pageSize}`),
+  )
+}
+
+export async function listProjectHistory(
+  params: { project?: string, uid?: number, tid?: number, pageSize?: number },
+): Promise<PtHistoryRow[]> {
+  const query = new URLSearchParams()
+  if (params.project != null)
+    query.set('project', params.project)
+  if (params.uid != null)
+    query.set('uid', String(params.uid))
+  if (params.tid != null)
+    query.set('tid', String(params.tid))
+  const pageSize = params.pageSize ?? DEFAULT_STRINGS_PAGE_SIZE
+  query.set('pageSize', String(pageSize))
+  return fetchAllPages<PtHistoryRow>((page) => {
+    query.set('page', String(page))
+    return apiGet(`/history?${query.toString()}`)
+  })
+}
+
+export async function listFileRevisions(projectId: string, pageSize = DEFAULT_STRINGS_PAGE_SIZE): Promise<PtRevisionRow[]> {
+  return fetchAllPages<PtRevisionRow>(page =>
+    apiGet(`/projects/${projectId}/files/revisions?page=${page}&pageSize=${pageSize}`),
   )
 }
 

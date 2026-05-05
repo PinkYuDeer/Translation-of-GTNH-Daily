@@ -109,10 +109,14 @@ async function fetchFilesById(outRoot: string, entries: Array<[string, number]>,
   const tasks = entries.map(([ptPath, fileId]) => async () => {
     const rows = await listFileStrings(PT_18818_ID, fileId)
     const items = rows.map(r => ({
+      id: r.id,
       key: r.key,
       original: r.original,
       translation: r.translation ?? '',
       stage: r.stage ?? 0,
+      ...(r.createdAt != null ? { createdAt: r.createdAt } : {}),
+      ...(r.updatedAt != null ? { updatedAt: r.updatedAt } : {}),
+      ...(r.uid != null ? { uid: r.uid } : {}),
       ...(r.context != null ? { context: r.context } : {}),
     }))
     const out = join(outRoot, `${ptPath}.json`)

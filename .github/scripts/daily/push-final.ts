@@ -2,21 +2,19 @@
  * Step 5 — push-final.
  *
  * Upload the merged local final state from `.build/zh-final/` back to PT 18818
- * as full-file replacements. Files retired from the active English source are
- * written to the repository `archive/` tree using their pack path, then deleted
- * from PT so the project does not keep `.disable` / `.achive` leftovers.
+ * as source-file updates plus translation imports. Files retired from the
+ * active English source are written to the repository `archive/` tree using
+ * their pack path, then deleted from PT so the project does not keep `.disable`
+ * / `.achive` leftovers.
  *
- * Special case: if an English file is brand-new and 18818 does not have it
- * yet, we do NOT create it with translated rows inline. Instead we:
- *   1. create the file from English originals only (empty translations)
- *   2. list the newborn stringIds
- *   3. push translated rows one-by-one
- *
- * This matches PT's create/update semantics more reliably for fresh files.
+ * PT's source-file update endpoint only mutates originals. Existing/new
+ * translations are imported through POST /files/{fileId}/translation so PT
+ * records a file import revision rather than assigning every row to the bot.
  *
  * This script consumes `.build/merge-plan.json`:
- *   - `push[]`    — active files to create/replace via POST /files
+ *   - `push[]`    — active files to create/update via POST /files
  *   - `archive[]` — retired PT files to write under archive/ and delete
+ *   - `archiveStrings{}` — retired strings inside still-active files
  */
 
 import { existsSync } from 'node:fs'
@@ -28,7 +26,7 @@ import { readFileIds, readNewlines, resolveNewlineForm, writeFileIds, type Newli
 import {
   apiDeleteJson,
   apiPostMultipart,
-  apiPutJson,
+  importFileTranslations,
   indexFilesByLowerName,
   listFileStrings,
   listProjectFiles,
@@ -37,6 +35,7 @@ import {
 import {
   type LangEntry,
   type PtStringItem,
+  parseLang,
   serializeGregTechLang,
   serializeLang,
 } from './lib/lang-parser.ts'
@@ -62,17 +61,8 @@ interface PtFileMutationResult {
 interface MergePlan {
   push: string[]
   archive: string[]
+  archiveStrings?: Record<string, string[]>
   overrideTranslations?: string[]
-}
-
-interface PtStringWriteRow {
-  stringId: number
-  fileId: number
-  key: string
-  original: string
-  translation: string
-  stage: number
-  context?: string
 }
 
 function ptBasename(ptPath: string): string {
@@ -92,20 +82,10 @@ async function loadItems(ptPath: string): Promise<PtStringItem[]> {
   return JSON.parse(await readFile(abs, 'utf8')) as PtStringItem[]
 }
 
-function toPtUploadItems(items: PtStringItem[]): PtStringItem[] {
+function toPtSourceItems(items: PtStringItem[]): PtStringItem[] {
   return items.map(item => ({
     key: item.key,
     original: toPtNewlines(item.original ?? ''),
-    translation: toPtNewlines(item.translation ?? ''),
-    stage: item.stage ?? 0,
-    ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
-  }))
-}
-
-function toEnglishOnlyItems(items: PtStringItem[]): PtStringItem[] {
-  return items.map(item => ({
-    key: item.key,
-    original: item.original,
     translation: '',
     stage: 0,
     ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
@@ -136,11 +116,11 @@ async function loadCurrentItems(ptPath: string, fileId: number): Promise<PtStrin
   }))
 }
 
-function archivedText(
+function archiveEntries(
   ptPath: string,
   items: PtStringItem[],
   newlineForms: NewlineFileForms | undefined,
-): string {
+): LangEntry[] {
   const entries: LangEntry[] = []
   for (const item of items) {
     if (!item.key)
@@ -156,7 +136,10 @@ function archivedText(
       value: restoreNewlines(valueSource, form),
     })
   }
+  return entries
+}
 
+function serializeArchiveEntries(ptPath: string, entries: LangEntry[]): string {
   const activePtPath = stripArchiveSuffix(ptPath)
   if (activePtPath === 'GregTech.lang')
     return serializeGregTechLang(entries)
@@ -165,16 +148,60 @@ function archivedText(
   return serializeLang(entries)
 }
 
-async function writeRetiredFileArchive(
+async function readExistingArchiveEntries(ptPath: string, out: string): Promise<LangEntry[]> {
+  if (!existsSync(out))
+    return []
+  const activePtPath = stripArchiveSuffix(ptPath)
+  const content = await readFile(out, 'utf8')
+  if (activePtPath === TIPS_PT_PATH)
+    return content
+      .split(/\r?\n/)
+      .filter(line => line.length > 0)
+      .map((line, i) => ({ key: `archived.tip.${String(i + 1).padStart(4, '0')}`, value: line }))
+  return parseLang(content)
+}
+
+async function writeMergedArchive(
   ptPath: string,
   items: PtStringItem[],
   newlineForms: NewlineFileForms | undefined,
 ): Promise<string> {
   const rel = archivePackPath(ptPath)
   const out = join(REPO_ARCHIVE_DIR, rel)
+  const incoming = archiveEntries(ptPath, items, newlineForms)
+  if (incoming.length === 0)
+    return rel
+
   await mkdir(dirname(out), { recursive: true })
-  await writeFile(out, archivedText(ptPath, items, newlineForms), 'utf8')
+  const activePtPath = stripArchiveSuffix(ptPath)
+  if (activePtPath === TIPS_PT_PATH && existsSync(out)) {
+    const oldLines = (await readFile(out, 'utf8')).split(/\r?\n/).filter(line => line.length > 0)
+    const seen = new Set(oldLines)
+    for (const line of entriesToTips(incoming).split(/\r?\n/)) {
+      if (line.length > 0 && !seen.has(line)) {
+        oldLines.push(line)
+        seen.add(line)
+      }
+    }
+    await writeFile(out, `${oldLines.join('\n')}\n`, 'utf8')
+    return rel
+  }
+
+  const merged = new Map<string, LangEntry>()
+  for (const entry of await readExistingArchiveEntries(ptPath, out))
+    merged.set(entry.key, entry)
+  for (const entry of incoming)
+    merged.set(entry.key, entry)
+  await writeFile(out, serializeArchiveEntries(ptPath, [...merged.values()]), 'utf8')
   return rel
+}
+
+async function writeRetiredFileArchive(
+  ptPath: string,
+  items: PtStringItem[],
+  newlineForms: NewlineFileForms | undefined,
+): Promise<string> {
+  return writeMergedArchive(ptPath, items, newlineForms)
 }
 
 function normalizeMutationResult(
@@ -192,12 +219,24 @@ function normalizeMutationResult(
   return { id, name }
 }
 
+async function recoverMutationResultByName(
+  ptPath: string,
+  response: PtFileMutationResponse,
+): Promise<PtFileMutationResult | undefined> {
+  if (response.status !== 'hashMatched' && response.status !== 'empty')
+    return undefined
+  const expected = toPtJsonPath(ptPath)
+  const remote = indexFilesByLowerName(await listProjectFiles(PT_18818_ID))
+  const hit = remote.get(expected.toLowerCase())
+  return hit ? { id: hit.id, name: hit.name } : undefined
+}
+
 async function uploadOne(
   ptPath: string,
   existingFileId: number | undefined,
   items: PtStringItem[],
 ): Promise<PtFileMutationResult> {
-  const body = JSON.stringify(toPtUploadItems(items))
+  const body = JSON.stringify(toPtSourceItems(items))
   const filename = ptBasename(ptPath)
   if (existingFileId != null) {
     const res = await apiPostMultipart<PtFileMutationResponse>(`/projects/${PT_18818_ID}/files/${existingFileId}`, {}, {
@@ -212,86 +251,68 @@ async function uploadOne(
     { path: ptDirname(ptPath) },
     { name: 'file', filename, content: body },
   )
-  return normalizeMutationResult(ptPath, res, existingFileId)
+  const recovered = await recoverMutationResultByName(ptPath, res)
+  return recovered ?? normalizeMutationResult(ptPath, res, existingFileId)
 }
 
-async function putOneString(row: PtStringWriteRow): Promise<void> {
-  await apiPutJson(`/projects/${PT_18818_ID}/strings/${row.stringId}`, {
-    key: row.key,
-    original: toPtNewlines(row.original),
-    translation: toPtNewlines(row.translation),
-    file: row.fileId,
-    stage: row.stage,
-    ...(row.context != null ? { context: row.context } : {}),
-  })
+function toTranslationImportItems(items: PtStringItem[]): PtStringItem[] {
+  return items.map(item => ({
+    key: item.key,
+    original: toPtNewlines(item.original ?? ''),
+    translation: toPtNewlines(item.translation ?? ''),
+    stage: item.stage ?? 0,
+    ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
+  }))
 }
 
-async function pushTranslationsPerString(
+async function importTranslationBatch(
   ptPath: string,
   fileId: number,
   items: PtStringItem[],
-  label: 'new-file' | 'override',
+  force: boolean,
 ): Promise<void> {
-  const candidates = label === 'new-file'
-    ? items.filter(item => item.translation.length > 0 || (item.stage ?? 0) > 0)
-    : items
-  if (candidates.length === 0)
+  if (items.length === 0)
     return
+  await importFileTranslations(
+    PT_18818_ID,
+    fileId,
+    ptBasename(ptPath),
+    JSON.stringify(toTranslationImportItems(items)),
+    { force },
+  )
+}
 
+async function importChangedTranslations(
+  ptPath: string,
+  fileId: number,
+  items: PtStringItem[],
+): Promise<{ imported: number, forced: number }> {
   const remoteRows = await listFileStrings(PT_18818_ID, fileId)
   const remoteByKey = new Map(remoteRows.map(row => [row.key, row]))
-  const rowTasks: Array<() => Promise<void>> = []
-  for (const item of candidates) {
+  const normal: PtStringItem[] = []
+  const forced: PtStringItem[] = []
+
+  for (const item of items) {
     const remote = remoteByKey.get(item.key)
-    if (!remote) {
-      if (label === 'new-file')
-        throw new Error(`new PT file ${ptPath} missing stringId for key ${item.key}`)
-      // On override, a brand-new key will have been materialized by the file
-      // POST but may not yet be visible; skip rather than fail the whole file.
-      continue
-    }
-    // Skip PUT if PT's stored translation already matches what we want. File
-    // uploads only refresh originals, but for matching translations there is
-    // nothing to overwrite and we avoid burning rate-limited API calls.
-    const desired = toPtNewlines(item.translation)
+    if (!remote)
+      throw new Error(`PT file ${ptPath} missing string after source upload: ${item.key}`)
+
+    const desiredTranslation = toPtNewlines(item.translation ?? '')
     const desiredStage = item.stage ?? 0
-    if ((remote.translation ?? '') === desired && (remote.stage ?? 0) === desiredStage)
+    const remoteTranslation = remote.translation ?? ''
+    const remoteStage = remote.stage ?? 0
+    if (remoteTranslation === desiredTranslation && remoteStage === desiredStage)
       continue
-    rowTasks.push(async () => {
-      await putOneString({
-        stringId: remote.id,
-        fileId,
-        key: item.key,
-        original: item.original,
-        translation: item.translation,
-        stage: item.stage ?? 0,
-        ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
-      })
-    })
+
+    if (desiredTranslation.length === 0 || remoteTranslation === desiredTranslation)
+      forced.push(item)
+    else
+      normal.push(item)
   }
 
-  if (rowTasks.length === 0)
-    return
-
-  const { failures, results } = await runBounded(rowTasks, CONCURRENCY, {
-    onSettled: ({ completed, total, failures, result }) => {
-      if (completed === 1 || completed === total || completed % 100 === 0 || result instanceof Error)
-        // eslint-disable-next-line no-console
-        console.log(`[push-final] ${label} row progress ${ptPath} ${completed}/${total} (fail=${failures})`)
-    },
-  })
-  if (failures > 0) {
-    const failed = results.find(r => r instanceof Error)
-    throw failed instanceof Error ? failed : new Error(`${label} translation push failed for ${ptPath}`)
-  }
-}
-
-async function pushTranslationsForNewFile(ptPath: string, fileId: number, items: PtStringItem[]): Promise<void> {
-  return pushTranslationsPerString(ptPath, fileId, items, 'new-file')
-}
-
-async function overrideTranslationsForFile(ptPath: string, fileId: number, items: PtStringItem[]): Promise<void> {
-  return pushTranslationsPerString(ptPath, fileId, items, 'override')
+  await importTranslationBatch(ptPath, fileId, normal, false)
+  await importTranslationBatch(ptPath, fileId, forced, true)
+  return { imported: normal.length, forced: forced.length }
 }
 
 async function deleteOne(
@@ -329,36 +350,49 @@ async function main(): Promise<void> {
     return
   }
   const plan = JSON.parse(await readFile(planPath, 'utf8')) as MergePlan
-  if (plan.push.length === 0 && plan.archive.length === 0) {
+  const archiveStringPlan = plan.archiveStrings ?? {}
+  const archiveStringPaths = Object.keys(archiveStringPlan)
+  if (plan.push.length === 0 && plan.archive.length === 0 && archiveStringPaths.length === 0) {
     // eslint-disable-next-line no-console
     console.log('[push-final] no file changes to push')
     return
   }
 
   const fileIds = await readFileIds()
-  const recovered = await hydrateMissingFileIds([...plan.push, ...plan.archive], fileIds)
+  const recovered = await hydrateMissingFileIds([...plan.push, ...plan.archive, ...archiveStringPaths], fileIds)
   if (recovered > 0)
     // eslint-disable-next-line no-console
     console.log(`[push-final] recovered ${recovered} fileId(s) from remote file list`)
 
-  const overrideSet = new Set(plan.overrideTranslations ?? [])
   const newlineCache = await readNewlines()
 
   const pushTasks = plan.push.map(ptPath => async () => {
     const items = await loadItems(ptPath)
     const existingFileId = fileIds[ptPath]
-    const res = existingFileId != null
-      ? await uploadOne(ptPath, existingFileId, items)
-      : await uploadOne(ptPath, undefined, toEnglishOnlyItems(items))
+    let archivedStrings = 0
+    const retiredKeys = archiveStringPlan[ptPath] ?? []
+    if (existingFileId != null && retiredKeys.length > 0) {
+      const retiredKeySet = new Set(retiredKeys)
+      const currentItems = await loadCurrentItems(ptPath, existingFileId)
+      const retiredItems = currentItems.filter(item => retiredKeySet.has(item.key))
+      if (retiredItems.length > 0) {
+        const activePtPath = stripArchiveSuffix(ptPath)
+        await writeRetiredFileArchive(
+          ptPath,
+          retiredItems,
+          newlineCache[activePtPath] ?? newlineCache[ptPath],
+        )
+        archivedStrings = retiredItems.length
+      }
+    }
+
+    const res = await uploadOne(ptPath, existingFileId, items)
     const expected = toPtJsonPath(ptPath)
     if (res.name !== expected)
       throw new Error(`upload path mismatch for ${ptPath}: expected ${expected}, got ${res.name}`)
     fileIds[ptPath] = res.id
-    if (existingFileId == null)
-      await pushTranslationsForNewFile(ptPath, res.id, items)
-    else if (overrideSet.has(ptPath))
-      await overrideTranslationsForFile(ptPath, res.id, items)
-    return ptPath
+    const translationResult = await importChangedTranslations(ptPath, res.id, items)
+    return { ptPath, archivedStrings, ...translationResult }
   })
 
   const archiveTasks = plan.archive.map(ptPath => async () => {
@@ -396,10 +430,13 @@ async function main(): Promise<void> {
   await writeFileIds(fileIds)
 
   const totalFailures = pushRun.failures + archiveRun.failures
+  const imported = pushRun.results.reduce((sum, r) => sum + (!(r instanceof Error) ? r.imported : 0), 0)
+  const forced = pushRun.results.reduce((sum, r) => sum + (!(r instanceof Error) ? r.forced : 0), 0)
+  const archivedStrings = pushRun.results.reduce((sum, r) => sum + (!(r instanceof Error) ? r.archivedStrings : 0), 0)
   // eslint-disable-next-line no-console
   console.log(
     `[push-final] uploaded=${pushRun.successes}/${plan.push.length} `
-    + `override=${overrideSet.size} `
+    + `translation-imported=${imported} forced-clears=${forced} archived-strings=${archivedStrings} `
     + `archived=${archiveRun.successes}/${plan.archive.length} failed=${totalFailures}`,
   )
 
