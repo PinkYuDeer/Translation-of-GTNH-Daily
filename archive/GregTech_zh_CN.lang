@@ -1,0 +1,5 @@
+# Configuration file 
+
+languagefile {
+    S:gt.blockmachines.hatch.test.name=Test Factory Hatch
+}
