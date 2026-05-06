@@ -64,7 +64,7 @@
 - `.build/generated-gregtech/GregTech.lang` 必须存在；`daily-history/GregTech.lang` 不再作为回退来源
 - 枚举 A–G 七类英文源（见脚本顶部说明），按 PT 18818 路径写成统一 JSON 骨架
 - **去重**：同一目标路径同时来自 `daily-history` 与 `Modpack` 时，`daily-history` 胜
-- **换行嗅探**：逐词条识别英文原文使用的是 `<BR>` / `<br>` / `%n` / 字面 `\n` / 字面 `\\n`，并逐文件统计出现最多的形式，写入 `.cache/newlines.json`
+- **换行嗅探**：逐词条识别英文原文使用的是 `<BR>` / `<br>` / `[br]` / `%n` / 字面 `\n` / 字面 `\\n`，并逐文件统计出现最多的形式，写入 `.cache/newlines.json`
 - 输出：`.build/en/<pt-path>.en.json`（所有值已归一化为真换行）
 
 ### 2. `pull-current-18818.ts` — 拉取我方 PT 当前态
@@ -148,11 +148,11 @@ GitHub Actions `actions/cache@v4` 有两层：
 
 ## 换行符处理
 
-Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / `%n` / 字面 `\n` / 字面 `\\n`。流水线内部统一存真换行。为保证回游戏时渲染正确：
+Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / `[br]` / `%n` / 字面 `\n` / 字面 `\\n`。流水线内部统一存真换行。为保证回游戏时渲染正确：
 
 - **嗅探**（fetch-en）：逐词条记录英文原文用哪种形式，并逐文件选出出现最多的形式 → `newlines.json`
 - **归一化**（fetch-en + merge-final）：所有形式统一成真换行，避免"格式差异"触发假变更
-- **还原**（restore-and-pack）：按每词条原形式把真换行回写成原字面；若 key 缺少逐词条记录，`research_page` 优先退到 `<BR>`，其余退到该文件最多的形式。`<BR>` 的任务书仍是 `<BR>`，使用 `%n` 的仍是 `%n`，使用 `\n` 的仍是 `\n`，使用 `\\n` 的仍是 `\\n`
+- **还原**（restore-and-pack）：按每词条原形式把真换行回写成原字面；若 key 缺少逐词条记录，`research_page` 优先退到 `<BR>`，其余退到该文件最多的形式。`<BR>` 的任务书仍是 `<BR>`，使用 `[br]` 的仍是 `[br]`，使用 `%n` 的仍是 `%n`，使用 `\n` 的仍是 `\n`，使用 `\\n` 的仍是 `\\n`
 
 ---
 

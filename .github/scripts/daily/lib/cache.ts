@@ -91,7 +91,7 @@ export async function deleteStringIds(ptPath: string): Promise<void> {
   await rm(stringIdsFile(ptPath), { force: true })
 }
 
-export type NewlineForm = '<BR>' | '<br>' | '\\n' | '\\\\n' | '%n'
+export type NewlineForm = '<BR>' | '<br>' | '[br]' | '\\n' | '\\\\n' | '%n'
 
 export interface NewlineFileForms {
   /** Most frequent placeholder form in this file, used when a key has no exact entry hit. */
@@ -105,6 +105,7 @@ export type NewlinesCache = Record<string, NewlineFileForms>
 function isNewlineForm(value: unknown): value is NewlineForm {
   return value === '<BR>'
     || value === '<br>'
+    || value === '[br]'
     || value === '\\n'
     || value === '\\\\n'
     || value === '%n'
