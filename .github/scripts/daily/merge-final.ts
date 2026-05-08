@@ -15,6 +15,9 @@
  *   - If 4964 has a non-blank fresh exact match, it fills current PT gaps.
  *     When both 18818 and 4964 already have different exact translations, query
  *     row timestamps; 4964 wins if it is newer or timestamps are unavailable.
+ *   - 4964 rows that still have translation text but are stage=0 are treated as
+ *     stale/unreviewed. They must not overwrite a translated 18818 row; if the
+ *     18818 original drifted, the 18818 translation is emitted as a stale marker.
  *   - If 4964 has a translated key but with older English, it also becomes a stale
  *     marker, overriding current PT's older translation payload.
  *   - 4964 rows/files without an English counterpart are ignored. The upstream
@@ -171,6 +174,10 @@ function staleMarker(newOriginal: string, oldTranslation: string): string {
 
 function hasText(value: string | undefined): value is string {
   return (value ?? '').trim().length > 0
+}
+
+function isTranslated(item: PtStringItem | undefined): boolean {
+  return hasText(item?.translation) && (item?.stage ?? 0) > 0
 }
 
 function normalize4964Key(key: string): string {
@@ -456,6 +463,8 @@ async function main(): Promise<void> {
       const context = current?.context ?? enItem.context
       const hasCurrentExactTranslation = current?.original === enItem.original && !!current.translation
       const sourceHasTranslation = hasText(source?.translation)
+      const sourceIsTranslated = isTranslated(source)
+      const currentIsTranslated = isTranslated(current)
       const sourceExact = source?.original === enItem.original
       const currentExact = current?.original === enItem.original
       let handledBySource = false
@@ -484,35 +493,41 @@ async function main(): Promise<void> {
 
       if (source && sourceHasTranslation) {
         if (sourceExact) {
-          const sourceConflictsWithCurrent = currentExact
-            && hasText(current?.translation)
-            && current.translation !== source.translation
-          const remoteDecision = sourceConflictsWithCurrent
-            ? await remoteTimestamps.compare(
-                ptPath,
-                sourceOriginByKey.get(enItem.key),
-                enItem.key,
-                enItem.original,
-                current,
-                source,
-              )
-            : undefined
-          const useSource = !sourceConflictsWithCurrent
-            || remoteDecision === 'source-newer'
-            || remoteDecision === 'missing-time'
-          if (useSource) {
-            translation = source.translation
-            stage = source.stage ?? 0
-            currentDrift.delete(enItem.key)
-            stats.sourceApplied++
-            if (remoteDecision === 'source-newer')
-              stats.sourceAppliedByRemoteTime++
-            else if (remoteDecision === 'missing-time')
-              stats.sourceAppliedNoRemoteTime++
-            handledBySource = true
+          if (!sourceIsTranslated) {
+            if (currentIsTranslated)
+              stats.sourceSkippedByCurrent++
           }
           else {
-            stats.sourceSkippedByCurrent++
+            const sourceConflictsWithCurrent = currentExact
+              && hasText(current?.translation)
+              && current.translation !== source.translation
+            const remoteDecision = sourceConflictsWithCurrent
+              ? await remoteTimestamps.compare(
+                  ptPath,
+                  sourceOriginByKey.get(enItem.key),
+                  enItem.key,
+                  enItem.original,
+                  current,
+                  source,
+                )
+              : undefined
+            const useSource = !sourceConflictsWithCurrent
+              || remoteDecision === 'source-newer'
+              || remoteDecision === 'missing-time'
+            if (useSource) {
+              translation = source.translation
+              stage = source.stage ?? 0
+              currentDrift.delete(enItem.key)
+              stats.sourceApplied++
+              if (remoteDecision === 'source-newer')
+                stats.sourceAppliedByRemoteTime++
+              else if (remoteDecision === 'missing-time')
+                stats.sourceAppliedNoRemoteTime++
+              handledBySource = true
+            }
+            else {
+              stats.sourceSkippedByCurrent++
+            }
           }
         }
         else if ((source.stage ?? 0) > 0 && !hasCurrentExactTranslation) {
