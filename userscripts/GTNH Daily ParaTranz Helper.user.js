@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GTNH Daily ParaTranz Helper
 // @namespace    paratranz-auto-100
-// @version      5.10
-// @description  1) 悬浮总控所有功能开关; 2) 单文件原文/译文分开选择并导入回填; 3) 纯 lang 发布包导入回填; 4) TM 自动复制与数字/电压迁移
+// @version      5.16
+// @description  1) 悬浮总控分区折叠; 2) files 页未翻译数量增强; 3) 纯 lang 发布包与单文件词库回填; 4) TM 自动复制与数字/电压迁移
 // @match        https://paratranz.cn/*
 // @run-at       document-idle
 // @require      https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js
@@ -28,14 +28,13 @@
     const STORE_FLOAT_COLLAPSED = 'float_panel_collapsed_v1';
 
     const DEFAULT_CONFIG = {
-        enableSingleFileFill: true,   // F 当前单文件原文/译文回填
-        enableLangFill: true,         // A 逐文件发布包回填
-        enableTmPerfect: true,        // B 翻译记忆 ≥100% 匹配
-        enableTokenDiffTransfer: true,// D 顶部 TM 原文仅数字/电压差异时自动迁移
+        enableLangFill: true,         // A 文件原文全字匹配时回填
+        preferSingleFileFill: false,  // A 子选项:单文件词库优先,否则发布包优先
+        enableTmPerfect: true,        // B 参考 PT 历史翻译 100%+ 词条
         enableTmInText: true,         // C "在文本中" 全字相等仅复制
+        enableTokenDiffTransfer: true,// D 顶部 TM 原文仅数字/电压差异时自动迁移
         convertParens: true,          // 回填时 () → ()
         enableAutoFillOriginal: false,// E 显示"自动填充原文"浮动面板(用于颜表情等原文即译文的情况)
-        singleFileOverwriteConflicts: false, // 单文件导入时,新文件词条覆盖旧冲突
     };
 
     // 浮动面板上的手动开关(不持久化,每次刷新默认关闭,避免误触)
@@ -69,6 +68,64 @@
             return true;
         }
         return false;
+    }
+
+    function convertHalfwidthChinesePunctuation(text) {
+        let quoteOpen = true;
+        let singleQuoteOpen = true;
+        const source = String(text || '');
+        let out = '';
+        for (let i = 0; i < source.length; i++) {
+            const code = source.charCodeAt(i);
+            if (code === 44 || code === 46) {
+                const nextCode = source.charCodeAt(i + 1);
+                if (nextCode >= 48 && nextCode <= 57)
+                    out += source.charAt(i);
+                else
+                    out += code === 44 ? '\uFF0C' : '\u3002';
+                continue;
+            }
+            if (code === 39) {
+                out += singleQuoteOpen ? '\u2018' : '\u2019';
+                singleQuoteOpen = !singleQuoteOpen;
+                continue;
+            }
+            if (code === 34) {
+                out += quoteOpen ? '\u201C' : '\u201D';
+                quoteOpen = !quoteOpen;
+                continue;
+            }
+            if (code === 63) out += '\uFF1F';
+            else if (code === 33) out += '\uFF01';
+            else if (code === 58) out += '\uFF1A';
+            else if (code === 59) out += '\uFF1B';
+            else if (code === 40) out += '\uFF08';
+            else if (code === 41) out += '\uFF09';
+            else if (code === 91) out += '\u3010';
+            else if (code === 93) out += '\u3011';
+            else if (code === 123) out += '\uFF5B';
+            else if (code === 125) out += '\uFF5D';
+            else out += source.charAt(i);
+        }
+        return out;
+    }
+
+    function convertTextareaChinesePunctuation() {
+        const ta = getTextarea();
+        if (!ta) {
+            showToast('E', '未找到输入区');
+            return false;
+        }
+        const before = ta.value;
+        const after = convertHalfwidthChinesePunctuation(before);
+        if (after === before) {
+            showToast('E', '输入区没有可转换的半角标点');
+            return false;
+        }
+        setTextareaValue(after);
+        showToast('E', '已转换输入区半角标点');
+        log('已转换输入区半角标点:', before, '→', after);
+        return true;
     }
 
     // ============ 发布包解析 ============
@@ -666,29 +723,14 @@
         return parseLangText(text);
     }
 
-    function mergeSingleEntries(oldEntries, newEntries, overwriteConflicts) {
+    function mergeSingleEntries(oldEntries, newEntries) {
         const list = [];
         const byOriginal = new Map();
-        const byKey = new Map();
         const valid = (e) => !!(e && e.original && String(e.translation || '').trim());
-        const removeAt = (idx) => {
-            if (idx < 0 || idx >= list.length) return;
-            const old = list[idx];
-            if (old) {
-                byOriginal.delete(String(old.original));
-                if (old.key) byKey.delete(String(old.key));
-            }
-            list.splice(idx, 1);
-            for (let i = idx; i < list.length; i++) {
-                byOriginal.set(String(list[i].original), i);
-                if (list[i].key) byKey.set(String(list[i].key), i);
-            }
-        };
         const add = (e) => {
             const idx = list.length;
             list.push(e);
             byOriginal.set(String(e.original), idx);
-            if (e.key) byKey.set(String(e.key), idx);
         };
         for (const e of oldEntries || []) {
             if (!valid(e)) continue;
@@ -696,21 +738,18 @@
         }
         for (const e of newEntries || []) {
             if (!valid(e)) continue;
-            const keyHit = e.key ? byKey.get(String(e.key)) : undefined;
-            const originalHit = byOriginal.get(String(e.original));
-            const hasConflict = keyHit !== undefined || originalHit !== undefined;
-            if (hasConflict && !overwriteConflicts) continue;
-            if (overwriteConflicts) {
-                const toRemove = [...new Set([keyHit, originalHit].filter(i => i !== undefined))]
-                    .sort((a, b) => b - a);
-                for (const idx of toRemove) removeAt(idx);
+            const original = String(e.original);
+            const originalHit = byOriginal.get(original);
+            if (originalHit !== undefined) {
+                list[originalHit] = e;
+                continue;
             }
             add(e);
         }
         return list;
     }
 
-    async function importSingleFilePair(originalFile, translationFile, overwriteConflicts) {
+    async function importSingleFilePair(originalFile, translationFile) {
         const ptPath = normalizePtPath(currentPtPath() || translationFile.name || originalFile.name);
         if (!ptPath) throw new Error('无法识别当前 ParaTranz 文件路径,请先进入具体文件页面再导入');
         showImportProgress(`读取单文件原文/译文...`);
@@ -738,7 +777,7 @@
         if (oldEntries.length <= 3 && oldEntries.some(e => e && e.key === 'S')) {
             oldEntries = [];
         }
-        const mergedEntries = mergeSingleEntries(oldEntries, entries, overwriteConflicts);
+        const mergedEntries = mergeSingleEntries(oldEntries, entries);
         const aliases = aliasesForPath(ptPath).map(a => String(a).toLowerCase());
         const stored = { ptPath, entries: mergedEntries };
         GM_setValue(STORE_SINGLE_FILE_PREFIX + id, stored);
@@ -754,12 +793,11 @@
             originalName: originalFile.name,
             translationName: translationFile.name,
             importedAt: Date.now(),
-            overwriteConflicts: !!overwriteConflicts,
         };
         const files = [...oldFiles, fileMeta];
         saveSingleFileIndexFiles(files);
-        showImportProgress(`单文件导入完成:${entries.length} 条新词条 / 当前 ${mergedEntries.length} 条`);
-        showToast('F', `单文件导入完成 · ${mergedEntries.length} 条`);
+        showImportProgress(`单文件导入完成:${entries.length} 条原文匹配词条 / 当前 ${mergedEntries.length} 条`);
+        showToast('A', `单文件词库导入完成 · ${mergedEntries.length} 条`);
         log('单文件原文/译文导入完成:', fileMeta);
         return fileMeta;
     }
@@ -861,10 +899,10 @@
             if (!file) return;
             if (kind === 'original') {
                 pendingSingleOriginalFile = file;
-                showToast('F', `已选择原文 · ${file.name}`, { ttl: 2800 });
+                showToast('A', `已选择原文 · ${file.name}`, { ttl: 2800 });
             } else {
                 pendingSingleTranslationFile = file;
-                showToast('F', `已选择译文 · ${file.name}`, { ttl: 2800 });
+                showToast('A', `已选择译文 · ${file.name}`, { ttl: 2800 });
             }
             renderControlPanel();
         });
@@ -878,8 +916,7 @@
             return;
         }
         try {
-            const overwrite = !!config.singleFileOverwriteConflicts;
-            const meta = await importSingleFilePair(pendingSingleOriginalFile, pendingSingleTranslationFile, overwrite);
+            const meta = await importSingleFilePair(pendingSingleOriginalFile, pendingSingleTranslationFile);
             pendingSingleOriginalFile = null;
             pendingSingleTranslationFile = null;
             hideImportProgress();
@@ -898,8 +935,109 @@
     function promptSingleFileUpload(onDone) {
         // 兼容旧入口:菜单或外部调用时,打开面板并提示用户按新流程分别选择。
         renderControlPanel(true);
-        showToast('F', '请在总控里分别选择原文和译文,再点击导入/合并', { ttl: 4200 });
+        showToast('A', '请在总控里分别选择原文和译文,再点击导入/合并', { ttl: 4200 });
         if (onDone) onDone(null);
+    }
+
+    // ============ files 页未翻译数量增强 ============
+    const UNTRANSLATED_COUNT_CLASS = 'ptz-untranslated-count';
+
+    function isFilesPage() {
+        return (document.body && document.body.dataset && document.body.dataset.page === 'project.files')
+            || /^\/projects\/\d+\/files\/?$/.test(location.pathname);
+    }
+
+    function parseStatNumber(value) {
+        const normalized = String(value || '').replace(/,/g, '').trim();
+        const n = Number(normalized);
+        return Number.isFinite(n) ? n : NaN;
+    }
+
+    function parseTotalEntries(text) {
+        const m = String(text || '').match(/总条数\s*([\d,]+)(?:\s*词条)?|共\s*([\d,]+)\s*词条/);
+        return m ? parseStatNumber(m[1] || m[2]) : NaN;
+    }
+
+    function parseTranslatedPercent(text) {
+        const m = String(text || '').match(/(?:已翻译\s*)?(\d+(?:\.\d+)?)\s*%/);
+        return m ? parseStatNumber(m[1]) : NaN;
+    }
+
+    function calcUntranslatedCount(total, translatedPercent) {
+        if (!Number.isFinite(total) || !Number.isFinite(translatedPercent)) return NaN;
+        const ratio = Math.max(0, Math.min(1, 1 - translatedPercent / 100));
+        return Math.max(0, Math.round(total * ratio));
+    }
+
+    function findTextNodeContaining(root, needle) {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+            acceptNode: function (node) {
+                if (node.parentElement
+                    && node.parentElement.classList
+                    && node.parentElement.classList.contains(UNTRANSLATED_COUNT_CLASS)) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                return node.nodeValue && node.nodeValue.includes(needle)
+                    ? NodeFilter.FILTER_ACCEPT
+                    : NodeFilter.FILTER_REJECT;
+            },
+        });
+        return walker.nextNode();
+    }
+
+    function ensureGroupUntranslatedBadge(groupTitle) {
+        const translated = groupTitle.querySelector('.badge[title="已翻译"]');
+        if (!translated) return;
+        const total = parseTotalEntries(groupTitle.textContent);
+        const percent = parseTranslatedPercent(translated.textContent);
+        const untranslated = calcUntranslatedCount(total, percent);
+        if (!Number.isFinite(untranslated)) return;
+        const sig = String(total) + '|' + String(percent) + '|' + String(untranslated);
+
+        let badge = groupTitle.querySelector('.' + UNTRANSLATED_COUNT_CLASS + '.badge');
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'badge badge-warning ' + UNTRANSLATED_COUNT_CLASS;
+            badge.title = '未翻译';
+            badge.style.marginRight = '4px';
+            translated.parentNode.insertBefore(badge, translated);
+        }
+        if (badge.getAttribute('data-sig') === sig) return;
+        badge.setAttribute('data-sig', sig);
+        badge.textContent = '未翻译 ' + untranslated;
+    }
+
+    function ensureFileItemUntranslatedText(statsEl) {
+        const total = parseTotalEntries(statsEl.textContent);
+        const percentMatch = String(statsEl.textContent || '').match(/已翻译\s*(\d+(?:\.\d+)?)\s*%/);
+        const percent = percentMatch ? parseStatNumber(percentMatch[1]) : NaN;
+        const untranslated = calcUntranslatedCount(total, percent);
+        if (!Number.isFinite(untranslated)) return;
+        const sig = String(total) + '|' + String(percent) + '|' + String(untranslated);
+
+        let marker = statsEl.querySelector('.' + UNTRANSLATED_COUNT_CLASS);
+        if (!marker) {
+            const node = findTextNodeContaining(statsEl, '已翻译');
+            if (!node || !node.parentNode) return;
+            const idx = node.nodeValue.indexOf('已翻译');
+            const afterText = node.nodeValue.slice(idx);
+            node.nodeValue = node.nodeValue.slice(0, idx);
+            marker = document.createElement('span');
+            marker.className = UNTRANSLATED_COUNT_CLASS + ' text-warning';
+            marker.title = '未翻译';
+            const afterNode = document.createTextNode(afterText);
+            node.parentNode.insertBefore(marker, node.nextSibling);
+            node.parentNode.insertBefore(afterNode, marker.nextSibling);
+        }
+        if (marker.getAttribute('data-sig') === sig) return;
+        marker.setAttribute('data-sig', sig);
+        marker.textContent = '未翻译 ' + untranslated + ' / ';
+    }
+
+    function enhanceFilesPageStats() {
+        if (!isFilesPage()) return;
+        document.querySelectorAll('.files .group-title').forEach(ensureGroupUntranslatedBadge);
+        document.querySelectorAll('.files .group-list-item .text-muted.medium').forEach(ensureFileItemUntranslatedText);
     }
 
     // ============ 页面弹窗(上传引导)============
@@ -978,9 +1116,17 @@
         ].join(';');
 
         if (collapsed) {
-            el.innerHTML = `<button data-act="expand" title="展开 ParaTranz 辅助总控" style="width:46px;height:46px;border:0;border-radius:999px;cursor:pointer;background:#2563eb;color:#fff;font-weight:800;box-shadow:none;">PT</button>`;
+            el.innerHTML =
+                '<div style="display:flex;flex-direction:column;gap:7px;align-items:flex-end;">' +
+                '<button data-act="punctuate" title="转换输入区半角标点" style="width:46px;height:32px;border:0;border-radius:999px;cursor:pointer;background:#dc2626;color:#fff;font-weight:700;box-shadow:none;font-size:12px;">标点</button>' +
+                '<button data-act="expand" title="展开 ParaTranz 辅助总控" style="width:46px;height:46px;border:0;border-radius:999px;cursor:pointer;background:#2563eb;color:#fff;font-weight:800;box-shadow:none;">PT</button>' +
+                '</div>';
             el.addEventListener('click', (ev) => {
-                if (ev.target.closest('[data-act="expand"]')) {
+                const b = ev.target.closest('button[data-act]');
+                if (!b) return;
+                if (b.dataset.act === 'punctuate') {
+                    convertTextareaChinesePunctuation();
+                } else if (b.dataset.act === 'expand') {
                     GM_setValue(STORE_FLOAT_COLLAPSED, false);
                     renderControlPanel(true);
                 }
@@ -996,48 +1142,68 @@
             '<button data-act="collapse" title="缩小成按钮" style="border:0;border-radius:6px;background:#374151;color:#fff;cursor:pointer;padding:3px 8px;">缩小</button>' +
             '</div>' +
 
+            '<div style="font-size:12px;font-weight:700;opacity:.9;margin-bottom:5px;">处理顺序</div>' +
             '<div style="display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:10px;">' +
-            switchRow('enableSingleFileFill', 'F · 当前单文件词库回填(填入 + Ctrl+S)') +
-            switchRow('enableLangFill', 'A · 逐文件发布包回填(填入 + Ctrl+S)') +
-            switchRow('enableTmPerfect', 'B · 翻译记忆 ≥100% 匹配(复制 + Ctrl+S)') +
-            switchRow('enableTokenDiffTransfer', 'D · 顶部 TM 仅数字/电压差异迁移(仅填入)') +
+            switchRow('enableLangFill', 'A · 文件原文全字匹配时回填(填入 + Ctrl+S)') +
+            switchRow('preferSingleFileFill', 'A · 单文件词库优先(未勾选发布包优先)', { disabled: !config.enableLangFill, indent: true }) +
+            switchRow('enableTmPerfect', 'B · 参考PT历史翻译100%+词条(复制 + Ctrl+S)') +
             switchRow('enableTmInText', 'C · “在文本中”原文全字相等(仅复制)') +
-            switchRow('convertParens', '回填时半角括号转全角括号') +
-            switchRow('enableAutoFillOriginal', 'E · 启用“原文即译文”危险开关') +
+            switchRow('enableTokenDiffTransfer', 'D · 顶部 TM 仅数字/电压差异迁移(仅填入)') +
+            switchRow('enableAutoFillOriginal', 'E · 原文即译文危险开关') +
             armRow() +
             '</div>' +
 
             '<div style="height:1px;background:rgba(255,255,255,.12);margin:8px 0;"></div>' +
-            '<div style="font-weight:700;margin-bottom:5px;">单文件原文/译文</div>' +
-            `<div style="opacity:.82;font-size:12px;margin-bottom:6px;word-break:break-all;">${escapeHtml(formatSingleLine(st.single))}</div>` +
+            '<div style="font-weight:700;margin-bottom:5px;">输入区按钮</div>' +
+            '<div style="display:grid;grid-template-columns:1fr;gap:6px;margin:7px 0 10px;">' +
+            btn('punctuate', '输入区半角标点转全角', '#dc2626') +
+            '</div>' +
+            '<details style="margin-top:8px;">' +
+            '<summary style="cursor:pointer;font-weight:700;opacity:.92;">导入</summary>' +
+            '<div style="font-weight:700;font-size:12px;opacity:.9;margin:7px 0 4px;">发布压缩包</div>' +
+            `<div style="opacity:.82;font-size:12px;margin-bottom:6px;word-break:break-all;">${escapeHtml(formatPkgLine(st.pkg))}</div>` +
+            '<div style="display:grid;grid-template-columns:1fr;gap:6px;margin:0 0 8px;">' +
+            btn('up-pkg', '导入 / 更新发布包(.zip)', '#059669') +
+            '</div>' +
+            '<div style="height:1px;background:rgba(255,255,255,.1);margin:8px 0;"></div>' +
+            '<div style="font-weight:700;font-size:12px;opacity:.9;margin:7px 0 4px;">单文件词库(归入 A)</div>' +
+            `<div style="opacity:.82;font-size:12px;margin:6px 0;word-break:break-all;">${escapeHtml(formatSingleLine(st.single))}</div>` +
             `<div style="opacity:.72;font-size:12px;margin-bottom:6px;word-break:break-all;">${escapeHtml(singlePendingLine())}</div>` +
-            switchRow('singleFileOverwriteConflicts', '导入冲突时由新文件词条覆盖旧词条') +
-            '<div style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;margin:7px 0 6px;align-items:center;">' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:7px 0 6px;align-items:center;">' +
             btn('pick-single-original', '选择原文', '#2563eb') +
             btn('pick-single-translation', '选择译文', '#2563eb') +
-            btn('clear-current-single', '清除当前文件词条', '#b45309') +
             '</div>' +
-            '<div style="display:grid;grid-template-columns:1fr;gap:6px;margin:0 0 10px;">' +
-            btn('import-single-pending', '导入 / 合并所选原文与译文', '#1d4ed8') +
-            btn('clear-single', '清除所有单文件词库', '#7c2d12') +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:0 0 8px;">' +
+            btn('import-single-pending', '导入 / 合并', '#1d4ed8') +
+            btn('clear-current-single', '清除当前', '#b45309') +
+            btn('clear-single', '清除全部', '#7c2d12') +
             '</div>' +
-
-            '<div style="height:1px;background:rgba(255,255,255,.12);margin:8px 0;"></div>' +
-            '<div style="font-weight:700;margin-bottom:5px;">发布包</div>' +
-            `<div style="opacity:.82;font-size:12px;margin-bottom:6px;word-break:break-all;">${escapeHtml(formatPkgLine(st.pkg))}</div>` +
-            '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:7px 0 10px;">' +
-            btn('up-pkg', '导入 / 更新发布包(.zip)', '#059669') +
+            '<div style="font-size:11px;opacity:.66;">只按原文匹配替换; 同 key 但原文不同会保留为独立候选。</div>' +
+            '</details>' +
+            '<details style="margin-top:8px;">' +
+            '<summary style="cursor:pointer;font-weight:700;opacity:.92;">其他</summary>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:7px 0;">' +
             btn('diag-pkg', '诊断当前词条命中', '#4b5563') +
             btn('clear-pkg', '清除发布包', '#b45309') +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:1fr;gap:5px;margin:7px 0;">' +
+            switchRow('convertParens', '回填时半角括号转全角括号') +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:1fr;gap:6px;margin-top:6px;">' +
             btn('reset', '恢复默认开关', '#374151') +
             '</div>' +
-            '<div style="font-size:11px;opacity:.66;">提示: 单文件词库绑定当前 ParaTranz 面包屑文件路径。请先进入具体文件页再导入。</div>';
+            '<div style="font-size:11px;opacity:.66;margin-top:6px;">提示: 单文件词库绑定当前 ParaTranz 面包屑文件路径。请先进入具体文件页再导入。</div>' +
+            '</details>';
 
-        function switchRow(key, label) {
+        function switchRow(key, label, opts) {
+            opts = opts || {};
             const checked = config[key] ? 'checked' : '';
-            return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;min-height:22px;">` +
-                `<input type="checkbox" data-cfg="${key}" ${checked} style="cursor:pointer;">` +
-                `<span>${escapeHtml(label)}</span></label>`;
+            const disabled = opts.disabled ? 'disabled' : '';
+            const opacity = opts.disabled ? '.45' : '1';
+            const indent = opts.indent ? 'padding-left:22px;' : '';
+            return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;min-height:22px;opacity:${opacity};${indent}">` +
+                `<input type="checkbox" data-cfg="${key}" ${checked} ${disabled} style="cursor:pointer;">` +
+                `<span style="min-width:0;line-height:1.3;">${escapeHtml(label)}</span></label>`;
         }
         function armRow() {
             const disabled = config.enableAutoFillOriginal ? '' : 'disabled';
@@ -1048,7 +1214,7 @@
                 `<span style="color:${autoFillArmed ? '#fecaca' : '#fff'};">⚠ 立即激活: 自动填充原文 + 保存</span></label>`;
         }
         function btn(act, label, bg) {
-            return `<button data-act="${act}" style="padding:6px 9px;border:0;border-radius:6px;cursor:pointer;background:${bg};color:#fff;">${escapeHtml(label)}</button>`;
+            return `<button data-act="${act}" style="padding:6px 8px;border:0;border-radius:6px;cursor:pointer;background:${bg};color:#fff;white-space:normal;line-height:1.25;min-height:30px;">${escapeHtml(label)}</button>`;
         }
 
         el.addEventListener('change', (ev) => {
@@ -1080,6 +1246,8 @@
             if (act === 'collapse') {
                 GM_setValue(STORE_FLOAT_COLLAPSED, true);
                 renderControlPanel();
+            } else if (act === 'punctuate') {
+                convertTextareaChinesePunctuation();
             } else if (act === 'up-pkg') {
                 promptUpload(() => renderControlPanel());
             } else if (act === 'diag-pkg') {
@@ -1100,7 +1268,7 @@
                 const label = meta ? `当前文件「${meta.ptPath}」的 ${meta.entryCount || 0} 条词条` : '当前文件词条';
                 if (confirm(`确定要清除${label}吗?`)) {
                     const ok = clearCurrentSingleFileStore();
-                    showToast('F', ok ? '已清除当前文件词条' : '当前文件没有可清除的单文件词库');
+                    showToast('A', ok ? '已清除当前文件词条' : '当前文件没有可清除的单文件词库');
                     lastSig = '';
                     renderControlPanel();
                 }
@@ -1134,12 +1302,11 @@
     // ============ 浮动提示 (左下角 toast) ============
     const TOAST_STACK_ID = 'ptz-toast-stack';
     const TOAST_COLORS = {
-        A: '#2563eb', // 蓝 - lang 回填
-        B: '#059669', // 绿 - 100% TM
+        A: '#2563eb', // 蓝 - 文件原文匹配回填
+        B: '#059669', // 绿 - PT 历史翻译 100%+
         C: '#0891b2', // 青 - 在文本中
         D: '#d97706', // 橙 - 数字/电压迁移
         E: '#dc2626', // 红 - 手动填充原文
-        F: '#2563eb', // 蓝 - 单文件词库回填
     };
     function ensureToastStack() {
         let stack = document.getElementById(TOAST_STACK_ID);
@@ -1203,6 +1370,13 @@
         const ta = getTextarea();
         return !!ta && ta.value.trim() === '';
     };
+    const TRADITIONAL_CHINESE_CHARS = [
+        '萬與專業叢東絲丟兩嚴喪個豐臨為麗舉麼義烏樂喬習鄉書買亂爭於虧雲亞產畝親來侖侶俠倉們倫偉側偵傑傘備傢傭債傾僅僑僕儀億優兇內冊凈凍凱別刪剛創劃劇劉劍劑勁勞勢勛勝勵勸匯區協卻厭厲參吳呂員問啟啞喚喪喬單嗎嗚嘆嘗嘩嘮嘯噴嚴囂國圍園圓圖團執堅報場塊塗塵墊墜墮墳牆壇壓壘壞壟壩壯壺壽夢夾奧奪奮妝婦媽嬌嬰學寢實寧審寫寬寵將專尋對導屆屍層屬岡島峽崗嶺巖帥師帳帶幀幣幫幹幾庫廁廂廚廟廠廣廳張強彈彌彎後徑從徠復徹恆恥悅悶惡惱愛慘慣慮慶憂憶應懷懸戀戰戲戶拋挾捨掃掙掛採揀揚換揮損搖搶擔據擠擬擴擺擾攔攜攝敗敘敵數斂斃斬斷於時晉晝暈暉暢暫曆曉曬會朧東棟棧棲楊業極榮構槍樓標樣樹橋機橫檔檢權歡歲歷歸殘殼毀氈氣決沒況洩涼淚淨淪淺減測渾湯準溝溫滅滬滯滲滷滾滿漁漢漲漸潛潤潰澀澆澤濁濃濟濤濫濾瀉瀋瀏瀕灣災為烏無煉煙煩熱燈燒營燦燭爐爛爭爺爾牽狀狹獄獅獎獨獲獸現瑪環瓊產畝畫異當疊療癡發盜盡監盤盧眾睜瞭矚礦碼禍禮禱稅種稱穀積穩窩窮竊競筆節築範簽簡籃籌糧糾紀約紅納紙級純紛紹終組結絕經綠維網線練縣總績織繞繼續纏纖纜罰羅義習翹聖聞聯聰聲職聽肅脅脫腦腫腳腸膚膽臉臟臨臺與興舉艱艷莊莢萊萬葉蒼蓋蓮蔣蔥蕭藍藝藥蘇蘭處虛號蛻蝦蟲蟻蠶蠻衆術補裝裡製複襲見規視覺覽觀訂計訊討訓記設許訴診註詞詩該詳誇誌認語誠誤說誰課調談請論諸諾謀謂謊謎講謝謠證識譯議護讀變讓讚豈豐貝負財貢貧貨責貴買費資賣質賬賭賴賽贈贊贏趕趙跡踐躍車軍軟軸較載輔輕輛輪輸轉辦辭農迴這連週進運過達違遙遠適遲遷選遺還邊鄉鄭鄰醫釋鈉鈴銀銅鋁鋼錄錢錯鍋鍵鎖鏡鐵鑑長門閉開間閣閱闆關闡陣陰陳陸陽隊階隨險隱隻雖雙雞離難雲電霧靈靜韋韓韻響頁頂順須頓頗領頭頰頻題額顏願顯風颱飛飯飲飽飾餘館馬馳駐駛騎驗驚體鬆鬍鬚鬥鬧魚鮮鳥鳳鳴鴨鵝鶴鹽麗麥黃點黨齊齋齒齡龍龜'
+    ].join('');
+    const TRADITIONAL_CHINESE_RE = new RegExp('[' + TRADITIONAL_CHINESE_CHARS + ']');
+    function containsTraditionalChinese(text) {
+        return TRADITIONAL_CHINESE_RE.test(String(text || ''));
+    }
     function setTextareaValue(text) {
         const ta = getTextarea();
         if (!ta) return false;
@@ -1213,6 +1387,12 @@
         ta.focus();
         return true;
     }
+    function getTmText(item, kind) {
+        const root = item && item.querySelector('.' + kind);
+        if (!root) return '';
+        const el = root.querySelector('.text-pre-wrap') || root;
+        return el ? el.textContent.trim() : '';
+    }
     function findPerfectMatchItem() {
         const tm = document.querySelector('.translation-memory');
         if (!tm) return null;
@@ -1220,7 +1400,14 @@
             const header = item.querySelector('header');
             if (!header) continue;
             const m = header.textContent.replace(/\s+/g, '').match(/匹配率(\d+(?:\.\d+)?)%/);
-            if (m && parseFloat(m[1]) >= 100) return item;
+            if (m && parseFloat(m[1]) >= 100) {
+                const zh = getTmText(item, 'translation');
+                if (containsTraditionalChinese(zh)) {
+                    log('跳过参考PT历史翻译100%+:译文包含繁体字符:', zh);
+                    continue;
+                }
+                return item;
+            }
         }
         return null;
     }
@@ -1229,7 +1416,14 @@
         if (!tm) return null;
         for (const item of tm.querySelectorAll('.string-item')) {
             const header = item.querySelector('header');
-            if (header && header.textContent.replace(/\s+/g, '').includes('在文本中')) return item;
+            if (header && header.textContent.replace(/\s+/g, '').includes('在文本中')) {
+                const zh = getTmText(item, 'translation');
+                if (containsTraditionalChinese(zh)) {
+                    log('跳过"在文本中":译文包含繁体字符:', zh);
+                    continue;
+                }
+                return item;
+            }
         }
         return null;
     }
@@ -1407,64 +1601,34 @@
 
         busy = true;
         try {
-            // E. 手动开关已激活:直接点击"填充原文"+保存(颜表情等原文即译文)
-            if (config.enableAutoFillOriginal && autoFillArmed && isTextareaEmpty()) {
-                const fillBtn = document.querySelector('button[title="填充原文"]');
-                if (fillBtn) {
-                    lastSig = sig;
-                    log('手动开关已激活 → 填充原文 + 保存');
-                    showToast('E', '填充原文 + 保存');
-                    fillBtn.click();
-                    await delay(FILL_TO_SAVE_DELAY);
-                    pressCtrlS();
-                    return;
-                }
-            }
-
-
-            // F. 当前单文件原文/译文词库回填(优先级高于整包回填)
-            if (config.enableSingleFileFill && singleFileIndex) {
-                const hit = findSingleFileTranslation(mainOri);
-                if (hit && hit.translation && hit.translation.trim() !== '') {
-                    const zhFinal = transformForFill(hit.translation);
-                    lastSig = sig;
-                    if (ta.value.trim() === zhFinal.trim()) {
-                        log('单文件词库命中且内容已一致,仅保存:', hit.source, hit.key);
-                        showToast('F', `单文件内容已一致,仅保存 · ${hit.key}`);
+            // A. 文件原文全字匹配时回填:发布包或单文件词库
+            if (config.enableLangFill) {
+                const sourceOrder = config.preferSingleFileFill ? ['single', 'package'] : ['package', 'single'];
+                for (const sourceType of sourceOrder) {
+                    const hit = sourceType === 'single'
+                        ? (singleFileIndex ? findSingleFileTranslation(mainOri) : null)
+                        : (packageIndex ? findPackageTranslation(mainOri) : null);
+                    if (hit && hit.translation && hit.translation.trim() !== '') {
+                        const zhFinal = transformForFill(hit.translation);
+                        const sourceName = sourceType === 'single' ? '单文件词库' : '发布包';
+                        lastSig = sig;
+                        if (ta.value.trim() === zhFinal.trim()) {
+                            log(`${sourceName}命中且内容已一致,仅保存:`, hit.source, hit.key);
+                            showToast('A', `${sourceName}内容已一致,仅保存 · ${hit.key}`);
+                            pressCtrlS();
+                            return;
+                        }
+                        log(`${sourceName}命中:`, hit.source, hit.key, '→', zhFinal);
+                        showToast('A', `${sourceName}回填 · ${hit.key}`);
+                        setTextareaValue(zhFinal);
+                        await delay(FILL_TO_SAVE_DELAY);
                         pressCtrlS();
                         return;
                     }
-                    log('单文件词库命中:', hit.source, hit.key, '→', zhFinal);
-                    showToast('F', `单文件回填 · ${hit.key}`);
-                    setTextareaValue(zhFinal);
-                    await delay(FILL_TO_SAVE_DELAY);
-                    pressCtrlS();
-                    return;
                 }
             }
 
-            // A. 逐文件发布包回填
-            if (config.enableLangFill && packageIndex) {
-                const hit = findPackageTranslation(mainOri);
-                if (hit && hit.translation && hit.translation.trim() !== '') {
-                    const zhFinal = transformForFill(hit.translation);
-                    lastSig = sig;
-                    if (ta.value.trim() === zhFinal.trim()) {
-                        log('发布包命中且内容已一致,仅保存:', hit.source, hit.key);
-                        showToast('A', `发布包内容已一致,仅保存 · ${hit.key}`);
-                        pressCtrlS();
-                        return;
-                    }
-                    log('发布包命中:', hit.source, hit.key, '→', zhFinal);
-                    showToast('A', `发布包回填 · ${hit.key}`);
-                    setTextareaValue(zhFinal);
-                    await delay(FILL_TO_SAVE_DELAY);
-                    pressCtrlS();
-                    return;
-                }
-            }
-
-            // B. 翻译记忆 ≥100% 匹配
+            // B. 参考 PT 历史翻译 100%+ 词条
             if (config.enableTmPerfect) {
                 const perfect = findPerfectMatchItem();
                 if (perfect) {
@@ -1472,7 +1636,7 @@
                     if (copyBtn) {
                         lastSig = sig;
                         log('≥100% 匹配命中,复制 + 保存');
-                        showToast('B', '翻译记忆 ≥100% → 复制并保存');
+                        showToast('B', '参考PT历史翻译100%+ → 复制并保存');
                         copyBtn.click();
                         await delay(COPY_TO_SAVE_DELAY);
                         normalizeTextareaValue();
@@ -1482,28 +1646,11 @@
                 }
             }
 
-            // D. 顶部 TM 匹配 <100%,原文差异仅限数字/电压代码 → 迁移译文
-            if (config.enableTokenDiffTransfer && isTextareaEmpty()) {
-                const top = getTopTmItem();
-                if (top && top.ratio > 0 && top.ratio < 100) {
-                    const transferred = transferTokenDiff(mainOri, top.ori, top.zh);
-                    if (transferred) {
-                        const zhFinal = transformForFill(transferred);
-                        lastSig = sig;
-                        log(`顶部匹配 ${top.ratio}% 仅数字/电压差异,仅填入不保存:`, zhFinal);
-                        showToast('D', `${top.ratio}% 数字/电压差异 → 仅填入`);
-                        setTextareaValue(zhFinal);
-                        return;
-                    }
-                }
-            }
-
             // C. "在文本中" + 翻译框为空 + 原文全字相等 → 仅复制
             if (config.enableTmInText && isTextareaEmpty()) {
                 const item = findInTextItem();
                 if (item) {
-                    const tmOriEl = item.querySelector('.original .text-pre-wrap, .original');
-                    const tmOri = tmOriEl ? tmOriEl.textContent.trim() : '';
+                    const tmOri = getTmText(item, 'original');
                     if (tmOri && tmOri === mainOri.trim()) {
                         const btn = item.querySelector('button[title="复制当前文本至翻译框"]');
                         if (btn) {
@@ -1520,6 +1667,40 @@
                     }
                 }
             }
+
+            // D. 顶部 TM 匹配 <100%,原文差异仅限数字/电压代码 → 迁移译文
+            if (config.enableTokenDiffTransfer && isTextareaEmpty()) {
+                const top = getTopTmItem();
+                if (top && top.ratio > 0 && top.ratio < 100) {
+                    if (containsTraditionalChinese(top.zh)) {
+                        log('跳过顶部 TM 数字/电压迁移:译文包含繁体字符:', top.zh);
+                    } else {
+                        const transferred = transferTokenDiff(mainOri, top.ori, top.zh);
+                        if (transferred) {
+                            const zhFinal = transformForFill(transferred);
+                            lastSig = sig;
+                            log(`顶部匹配 ${top.ratio}% 仅数字/电压差异,仅填入不保存:`, zhFinal);
+                            showToast('D', `${top.ratio}% 数字/电压差异 → 仅填入`);
+                            setTextareaValue(zhFinal);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // E. 手动开关已激活:直接点击"填充原文"+保存(颜表情等原文即译文)
+            if (config.enableAutoFillOriginal && autoFillArmed && isTextareaEmpty()) {
+                const fillBtn = document.querySelector('button[title="填充原文"]');
+                if (fillBtn) {
+                    lastSig = sig;
+                    log('手动开关已激活 → 填充原文 + 保存');
+                    showToast('E', '填充原文 + 保存');
+                    fillBtn.click();
+                    await delay(FILL_TO_SAVE_DELAY);
+                    pressCtrlS();
+                    return;
+                }
+            }
         } finally {
             busy = false;
         }
@@ -1532,6 +1713,7 @@
         requestAnimationFrame(() => {
             obs._pending = false;
             tryProcess();
+            enhanceFilesPageStats();
             if (!document.getElementById(FLOAT_ID)) {
                 renderControlPanel();
             }
@@ -1547,6 +1729,7 @@
             setTimeout(showUploadBanner, 600);
         }
         renderControlPanel();
+        enhanceFilesPageStats();
         setTimeout(tryProcess, 1200);
         log('脚本已启动,配置:', config);
     }
