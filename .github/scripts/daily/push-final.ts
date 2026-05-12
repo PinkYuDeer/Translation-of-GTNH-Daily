@@ -10,6 +10,8 @@
  * PT's source-file update endpoint only mutates originals. Existing/new
  * translations are imported through POST /files/{fileId}/translation so PT
  * records a file import revision rather than assigning every row to the bot.
+ * Translation import is refused if PT did not apply the source original first;
+ * otherwise stale-marker translations can drift away from the original column.
  *
  * This script consumes `.build/merge-plan.json`:
  *   - `push[]`    — active files to create/update via POST /files
@@ -40,12 +42,13 @@ import {
   serializeGregTechLang,
   serializeLang,
 } from './lib/lang-parser.ts'
-import { restoreNewlines, toPtNewlines } from './lib/newlines.ts'
+import { normalizePtNewlines, restoreNewlines, toPtNewlines, withLineBreakContext } from './lib/newlines.ts'
 import { stripArchiveSuffix, toPtJsonPath } from './lib/path-map.ts'
 import { entriesToTips } from './lib/tips-parser.ts'
 
 const REPO_ARCHIVE_DIR = process.env.REPO_ARCHIVE_DIR ?? 'archive'
 const TIPS_PT_PATH = 'config/Betterloadingscreen/tips/zh_CN.lang'
+const PREVIEW_LIMIT = 120
 
 interface PtFileMutationResponse {
   file?: { id: number, name: string }
@@ -78,6 +81,21 @@ function ptDirname(ptPath: string): string {
   return slash < 0 ? '' : full.slice(0, slash)
 }
 
+function previewValue(value: string): string {
+  const visible = value.replaceAll('\n', '\\n')
+  return visible.length <= PREVIEW_LIMIT ? visible : `${visible.slice(0, PREVIEW_LIMIT - 3)}...`
+}
+
+function withLineBreakContexts(
+  items: PtStringItem[],
+  newlineForms: NewlineFileForms | undefined,
+): PtStringItem[] {
+  return items.map(item => ({
+    ...item,
+    context: withLineBreakContext(item.context, resolveNewlineForm(newlineForms, item.key)),
+  }))
+}
+
 async function loadItems(ptPath: string): Promise<PtStringItem[]> {
   const abs = join(BUILD_DIR, 'zh-final', `${ptPath}.json`)
   return JSON.parse(await readFile(abs, 'utf8')) as PtStringItem[]
@@ -86,7 +104,7 @@ async function loadItems(ptPath: string): Promise<PtStringItem[]> {
 function toPtSourceItems(items: PtStringItem[]): PtStringItem[] {
   return items.map(item => ({
     key: item.key,
-    original: toPtNewlines(item.original ?? ''),
+    original: toPtNewlines(item.original ?? '', item.key),
     translation: '',
     stage: 0,
     ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
@@ -259,8 +277,8 @@ async function uploadOne(
 function toTranslationImportItems(items: PtStringItem[]): PtStringItem[] {
   return items.map(item => ({
     key: item.key,
-    original: toPtNewlines(item.original ?? ''),
-    translation: toPtNewlines(item.translation ?? ''),
+    original: toPtNewlines(item.original ?? '', item.key),
+    translation: toPtNewlines(item.translation ?? '', item.key),
     stage: item.stage ?? 0,
     ...(item.context != null && item.context !== '' ? { context: item.context } : {}),
   }))
@@ -298,11 +316,22 @@ async function importChangedTranslations(
     if (!remote)
       throw new Error(`PT file ${ptPath} missing string after source upload: ${item.key}`)
 
-    const desiredTranslation = toPtNewlines(item.translation ?? '')
+    const desiredTranslation = toPtNewlines(item.translation ?? '', item.key)
     const desiredStage = item.stage ?? 0
+    const desiredOriginal = normalizePtNewlines(item.original ?? '', item.key)
+    const remoteOriginal = normalizePtNewlines(remote.original ?? '', item.key)
+    const desiredContext = item.context ?? ''
+    const remoteContext = remote.context ?? ''
     const remoteTranslation = remote.translation ?? ''
     const remoteStage = remote.stage ?? 0
-    if (remoteTranslation === desiredTranslation && remoteStage === desiredStage)
+    if (remoteOriginal !== desiredOriginal) {
+      throw new Error(
+        `PT file ${ptPath} original mismatch after source upload for ${item.key}: `
+        + `expected "${previewValue(desiredOriginal)}", got "${previewValue(remoteOriginal)}"; `
+        + 'refusing to import translation',
+      )
+    }
+    if (remoteTranslation === desiredTranslation && remoteStage === desiredStage && remoteContext === desiredContext)
       continue
 
     if (desiredTranslation.length === 0 || remoteTranslation === desiredTranslation)
@@ -368,7 +397,8 @@ async function main(): Promise<void> {
   const newlineCache = await readNewlines()
 
   const pushTasks = plan.push.map(ptPath => async () => {
-    const items = await loadItems(ptPath)
+    const newlineForms = newlineCache[ptPath]
+    const items = withLineBreakContexts(await loadItems(ptPath), newlineForms)
     const existingFileId = fileIds[ptPath]
     let archivedStrings = 0
     const retiredKeys = archiveStringPlan[ptPath] ?? []
@@ -378,11 +408,7 @@ async function main(): Promise<void> {
       const retiredItems = currentItems.filter(item => retiredKeySet.has(item.key))
       if (retiredItems.length > 0) {
         const activePtPath = stripArchiveSuffix(ptPath)
-        await writeRetiredFileArchive(
-          ptPath,
-          retiredItems,
-          newlineCache[activePtPath] ?? newlineCache[ptPath],
-        )
+        await writeRetiredFileArchive(ptPath, retiredItems, newlineCache[activePtPath] ?? newlineForms)
         archivedStrings = retiredItems.length
       }
     }

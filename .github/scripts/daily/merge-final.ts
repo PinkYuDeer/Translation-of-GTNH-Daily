@@ -12,6 +12,8 @@
  *   - Current PT 18818 translations are preserved when key+original still match.
  *   - If English changed and 4964 has no fresh exact match, emit a stale marker
  *     `${newEnglish}|旧译：|${oldTranslation}` at stage=0.
+ *   - Existing stale markers are repaired to the current English original and
+ *     are never nested inside another stale marker.
  *   - If 4964 has a non-blank fresh exact match, it fills current PT gaps.
  *     When both 18818 and 4964 already have different exact translations, query
  *     row timestamps; 4964 wins if it is newer or timestamps are unavailable.
@@ -33,9 +35,9 @@ import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, sep } from 'node:path'
 
 import { BUILD_DIR, PT_18818_ID, PT_4964_ID, assertToken } from './lib/config.ts'
-import { readFileIds, writeJson } from './lib/cache.ts'
+import { readFileIds, readNewlines, resolveNewlineForm, writeJson } from './lib/cache.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
-import { normalizeNewlines, normalizePtNewlines } from './lib/newlines.ts'
+import { hasNewlinePlaceholder, normalizeNewlines, normalizePtNewlines, withLineBreakContext } from './lib/newlines.ts'
 import {
   indexFilesByLowerName,
   listFileStrings,
@@ -82,10 +84,13 @@ interface MergeStats {
   remoteTimeChecks: number
   staleFromCurrent: number
   staleFrom4964: number
+  staleMarkerRepaired: number
   unresolved4964: number
   blankTranslations: number
   originalFallbacksPreserved: number
 }
+
+const STALE_MARKER_SEPARATOR = '|旧译：|'
 
 function toPosix(p: string): string {
   return p.split(sep).join('/')
@@ -120,8 +125,8 @@ function normalizeItem(item: PtStringItem): PtStringItem {
   return {
     ...(item.id != null ? { id: item.id } : {}),
     key: item.key,
-    original: normalizePtNewlines(item.original ?? ''),
-    translation: normalizePtNewlines(item.translation ?? ''),
+    original: normalizePtNewlines(item.original ?? '', item.key),
+    translation: normalizePtNewlines(item.translation ?? '', item.key),
     stage: item.stage ?? 0,
     ...(item.createdAt != null ? { createdAt: item.createdAt } : {}),
     ...(item.updatedAt != null ? { updatedAt: item.updatedAt } : {}),
@@ -132,18 +137,8 @@ function normalizeItem(item: PtStringItem): PtStringItem {
 
 function hasLegacyPlaceholder(items: PtStringItem[] | undefined): boolean {
   return (items ?? []).some(item =>
-    (item.original ?? '').includes('<BR>')
-    || (item.original ?? '').includes('<br>')
-    || (item.original ?? '').includes('[br]')
-    || (item.original ?? '').includes('\\\\n')
-    || (item.original ?? '').includes('\\n')
-    || (item.original ?? '').includes('%n')
-    || (item.translation ?? '').includes('<BR>')
-    || (item.translation ?? '').includes('<br>')
-    || (item.translation ?? '').includes('[br]')
-    || (item.translation ?? '').includes('\\\\n')
-    || (item.translation ?? '').includes('\\n')
-    || (item.translation ?? '').includes('%n')
+    hasNewlinePlaceholder(item.original ?? '', item.key)
+    || hasNewlinePlaceholder(item.translation ?? '', item.key)
   )
 }
 
@@ -168,8 +163,24 @@ function itemsEqual(a: PtStringItem[] | undefined, b: PtStringItem[]): boolean {
   return true
 }
 
-function staleMarker(newOriginal: string, oldTranslation: string): string {
-  return `${normalizeNewlines(newOriginal)}|旧译：|${normalizeNewlines(oldTranslation)}`
+function staleMarker(key: string, newOriginal: string, oldTranslation: string): string {
+  return `${normalizeNewlines(newOriginal, key)}${STALE_MARKER_SEPARATOR}${stalePayload(key, oldTranslation)}`
+}
+
+function parseStaleMarker(key: string, value: string | undefined): { newOriginal: string, oldTranslation: string } | undefined {
+  if (!value)
+    return undefined
+  const index = value.indexOf(STALE_MARKER_SEPARATOR)
+  if (index < 0)
+    return undefined
+  return {
+    newOriginal: normalizeNewlines(value.slice(0, index), key),
+    oldTranslation: normalizeNewlines(value.slice(index + STALE_MARKER_SEPARATOR.length), key),
+  }
+}
+
+function stalePayload(key: string, value: string): string {
+  return parseStaleMarker(key, value)?.oldTranslation ?? normalizeNewlines(value, key)
 }
 
 function hasText(value: string | undefined): value is string {
@@ -435,17 +446,20 @@ async function main(): Promise<void> {
     remoteTimeChecks: 0,
     staleFromCurrent: 0,
     staleFrom4964: 0,
+    staleMarkerRepaired: 0,
     unresolved4964,
     blankTranslations: 0,
     originalFallbacksPreserved: 0,
   }
   const remoteTimestamps = new RemoteTimestampResolver()
+  const newlineCache = await readNewlines()
 
   for (const [ptPath, enItems] of enFiles) {
     const currentFile = currentFiles.get(ptPath)
     const currentItems = currentFile?.normalized ?? []
     const sourceItems = sourceFiles.get(ptPath) ?? []
     const sourceOriginByKey = sourceOrigins.get(ptPath) ?? new Map<string, string>()
+    const newlineForms = newlineCache[ptPath]
     const hasReviewedSource = sourceItems.some(item => (item.stage ?? 0) > 0)
 
     const currentByKey = new Map(currentItems.map(item => [item.key, item]))
@@ -460,7 +474,10 @@ async function main(): Promise<void> {
 
       let translation = ''
       let stage = 0
-      const context = current?.context ?? enItem.context
+      const context = withLineBreakContext(
+        current?.context ?? enItem.context,
+        resolveNewlineForm(newlineForms, enItem.key),
+      )
       const hasCurrentExactTranslation = current?.original === enItem.original && !!current.translation
       const sourceHasTranslation = hasText(source?.translation)
       const sourceIsTranslated = isTranslated(source)
@@ -470,8 +487,16 @@ async function main(): Promise<void> {
       let handledBySource = false
 
       if (current && currentExact) {
-        translation = current.translation
         stage = current.stage ?? 0
+        const marker = parseStaleMarker(enItem.key, current.translation)
+        if (marker && marker.newOriginal !== enItem.original) {
+          translation = staleMarker(enItem.key, enItem.original, marker.oldTranslation)
+          stage = 0
+          stats.staleMarkerRepaired++
+        }
+        else {
+          translation = current.translation
+        }
         if (translation)
           stats.currentPreserved++
       }
@@ -531,7 +556,7 @@ async function main(): Promise<void> {
           }
         }
         else if ((source.stage ?? 0) > 0 && !hasCurrentExactTranslation) {
-          translation = staleMarker(enItem.original, source.translation)
+          translation = staleMarker(enItem.key, enItem.original, source.translation)
           stage = 0
           currentDrift.delete(enItem.key)
           stats.staleFrom4964++
@@ -542,7 +567,7 @@ async function main(): Promise<void> {
       if (!handledBySource) {
         const drift = currentDrift.get(enItem.key)
         if (drift) {
-          translation = staleMarker(enItem.original, drift.translation)
+          translation = staleMarker(enItem.key, enItem.original, drift.translation)
           stage = 0
           stats.staleFromCurrent++
         }
@@ -618,6 +643,7 @@ async function main(): Promise<void> {
     + `source-skipped-current=${stats.sourceSkippedByCurrent} `
     + `remote-time-checks=${stats.remoteTimeChecks} `
     + `stale-current=${stats.staleFromCurrent} stale-4964=${stats.staleFrom4964} `
+    + `stale-repaired=${stats.staleMarkerRepaired} `
     + `blank=${stats.blankTranslations} archived-strings=${stats.stringsArchived} `
     + `preserved-original-equals-translation=${stats.originalFallbacksPreserved} `
     + `unresolved-4964=${stats.unresolved4964}`,
