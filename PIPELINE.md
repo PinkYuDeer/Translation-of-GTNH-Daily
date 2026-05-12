@@ -51,7 +51,7 @@
 
 ### 0. `generate-gregtech-lang.ts` — 生成 GregTech.lang（实验）
 
-- 克隆/更新 `GTNewHorizons/GT5-Unofficial@master` 到 `.repo.cache/gt5u`
+- 克隆/更新 `GTNewHorizons/GT5-Unofficial@master` 到 `$REPO_CACHE_DIR/gt5u`（默认 `.build/repo-cache/gt5u`，不进 Actions cache）
 - 在 GitHub Actions 安装 `xvfb` / `xdotool`，用 Java 25 启动 `./gradlew runClient`
 - 脚本自启虚拟 X display，持续读取并向 Actions 输出 `run/client/logs/*` 的进度；当日志出现 `GTMod: PostLoad-Phase finished!` 且出现客户端 ready marker（默认 `Forge Mod Loader has successfully loaded`）时，用 `xdotool` 正常关闭 Minecraft 窗口，等待客户端退出后取完整 `GregTech.lang`
 - 若 ready marker 因日志格式变化未出现，则在 postload 后等待 `GT5U_CLOSE_AFTER_POSTLOAD_MS`（默认 180 秒）再关闭，避免 workflow 长时间无输出卡住
@@ -60,7 +60,7 @@
 
 ### 1. `fetch-en.ts` — 英文原文收集
 
-- Sparse-clone 三个上游仓库到 `.repo.cache/<slug>/`（已存在时只 `fetch + reset --hard`，尽量命中 Actions cache）
+- Sparse-clone 三个上游仓库到 `$REPO_CACHE_DIR/<slug>/`（默认 `.build/repo-cache/<slug>/`，仅当前 run 使用）
 - `.build/generated-gregtech/GregTech.lang` 必须存在；`daily-history/GregTech.lang` 不再作为回退来源
 - 枚举 A–G 七类英文源（见脚本顶部说明），按 PT 18818 路径写成统一 JSON 骨架
 - **去重**：同一目标路径同时来自 `daily-history` 与 `Modpack` 时，`daily-history` 胜
@@ -125,7 +125,7 @@
 GitHub Actions `actions/cache@v4` 有两层：
 
 - `gt5u-lang-<branch>-<run_id>-<attempt>`：只存 `.cache/generated-gregtech/`，在 GT5U 步骤成功产出或成功从旧缓存恢复后立刻保存。这样即使后续 PT push / release 失败，也能供下一次 `skip_gt5u=true` 使用。
-- `daily-<branch>-<date>`：存 `.cache` 与 `.repo.cache` 的其余流水线缓存，按日期保存，同 branch 向后回溯。
+- `daily-<branch>-<date>`：只存 `.cache` 的其余流水线缓存，按日期保存，同 branch 向后回溯；上游仓库 checkout 不再持久化。
 
 ```
 .cache/
@@ -135,11 +135,7 @@ GitHub Actions `actions/cache@v4` 有两层：
 │  └─ metadata.json
 └─ newlines.json              {pt-path → {default?: form, entries: {key → form}}}
 
-.repo.cache/
-├─ translations/              GTNewHorizons/GTNH-Translations  sparse-clone
-├─ modpack/                   GTNewHorizons/GT-New-Horizons-Modpack  sparse-clone
-├─ kiwi/                      Kiwi233/Translation-of-GTNH  sparse-clone
-└─ gt5u/                      GTNewHorizons/GT5-Unofficial checkout
+上游仓库 checkout 临时放在 `.build/repo-cache/`，包括 `translations/`、`modpack/`、`kiwi/`、`gt5u/`；它们不进入 Actions cache。
 ```
 
 除 `.cache/generated-gregtech/` 可在 GT5U 最新构建失败时兜底外，缓存只用于提速；每天都会重拉 PT 与英文源并本地整合。
@@ -152,7 +148,7 @@ Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / 
 
 - **嗅探**（fetch-en）：逐词条记录英文原文用哪种形式，并逐文件选出出现最多的形式 → `newlines.json`
 - **归一化**（fetch-en + merge-final）：所有形式统一成真换行，避免"格式差异"触发假变更
-- **还原**（restore-and-pack）：按每词条原形式把真换行回写成原字面；若 key 缺少逐词条记录，`research_page` 优先退到 `<BR>`，其余退到该文件最多的形式。`<BR>` 的任务书仍是 `<BR>`，使用 `[br]` 的仍是 `[br]`，使用 `%n` 的仍是 `%n`，使用 `\n` 的仍是 `\n`，使用 `\\n` 的仍是 `\\n`
+- **还原**（restore-and-pack）：按每词条原形式把真换行回写成原字面；若 key 包含 `questing.quest` 或 `betterquesting`，优先使用 `%n`；若 key 缺少逐词条记录且包含 `research_page`，优先退到 `<BR>`；其余退到该文件最多的形式。`<BR>` 的任务书仍是 `<BR>`，使用 `[br]` 的仍是 `[br]`，使用 `%n` 的仍是 `%n`，使用 `\n` 的仍是 `\n`，使用 `\\n` 的仍是 `\\n`
 
 ---
 
@@ -219,4 +215,4 @@ bun .github/scripts/daily/fetch-en.ts                    # 单步运行任意一
 npx tsc --noEmit                                         # 类型检查
 ```
 
-脚本都把 `.cache/`、`.build/`、`.repo.cache/` 当作可写工作区；安全起见已加入 `.gitignore`。每次运行都会重拉三源并本地整合，缓存仅用于提速。
+脚本都把 `.cache/`、`.build/` 当作可写工作区；安全起见已加入 `.gitignore`。每次运行都会重拉三源并本地整合，缓存只保存必要的 PT 状态与 GT5U 语言文件兜底。

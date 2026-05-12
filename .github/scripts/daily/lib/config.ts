@@ -19,7 +19,7 @@ export const PARATRANZ_TOKEN: string = process.env.PARATRANZ_TOKEN ?? ''
 
 export const CACHE_DIR: string = process.env.CACHE_DIR ?? '.cache'
 export const BUILD_DIR: string = process.env.BUILD_DIR ?? '.build'
-export const REPO_CACHE_DIR: string = process.env.REPO_CACHE_DIR ?? '.repo.cache'
+export const REPO_CACHE_DIR: string = process.env.REPO_CACHE_DIR ?? '.build/repo-cache'
 
 export const CONCURRENCY = 5
 export const RATE_LIMIT_RETRY_MS = 60_000

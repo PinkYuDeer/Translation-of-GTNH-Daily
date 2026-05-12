@@ -76,6 +76,20 @@ export function langToPtItems(entries: LangEntry[]): PtStringItem[] {
   }))
 }
 
+/**
+ * `.lang` files can contain duplicate keys. Minecraft-style loaders resolve
+ * those as last-wins, so PT JSON must not keep multiple rows with the same key.
+ */
+export function dedupePtItemsByKey(items: PtStringItem[]): { items: PtStringItem[], duplicates: number } {
+  const lastIndexByKey = new Map<string, number>()
+  items.forEach((item, index) => lastIndexByKey.set(item.key, index))
+  const deduped = items.filter((item, index) => lastIndexByKey.get(item.key) === index)
+  return {
+    items: deduped,
+    duplicates: items.length - deduped.length,
+  }
+}
+
 /** Reverse: PT string-items → lang entries. Uses `translation` as value. */
 export function ptItemsToLang(items: PtStringItem[]): LangEntry[] {
   return items.map(i => ({ key: i.key, value: i.translation }))

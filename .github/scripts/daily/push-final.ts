@@ -36,6 +36,7 @@ import {
   runBounded,
 } from './lib/pt-client.ts'
 import {
+  dedupePtItemsByKey,
   type LangEntry,
   type PtStringItem,
   parseLang,
@@ -98,7 +99,7 @@ function withLineBreakContexts(
 
 async function loadItems(ptPath: string): Promise<PtStringItem[]> {
   const abs = join(BUILD_DIR, 'zh-final', `${ptPath}.json`)
-  return JSON.parse(await readFile(abs, 'utf8')) as PtStringItem[]
+  return dedupePtItemsByKey(JSON.parse(await readFile(abs, 'utf8')) as PtStringItem[]).items
 }
 
 function toPtSourceItems(items: PtStringItem[]): PtStringItem[] {

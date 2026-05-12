@@ -16,7 +16,8 @@
  *   - resources/minecraft/**                       → shipped as-is at
  *                                                    `config/txloader/forceload/minecraft/**`
  *
- * The Kiwi233 checkout is reused from fetch-en's sparse-clone (`.repo.cache/kiwi`).
+ * The Kiwi233 checkout is reused from fetch-en's sparse-clone
+ * (`$REPO_CACHE_DIR/kiwi`).
  */
 
 import { spawnSync } from 'node:child_process'
