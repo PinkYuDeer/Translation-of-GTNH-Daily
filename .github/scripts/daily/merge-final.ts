@@ -36,7 +36,7 @@ import { dirname, join, relative, sep } from 'node:path'
 
 import { BUILD_DIR, PT_18818_ID, PT_4964_ID, assertToken } from './lib/config.ts'
 import { readFileIds, readNewlines, resolveNewlineForm, writeJson } from './lib/cache.ts'
-import type { PtStringItem } from './lib/lang-parser.ts'
+import { dedupePtItemsByKey, type PtStringItem } from './lib/lang-parser.ts'
 import { hasNewlinePlaceholder, normalizeNewlines, normalizePtNewlines, withLineBreakContext } from './lib/newlines.ts'
 import {
   indexFilesByLowerName,
@@ -116,9 +116,9 @@ async function* walkJson(dir: string): AsyncGenerator<string> {
 async function loadPtItems(abs: string): Promise<PtStringItem[]> {
   const data: unknown = JSON.parse(await readFile(abs, 'utf8'))
   if (Array.isArray(data))
-    return data as PtStringItem[]
+    return dedupePtItemsByKey(data as PtStringItem[]).items
   const results = (data as { results?: PtStringItem[] }).results
-  return Array.isArray(results) ? results : []
+  return Array.isArray(results) ? dedupePtItemsByKey(results).items : []
 }
 
 function normalizeItem(item: PtStringItem): PtStringItem {

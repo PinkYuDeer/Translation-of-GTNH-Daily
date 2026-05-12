@@ -32,7 +32,7 @@ env:
   # 构建/缓存/上游克隆目录（脚本都从这里读）
   BUILD_DIR: .build
   CACHE_DIR: .cache
-  REPO_CACHE_DIR: .repo.cache
+  REPO_CACHE_DIR: .build/repo-cache
 
   # 最终 7z 输出位置
   ASSETS_PATH: .assets.local.d
@@ -75,9 +75,8 @@ jobs:
             libxrandr2 \
             libxxf86vm1
 
-      # .cache 里保留少量可复用状态（fileIds、newlines 等）以及 GT5U
-      # GregTech.lang 兜底缓存；每次仍会重拉当前 PT 18818 与上游 4964。
-      # 上游 sparse-clone 及 GT5U checkout 缓存在 .repo.cache 里，避免每天重新拉。
+      # .cache 里只保留少量可复用状态（fileIds、newlines 等）以及 GT5U
+      # GregTech.lang 兜底缓存；PT 与上游源码每次运行都重新拉取。
       # GitHub Actions cache 以 ref 为作用域且不可覆写，故 key 显式带 branch；
       # restore 只回溯同 branch 旧日缓存。
       - name: Setup Datetime Envs
@@ -91,7 +90,6 @@ jobs:
         with:
           path: |
             .cache
-            .repo.cache
           key: daily-${{ github.ref_name }}-${{ env.NB_LOCAL_DATE }}
           restore-keys: |
             daily-${{ github.ref_name }}-
@@ -177,7 +175,6 @@ jobs:
         with:
           path: |
             .cache
-            .repo.cache
           key: daily-${{ github.ref_name }}-${{ env.NB_LOCAL_DATE }}
 
       - name: Prune Old Daily Caches

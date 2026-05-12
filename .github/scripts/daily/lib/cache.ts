@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path'
 
 import { CACHE_DIR, CACHE_PATHS } from './config.ts'
 import type { PtStringItem } from './lang-parser.ts'
-import { NEWLINE_FORMS, type NewlineForm } from './newlines.ts'
+import { isPercentNewlineKey, NEWLINE_FORMS, type NewlineForm } from './newlines.ts'
 
 export type { NewlineForm } from './newlines.ts'
 
@@ -177,7 +177,7 @@ export function resolveNewlineForm(
   forms: NewlineFileForms | undefined,
   key: string,
 ): NewlineForm | undefined {
-  if (key.toLowerCase().includes('questing.quest'))
+  if (isPercentNewlineKey(key))
     return '%n'
   return forms?.entries[key]
     ?? (key.toLowerCase().includes('research_page') ? '<BR>' : forms?.default)

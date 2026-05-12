@@ -9,7 +9,7 @@
  * Required pre-source:
  *   - .build/generated-gregtech/GregTech.lang (generated from latest GT5U)
  *
- * Upstreams (all sparse-cloned to `.repo.cache/<name>`):
+ * Upstreams (all sparse-cloned to `$REPO_CACHE_DIR/<name>`):
  *   - GTNewHorizons/GTNH-Translations@master  (daily-history)
  *   - GTNewHorizons/GT-New-Horizons-Modpack@master  (config)
  *   - Kiwi233/Translation-of-GTNH@master  (tips + direct-pack extras cache)
@@ -30,9 +30,9 @@ import { dirname, join, relative, sep } from 'node:path'
 
 import { BUILD_DIR, REPO_CACHE_DIR, UPSTREAM } from './lib/config.ts'
 import { writeJson, readNewlines, writeNewlines, type NewlineFileForms, type NewlineForm } from './lib/cache.ts'
-import { parseLang, langToPtItems, type PtStringItem } from './lib/lang-parser.ts'
+import { dedupePtItemsByKey, parseLang, langToPtItems, type PtStringItem } from './lib/lang-parser.ts'
 import { parseTipsLines, tipsToEntries } from './lib/tips-parser.ts'
-import { isQuestingQuestKey, normalizeNewlines, sniffNewline } from './lib/newlines.ts'
+import { isPercentNewlineKey, normalizeNewlines, sniffNewline } from './lib/newlines.ts'
 import { rewriteTargetRelpath, stripVersionSuffix } from './lib/path-map.ts'
 
 const GENERATED_GREGTECH_LANG = join(BUILD_DIR, 'generated-gregtech', 'GregTech.lang')
@@ -53,9 +53,9 @@ function run(cmd: string, args: string[], cwd?: string): void {
 }
 
 /**
- * Sparse-clone a GitHub repo to `.repo.cache/<slug>`. Idempotent: if the
- * directory already exists we just `git fetch` + reset, which keeps CI cache
- * restores cheap.
+ * Sparse-clone a GitHub repo to `$REPO_CACHE_DIR/<slug>`. Idempotent within
+ * one run; the directory defaults under `.build/` and is not persisted in
+ * Actions cache.
  */
 function sparseClone(slug: string, spec: { repo: string, ref: string, sparse: readonly string[] }): string {
   const dest = join(REPO_CACHE_DIR, slug)
@@ -133,7 +133,7 @@ function modpackToPtPath(rel: string): string | undefined {
  */
 function processLangFile(
   content: string,
-): { items: PtStringItem[], newlineForms: NewlineFileForms } {
+): { items: PtStringItem[], newlineForms: NewlineFileForms, duplicates: number } {
   const entries = parseLang(content)
   const items: PtStringItem[] = []
   const newlineEntries: Record<string, NewlineForm> = {}
@@ -144,8 +144,10 @@ function processLangFile(
     if (normalized.trim().length === 0)
       continue
     const form = sniffNewline(e.value, e.key)
-    if (form && !isQuestingQuestKey(e.key))
+    if (form && !isPercentNewlineKey(e.key))
       newlineEntries[e.key] = form
+    else
+      delete newlineEntries[e.key]
     items.push({
       key: e.key,
       original: normalized,
@@ -153,7 +155,8 @@ function processLangFile(
       stage: 0,
     })
   }
-  return { items, newlineForms: withFileDefault(newlineEntries) }
+  const deduped = dedupePtItemsByKey(items)
+  return { items: deduped.items, newlineForms: withFileDefault(newlineEntries), duplicates: deduped.duplicates }
 }
 
 function withFileDefault(entries: Record<string, NewlineForm>): NewlineFileForms {
@@ -225,6 +228,7 @@ async function main(): Promise<void> {
 
   const collected = new Map<string, FetchedFile>()
   const newlinesMap: Record<string, NewlineFileForms> = {}
+  let duplicateKeysDropped = 0
 
   // -------- A0: runtime-generated GT5U GregTech.lang. This is required:
   // daily-history/GregTech.lang is a manually uploaded snapshot and can be far
@@ -234,6 +238,7 @@ async function main(): Promise<void> {
 
   const generatedGregTech = await readFile(GENERATED_GREGTECH_LANG, 'utf8')
   const generatedGregTechProcessed = processLangFile(generatedGregTech)
+  duplicateKeysDropped += generatedGregTechProcessed.duplicates
   if (generatedGregTechProcessed.items.length === 0)
     throw new Error(`generated GregTech.lang at ${GENERATED_GREGTECH_LANG} produced no translatable entries`)
   collected.set('GregTech.lang', {
@@ -263,7 +268,8 @@ async function main(): Promise<void> {
     // path, their entries are merged (first-wins on key conflicts).
     const ptPath = stripVersionSuffix(raw)
     const content = await readFile(abs, 'utf8')
-    const { items, newlineForms } = processLangFile(content)
+    const { items, newlineForms, duplicates } = processLangFile(content)
+    duplicateKeysDropped += duplicates
     if (items.length === 0)
       continue
     const source = rel === 'GregTech.lang' ? 'A' : rel.startsWith('resources/') ? 'B' : 'C'
@@ -290,7 +296,8 @@ async function main(): Promise<void> {
     if (collected.has(ptPath))
       continue // daily-history wins
     const content = await readFile(abs, 'utf8')
-    const { items, newlineForms } = processLangFile(content)
+    const { items, newlineForms, duplicates } = processLangFile(content)
+    duplicateKeysDropped += duplicates
     if (items.length === 0)
       continue
     const source = rel.startsWith('config/txloader/forceload/')
@@ -328,6 +335,9 @@ async function main(): Promise<void> {
 
   // eslint-disable-next-line no-console
   console.log(`[fetch-en] ${collected.size} files → ${outRoot}`)
+  if (duplicateKeysDropped > 0)
+    // eslint-disable-next-line no-console
+    console.log(`[fetch-en] dropped ${duplicateKeysDropped} duplicate key entries using last-wins semantics`)
   const bySrc = new Map<string, number>()
   for (const f of collected.values()) bySrc.set(f.source, (bySrc.get(f.source) ?? 0) + 1)
   // eslint-disable-next-line no-console

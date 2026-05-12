@@ -5,7 +5,7 @@
  *   - `<BR>`     — quest-book style, common in betterquesting
  *   - `<br>`     — some mod lang files
  *   - `[br]`     — bracket-style newline marker used by a few entries
- *   - `%n`       — Java/formatter-style newline marker for questing.quest keys
+ *   - `%n`       — Java/formatter-style newline marker for quest text keys
  *   - literal `\n`  (two chars: one backslash + n)
  *   - literal `\\n` (three chars: two backslashes + n)
  *
@@ -19,8 +19,8 @@
  *
  * Normalization is lossy — once `<BR>` / `<br>` / `[br]` / `%n` / literal
  * `\n` / literal `\\n` are all collapsed to a real newline, we can't tell
- * which was which without the sniff cache. `%n` is only parsed for keys that
- * contain `questing.quest`, so formatter variables such as `%name` survive.
+ * which was which without the sniff cache. `%n` is only parsed for quest text
+ * keys, so formatter variables such as `%name` survive.
  * Backslash and percent runs use parity checks, allowing arbitrary `\\...n`
  * and `%%...n` sequences without hard-coding every width.
  */
@@ -33,8 +33,10 @@ export const LINE_BREAK_CONTEXT_PREFIX = '@LineBreak='
 const BACKSLASH_NEWLINE_RE = /\\+n/g
 const PERCENT_NEWLINE_RE = /%+n/g
 
-export function isQuestingQuestKey(key: string | undefined): boolean {
-  return (key ?? '').toLowerCase().includes('questing.quest')
+export function isPercentNewlineKey(key: string | undefined): boolean {
+  const normalized = (key ?? '').toLowerCase()
+  return normalized.includes('questing.quest')
+    || normalized.includes('betterquesting')
 }
 
 function findBackslashNewlineForm(value: string): NewlineForm | undefined {
@@ -69,7 +71,7 @@ function normalizePercentNewlines(value: string): string {
 /**
  * Detect which placeholder the value uses. Preference order is `<BR>` >
  * `<br>` > `[br]` > even-count backslash `\\n` > odd-count backslash `\n` >
- * odd-count `%n` on questing.quest keys. Returns undefined if the value
+ * odd-count `%n` on quest text keys. Returns undefined if the value
  * contains no newline placeholder at all.
  */
 export function sniffNewline(value: string, key?: string): NewlineForm | undefined {
@@ -82,7 +84,7 @@ export function sniffNewline(value: string, key?: string): NewlineForm | undefin
   const backslashForm = findBackslashNewlineForm(value)
   if (backslashForm)
     return backslashForm
-  if (isQuestingQuestKey(key) && hasOddPercentNewline(value))
+  if (isPercentNewlineKey(key) && hasOddPercentNewline(value))
     return '%n'
   return undefined
 }
@@ -92,7 +94,7 @@ export function hasNewlinePlaceholder(value: string, key?: string): boolean {
     || value.includes('<br>')
     || value.includes('[br]')
     || findBackslashNewlineForm(value) != null
-    || (isQuestingQuestKey(key) && hasOddPercentNewline(value))
+    || (isPercentNewlineKey(key) && hasOddPercentNewline(value))
 }
 
 /**
@@ -105,7 +107,7 @@ export function normalizeNewlines(value: string, key?: string): string {
     .replaceAll('<br>', '\n')
     .replaceAll('[br]', '\n')
     .replace(BACKSLASH_NEWLINE_RE, '\n')
-  return isQuestingQuestKey(key) ? normalizePercentNewlines(normalized) : normalized
+  return isPercentNewlineKey(key) ? normalizePercentNewlines(normalized) : normalized
 }
 
 /**
