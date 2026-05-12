@@ -32,7 +32,7 @@ import { BUILD_DIR, REPO_CACHE_DIR, UPSTREAM } from './lib/config.ts'
 import { writeJson, readNewlines, writeNewlines, type NewlineFileForms, type NewlineForm } from './lib/cache.ts'
 import { parseLang, langToPtItems, type PtStringItem } from './lib/lang-parser.ts'
 import { parseTipsLines, tipsToEntries } from './lib/tips-parser.ts'
-import { normalizeNewlines, sniffNewline } from './lib/newlines.ts'
+import { isQuestingQuestKey, normalizeNewlines, sniffNewline } from './lib/newlines.ts'
 import { rewriteTargetRelpath, stripVersionSuffix } from './lib/path-map.ts'
 
 const GENERATED_GREGTECH_LANG = join(BUILD_DIR, 'generated-gregtech', 'GregTech.lang')
@@ -140,11 +140,11 @@ function processLangFile(
   for (const e of entries) {
     if (e.key.length === 0)
       continue
-    const normalized = normalizeNewlines(e.value)
+    const normalized = normalizeNewlines(e.value, e.key)
     if (normalized.trim().length === 0)
       continue
-    const form = sniffNewline(e.value)
-    if (form)
+    const form = sniffNewline(e.value, e.key)
+    if (form && !isQuestingQuestKey(e.key))
       newlineEntries[e.key] = form
     items.push({
       key: e.key,

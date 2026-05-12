@@ -17,6 +17,9 @@ import { dirname, join } from 'node:path'
 
 import { CACHE_DIR, CACHE_PATHS } from './config.ts'
 import type { PtStringItem } from './lang-parser.ts'
+import { NEWLINE_FORMS, type NewlineForm } from './newlines.ts'
+
+export type { NewlineForm } from './newlines.ts'
 
 export async function readJson<T>(absPath: string): Promise<T | undefined> {
   if (!existsSync(absPath))
@@ -91,8 +94,6 @@ export async function deleteStringIds(ptPath: string): Promise<void> {
   await rm(stringIdsFile(ptPath), { force: true })
 }
 
-export type NewlineForm = '<BR>' | '<br>' | '[br]' | '\\n' | '\\\\n' | '%n'
-
 export interface NewlineFileForms {
   /** Most frequent placeholder form in this file, used when a key has no exact entry hit. */
   default?: NewlineForm
@@ -103,12 +104,7 @@ export interface NewlineFileForms {
 export type NewlinesCache = Record<string, NewlineFileForms>
 
 function isNewlineForm(value: unknown): value is NewlineForm {
-  return value === '<BR>'
-    || value === '<br>'
-    || value === '[br]'
-    || value === '\\n'
-    || value === '\\\\n'
-    || value === '%n'
+  return typeof value === 'string' && (NEWLINE_FORMS as readonly string[]).includes(value)
 }
 
 function mostFrequentNewlineForm(entries: Record<string, NewlineForm>): NewlineForm | undefined {
@@ -181,6 +177,8 @@ export function resolveNewlineForm(
   forms: NewlineFileForms | undefined,
   key: string,
 ): NewlineForm | undefined {
+  if (key.toLowerCase().includes('questing.quest'))
+    return '%n'
   return forms?.entries[key]
     ?? (key.toLowerCase().includes('research_page') ? '<BR>' : forms?.default)
 }
