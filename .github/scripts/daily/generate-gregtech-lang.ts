@@ -300,16 +300,34 @@ function commandExists(cmd: string): boolean {
   return r.status === 0
 }
 
+function defaultXdgDataHome(env: NodeJS.ProcessEnv = process.env): string {
+  const configured = env.XDG_DATA_HOME?.trim()
+  return configured ? resolve(configured) : join(homedir(), '.local', 'share')
+}
+
 function withHeadlessClientEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   if (process.platform !== 'linux')
     return { ...env }
 
   return {
     ...env,
+    XDG_DATA_HOME: env.XDG_DATA_HOME?.trim() ? env.XDG_DATA_HOME : defaultXdgDataHome(env),
     LIBGL_ALWAYS_SOFTWARE: env.LIBGL_ALWAYS_SOFTWARE ?? '1',
     MESA_LOADER_DRIVER_OVERRIDE: env.MESA_LOADER_DRIVER_OVERRIDE ?? 'llvmpipe',
     ALSOFT_DRIVERS: env.ALSOFT_DRIVERS ?? 'null',
   }
+}
+
+async function ensureLinuxDataHome(): Promise<void> {
+  if (process.platform !== 'linux')
+    return
+
+  const xdgDataHome = defaultXdgDataHome()
+  if (!process.env.XDG_DATA_HOME?.trim())
+    process.env.XDG_DATA_HOME = xdgDataHome
+  await mkdir(join(xdgDataHome, 'applications'), { recursive: true })
+  // eslint-disable-next-line no-console
+  console.log(`[gregtech-lang] ensured XDG_DATA_HOME=${xdgDataHome}`)
 }
 
 function javaStringLiteral(value: string): string {
@@ -566,6 +584,7 @@ async function prepareClientDir(clientDir: string): Promise<void> {
   // Actions. Remove only the stale language files and logs that affect this run.
   // eslint-disable-next-line no-console
   console.log(`[gregtech-lang] preparing client dir ${clientDir}`)
+  await ensureLinuxDataHome()
   await mkdir(clientDir, { recursive: true })
   await Promise.all([
     rmIfExists(join(clientDir, 'GregTech.lang')),
@@ -578,6 +597,7 @@ async function prepareClientDir(clientDir: string): Promise<void> {
   await Promise.all([
     writeCodeChickenLibConfig(clientDir),
     writeDreamCoreModConfig(clientDir),
+    writeLwjgl3ifyConfig(clientDir),
     writeAppliedEnergisticsConfig(clientDir),
   ])
   // eslint-disable-next-line no-console
@@ -644,6 +664,18 @@ function upsertForgeBoolean(content: string, category: string, key: string, valu
   const trimmed = content.replace(/\s*$/, '')
   const prefix = trimmed.length > 0 ? `${trimmed}\n\n` : ''
   return `${prefix}${category} {\n    B:${key}=${desiredValue}\n}\n`
+}
+
+async function writeLwjgl3ifyConfig(clientDir: string): Promise<void> {
+  const configDir = join(clientDir, 'config')
+  const configPath = join(configDir, 'lwjgl3ify.cfg')
+  await mkdir(configDir, { recursive: true })
+  const existing = await readIfExists(configPath)
+  const base = existing.length > 0 ? existing : '# Configuration file\n'
+  const next = upsertForgeBoolean(base, 'window', 'linuxCreateAppDesktopEntry', false)
+  await writeFile(configPath, next, 'utf8')
+  // eslint-disable-next-line no-console
+  console.log('[gregtech-lang] disabled lwjgl3ify Linux desktop entry creation')
 }
 
 async function writeAppliedEnergisticsConfig(clientDir: string): Promise<void> {
