@@ -56,6 +56,7 @@
 - 启动前只在临时 GT5U checkout 中补入少量 `GregTech.lang` 缺失键实际需要的 `runtimeOnlyNonPublishable` 依赖，避免全量加载 GT5U 可选依赖造成启动冲突与额外耗时；当前补入 Forestry, Gendustry, bdlib, MatterManipulator, VendingMachine
 - 启动前写入 `config/CodeChickenLib.cfg` 的 `mappingDir`，指向 Gradle/RFG 解包出的 MCP `conf` 目录，避免 headless 环境弹出 MCP 文件夹选择 UI；特殊环境可用 `GT5U_MCP_CONF_DIR` 覆盖
 - 启动前写入 `config/DreamCoreMod.properties` 的 `showConfirmExitWindow=false`，避免 NewHorizonsCoreMod 替换 `Minecraft.shutdown()` 后弹出退出确认窗口
+- 启动前确保 Linux `XDG_DATA_HOME/applications` 存在，并写入 `config/lwjgl3ify.cfg` 的 `window.B:linuxCreateAppDesktopEntry=false`，避免 GitHub runner 缺少桌面数据目录时由 lwjgl3ify 创建 `.desktop` 入口失败
 - 启动前写入 `config/AppliedEnergistics2/AppliedEnergistics2.cfg` 的 `general.B:exportItemNames=false`，避免 AE2 CSV 导出线程枚举全部物品造成额外耗时和启动风险
 - 脚本默认自启虚拟 X display，并强制使用 llvmpipe 软件 OpenGL 与 null OpenAL；不依赖 GitHub runner 的真实显卡或声卡。如需本地复用已有窗口显示，设置 `GT5U_USE_EXISTING_DISPLAY=1`
 - 脚本在临时 GT5U checkout 注入一次性客户端 Probe mod，持续读取并向 Actions 输出 `run/client/logs/*` 的进度；Probe 会注册轻量 `endergoo` Fluid stub 以生成 HEE 的 `Ender Goo Cell` 键，但不加载完整 HEE runtime；当客户端显示任意无世界菜单界面后，Probe 直接调用 Minecraft API 进入临时单人世界 `GTNHLangProbe`，不依赖 UI 点击或原版主菜单类名
