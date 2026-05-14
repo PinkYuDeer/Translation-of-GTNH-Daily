@@ -2,4 +2,12 @@
 
 languagefile {
     S:gt.blockmachines.hatch.test.name=Test Factory Hatch
+    S:gtplusplus.item.itemGenericToken.1.name=手泵交易代币I
+    S:gtplusplus.item.itemGenericToken.1.tooltip.0=合成一级手泵
+    S:gtplusplus.item.itemGenericToken.2.name=手泵交易代币II
+    S:gtplusplus.item.itemGenericToken.2.tooltip.0=合成二级手泵
+    S:gtplusplus.item.itemGenericToken.3.name=手泵交易代币III
+    S:gtplusplus.item.itemGenericToken.3.tooltip.0=合成三级手泵
+    S:gtplusplus.item.itemGenericToken.4.name=手泵交易代币IV
+    S:gtplusplus.item.itemGenericToken.4.tooltip.0=合成四级手泵
 }

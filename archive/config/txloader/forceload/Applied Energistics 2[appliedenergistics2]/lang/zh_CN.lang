@@ -1,0 +1,6 @@
+gui.appliedenergistics2.CellRestrictionTips=默认为0
+gui.appliedenergistics2.MaxFluid=最大流体存量:
+gui.appliedenergistics2.NumberOfItems=物品存量
+gui.appliedenergistics2.NumberOfFluids=流体存量
+gui.appliedenergistics2.ItemsPerByte=每字节可容纳物品:
+gui.appliedenergistics2.FluidsPerByte=每字节可容纳流体:

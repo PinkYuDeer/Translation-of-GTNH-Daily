@@ -1,0 +1,9 @@
+serverutilities.login.enable_global_badges=启用全局徽章
+serverutilities.login.enable_event_badges=启用事件徽章
+serverutilities.ranks.enabled=启用
+serverutilities.ranks.override_commands=覆盖命令
+serverutilities.ranks.crash_client_side_permissions=崩溃客户端权限
+serverutilities.ranks.load_from_config_folder=从配置文件夹加载
+serverutilities.ranks.print_command_errors=输出命令错误
+serverutilities.general.clientless_mode=无客户端模式
+serverutilities.general.replace_reload_command=替换 /reload 命令
