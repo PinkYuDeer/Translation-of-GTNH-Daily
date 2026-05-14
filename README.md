@@ -51,7 +51,7 @@
 
 | 源（上游文件系统）                                                      | 最终落地（整合包内路径）                                                 |
 |-------------------------------------------------------------------------|--------------------------------------------------------------------------|
-| `GT5-Unofficial` 以 headless `runClient` 运行并关闭窗口后生成的 `GregTech.lang`（失败时用上次成功缓存兜底） | `GregTech_zh_CN.lang` / `GregTech_en_US.lang`                            |
+| `GT5-Unofficial` 以 headless `runClient25` 启动客户端、在临时 checkout 补入少量缺失键所需运行时依赖、由一次性 Probe 补入轻量 `endergoo` Fluid stub、关闭会提前枚举物品的 AE2 CSV 导出、自动进入临时单人世界并正常退出后生成的 `GregTech.lang`（失败时用上次成功缓存兜底） | `GregTech_zh_CN.lang` / `GregTech_en_US.lang`                            |
 | `daily-history/resources/<Display>[<modid>]/lang/en_US.lang`            | `config/txloader/forceload/<Display>[<modid>]/lang/zh_CN.lang`           |
 | `config/txloader/load/<modid>/lang/en_US.lang`                          | `config/txloader/load/<modid>/lang/zh_CN.lang`                           |
 | `config/txloader/forceload/<path>/en_US.lang`（Modpack）                | 同目录改名 `zh_CN.lang`                                                  |

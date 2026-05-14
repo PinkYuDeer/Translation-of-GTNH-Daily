@@ -37,10 +37,10 @@ body:
     id: skip_gt5u
     attributes:
       label: 跳过 GT5U skip_gt5u
-      description: 控制是否跳过 GT5U runClient 生成 GregTech.lang.
+      description: 控制是否跳过 GT5U runClient25 生成 GregTech.lang.
       options:
-        - "false - 运行 GT5U runClient, 生成最新 GregTech.lang"
-        - "true - 跳过 GT5U runClient, 只使用上次成功缓存的 GregTech.lang; 缓存未命中会失败"
+        - "false - 运行 GT5U runClient25, 生成最新 GregTech.lang"
+        - "true - 跳过 GT5U runClient25, 只使用上次成功缓存的 GregTech.lang; 缓存未命中会失败"
       default: 0
     validations:
       required: true

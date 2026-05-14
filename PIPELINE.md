@@ -17,7 +17,7 @@
 整条流水线由 [`.github/workflows/daily.yml`](.github/workflows/daily.yml) 触发：
 
 - 定时：中国时间每天凌晨 1 点（UTC 17:00）
-- 手动：Actions 页 `workflow_dispatch`，支持 `force=true` 把合并后的所有文件重新推到 PT 18818，也支持 `skip_gt5u=true` 跳过 GT5U runClient 并直接使用缓存的 GregTech.lang；此模式也跳过 Java 与 headless 客户端依赖安装，若该缓存未命中则直接失败，不会回退运行 GT5U
+- 手动：Actions 页 `workflow_dispatch`，支持 `force=true` 把合并后的所有文件重新推到 PT 18818，也支持 `skip_gt5u=true` 跳过 GT5U `runClient25` 并直接使用缓存的 GregTech.lang；此模式也跳过 Java 与 headless 客户端依赖安装，若该缓存未命中则直接失败，不会回退运行 GT5U
 - Issue：Issues 页 `触发 DailySync` 模板会由 [`.github/workflows/issue-dispatch.yml`](.github/workflows/issue-dispatch.yml) 转发为 `workflow_dispatch`，支持同样的 `force` 与 `skip_gt5u` 选项；`触发 Export` 模板会转发到 [`.github/workflows/export-pt-lang-package.yml`](.github/workflows/export-pt-lang-package.yml)
 
 设计目标：**以英文原文为准**、**尽量少打 PT API**、**换行符逐词条原样还原**、**打包结构对齐线下参考包**。
@@ -52,11 +52,17 @@
 ### 0. `generate-gregtech-lang.ts` — 生成 GregTech.lang（实验）
 
 - 克隆/更新 `GTNewHorizons/GT5-Unofficial@master` 到 `$REPO_CACHE_DIR/gt5u`（默认 `.build/repo-cache/gt5u`，不进 Actions cache）
-- 在 GitHub Actions 安装 `xvfb` / `xdotool`，用 Java 25 启动 `./gradlew runClient`
-- 脚本自启虚拟 X display，持续读取并向 Actions 输出 `run/client/logs/*` 的进度；当日志出现 `GTMod: PostLoad-Phase finished!` 且出现客户端 ready marker（默认 `Forge Mod Loader has successfully loaded`）时，用 `xdotool` 正常关闭 Minecraft 窗口，等待客户端退出后取完整 `GregTech.lang`
-- 若 ready marker 因日志格式变化未出现，则在 postload 后等待 `GT5U_CLOSE_AFTER_POSTLOAD_MS`（默认 180 秒）再关闭，避免 workflow 长时间无输出卡住
+- 在 GitHub Actions 安装 `xvfb` / Mesa 软件渲染 / OpenAL runtime，用 Java 25 启动 `./gradlew runClient25`（可用 `GT5U_RUN_CLIENT_TASK` 覆盖）
+- 启动前只在临时 GT5U checkout 中补入少量 `GregTech.lang` 缺失键实际需要的 `runtimeOnlyNonPublishable` 依赖，避免全量加载 GT5U 可选依赖造成启动冲突与额外耗时；当前补入 Forestry, Gendustry, bdlib, MatterManipulator, VendingMachine
+- 启动前写入 `config/CodeChickenLib.cfg` 的 `mappingDir`，指向 Gradle/RFG 解包出的 MCP `conf` 目录，避免 headless 环境弹出 MCP 文件夹选择 UI；特殊环境可用 `GT5U_MCP_CONF_DIR` 覆盖
+- 启动前写入 `config/DreamCoreMod.properties` 的 `showConfirmExitWindow=false`，避免 NewHorizonsCoreMod 替换 `Minecraft.shutdown()` 后弹出退出确认窗口
+- 启动前写入 `config/AppliedEnergistics2/AppliedEnergistics2.cfg` 的 `general.B:exportItemNames=false`，避免 AE2 CSV 导出线程枚举全部物品造成额外耗时和启动风险
+- 脚本默认自启虚拟 X display，并强制使用 llvmpipe 软件 OpenGL 与 null OpenAL；不依赖 GitHub runner 的真实显卡或声卡。如需本地复用已有窗口显示，设置 `GT5U_USE_EXISTING_DISPLAY=1`
+- 脚本在临时 GT5U checkout 注入一次性客户端 Probe mod，持续读取并向 Actions 输出 `run/client/logs/*` 的进度；Probe 会注册轻量 `endergoo` Fluid stub 以生成 HEE 的 `Ender Goo Cell` 键，但不加载完整 HEE runtime；当客户端显示任意无世界菜单界面后，Probe 直接调用 Minecraft API 进入临时单人世界 `GTNHLangProbe`，不依赖 UI 点击或原版主菜单类名
+- 进入世界并检测到玩家实体后，Probe 直接调用 Minecraft 正常 shutdown，等待客户端退出后取完整 `GregTech.lang`；如需额外停留，可用 `GT5U_WORLD_SETTLE_MS` 覆盖，默认不等待
+- 若 ready marker 因日志格式变化未出现，则在 postload 后等待 `GT5U_CLOSE_AFTER_POSTLOAD_MS`（默认 180 秒）再进入临时世界，避免 workflow 长时间无输出卡住
 - 输出 `.build/generated-gregtech/GregTech.lang` 与 metadata；成功后同步写入 `.cache/generated-gregtech/`
-- 若最新 GT5U 构建或 runClient 失败，自动尝试使用 `.cache/generated-gregtech/GregTech.lang`；若手动运行时设置 `skip_gt5u=true`，则只使用该缓存，未命中时直接报错
+- 若最新 GT5U 构建或 `runClient25` 失败，自动尝试使用 `.cache/generated-gregtech/GregTech.lang`；若手动运行时设置 `skip_gt5u=true`，则只使用该缓存，未命中时直接报错
 
 ### 1. `fetch-en.ts` — 英文原文收集
 

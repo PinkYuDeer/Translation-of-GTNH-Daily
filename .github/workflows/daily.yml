@@ -8,7 +8,7 @@ on:
         type: boolean
         default: false
       skip_gt5u:
-        description: '跳过 GT5U runClient，直接使用缓存的 GregTech.lang'
+        description: '跳过 GT5U runClient25，直接使用缓存的 GregTech.lang'
         type: boolean
         default: false
   schedule:
@@ -67,7 +67,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             xvfb \
-            xdotool \
             x11-xserver-utils \
             mesa-utils \
             libgl1-mesa-dri \
@@ -113,6 +112,7 @@ jobs:
         env:
           GT5U_LANG_TIMEOUT_MS: 2400000
           GT5U_LANG_MIN_ENTRIES: 2000
+          GT5U_RUN_CLIENT_TASK: runClient25
           GT5U_CLOSE_AFTER_POSTLOAD_MS: 180000
           GT5U_LANG_USE_CACHE_ONLY: ${{ inputs.skip_gt5u == true && '1' || '' }}
         run: stdbuf -oL -eL bun .github/scripts/daily/generate-gregtech-lang.ts
