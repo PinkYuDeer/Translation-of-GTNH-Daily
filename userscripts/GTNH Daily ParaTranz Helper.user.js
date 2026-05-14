@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GTNH Daily ParaTranz Helper
 // @namespace    paratranz-auto-100
-// @version      5.16
-// @description  1) 悬浮总控分区折叠; 2) files 页未翻译数量增强; 3) 纯 lang 发布包与单文件词库回填; 4) TM 自动复制与数字/电压迁移
+// @version      5.18
+// @description  1) 悬浮总控分区折叠; 2) files 页未翻译数量增强; 3) 纯 lang 发布包与单文件词库回填; 4) TM 自动复制与数字/电压迁移; 5) 标点转换保留 ()、[] 与数字后英文句点; 6) 输入区标点即时替换
 // @match        https://paratranz.cn/*
 // @run-at       document-idle
 // @require      https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js
@@ -33,7 +33,7 @@
         enableTmPerfect: true,        // B 参考 PT 历史翻译 100%+ 词条
         enableTmInText: true,         // C "在文本中" 全字相等仅复制
         enableTokenDiffTransfer: true,// D 顶部 TM 原文仅数字/电压差异时自动迁移
-        convertParens: true,          // 回填时 () → ()
+        enableInstantPunctuation: false,// 输入区半角标点即时替换(静默尝试,不提示无替换)
         enableAutoFillOriginal: false,// E 显示"自动填充原文"浮动面板(用于颜表情等原文即译文的情况)
     };
 
@@ -48,12 +48,8 @@
     function saveConfig() { GM_setValue(STORE_CONFIG, config); }
 
     function transformForFill(text) {
-        let out = text;
-        if (config.convertParens) {
-            // 半角 ( / ) → 全角 \uFF08 / \uFF09
-            out = out.replace(/\(/g, '\uFF08').replace(/\)/g, '\uFF09');
-        }
-        return out;
+        // 5.17: 回填/TM 复制后不再自动把半角括号转为全角括号。
+        return text;
     }
 
     /** 读当前翻译框的值,按配置转换后写回(若发生变化) */
@@ -78,8 +74,12 @@
         for (let i = 0; i < source.length; i++) {
             const code = source.charCodeAt(i);
             if (code === 44 || code === 46) {
+                const prevCode = source.charCodeAt(i - 1);
                 const nextCode = source.charCodeAt(i + 1);
-                if (nextCode >= 48 && nextCode <= 57)
+                const prevIsDigit = prevCode >= 48 && prevCode <= 57;
+                const nextIsDigit = nextCode >= 48 && nextCode <= 57;
+                // 逗号/句点在数字前保留；英文句点在数字后也保留，避免 1. / 3.5 / v1.2 之类被改坏。
+                if (nextIsDigit || (code === 46 && prevIsDigit))
                     out += source.charAt(i);
                 else
                     out += code === 44 ? '\uFF0C' : '\u3002';
@@ -99,10 +99,6 @@
             else if (code === 33) out += '\uFF01';
             else if (code === 58) out += '\uFF1A';
             else if (code === 59) out += '\uFF1B';
-            else if (code === 40) out += '\uFF08';
-            else if (code === 41) out += '\uFF09';
-            else if (code === 91) out += '\u3010';
-            else if (code === 93) out += '\u3011';
             else if (code === 123) out += '\uFF5B';
             else if (code === 125) out += '\uFF5D';
             else out += source.charAt(i);
@@ -110,22 +106,51 @@
         return out;
     }
 
-    function convertTextareaChinesePunctuation() {
+    function convertTextareaChinesePunctuation(opts = {}) {
+        const silent = !!opts.silent;
+        const preserveSelection = !!opts.preserveSelection;
         const ta = getTextarea();
         if (!ta) {
-            showToast('E', '未找到输入区');
+            if (!silent) showToast('E', '未找到输入区');
             return false;
         }
         const before = ta.value;
         const after = convertHalfwidthChinesePunctuation(before);
         if (after === before) {
-            showToast('E', '输入区没有可转换的半角标点');
+            if (!silent) showToast('E', '输入区没有可转换的半角标点');
             return false;
         }
-        setTextareaValue(after);
-        showToast('E', '已转换输入区半角标点');
+        setTextareaValue(after, { preserveSelection });
+        if (!silent) showToast('E', '已转换输入区半角标点');
         log('已转换输入区半角标点:', before, '→', after);
         return true;
+    }
+
+    let instantPunctuationTextarea = null;
+    let instantPunctuationComposing = false;
+
+    function ensureInstantPunctuationBinding() {
+        const ta = getTextarea();
+        if (!ta || ta === instantPunctuationTextarea) return;
+        instantPunctuationTextarea = ta;
+        ta.addEventListener('compositionstart', () => {
+            instantPunctuationComposing = true;
+        });
+        ta.addEventListener('compositionend', () => {
+            instantPunctuationComposing = false;
+            if (config.enableInstantPunctuation)
+                convertTextareaChinesePunctuation({ silent: true, preserveSelection: true });
+        });
+        ta.addEventListener('input', () => {
+            if (!config.enableInstantPunctuation || instantPunctuationComposing) return;
+            convertTextareaChinesePunctuation({ silent: true, preserveSelection: true });
+        });
+    }
+
+    function syncInstantPunctuation() {
+        ensureInstantPunctuationBinding();
+        if (config.enableInstantPunctuation)
+            convertTextareaChinesePunctuation({ silent: true, preserveSelection: true });
     }
 
     // ============ 发布包解析 ============
@@ -1155,8 +1180,11 @@
 
             '<div style="height:1px;background:rgba(255,255,255,.12);margin:8px 0;"></div>' +
             '<div style="font-weight:700;margin-bottom:5px;">输入区按钮</div>' +
+            '<div style="display:grid;grid-template-columns:1fr;gap:5px;margin:7px 0;">' +
+            switchRow('enableInstantPunctuation', '输入区半角标点即时替换(静默尝试)') +
+            '</div>' +
             '<div style="display:grid;grid-template-columns:1fr;gap:6px;margin:7px 0 10px;">' +
-            btn('punctuate', '输入区半角标点转全角', '#dc2626') +
+            btn('punctuate', '输入区半角标点转全角(保留 ()、[] 与数字后英文句点)', '#dc2626') +
             '</div>' +
             '<details style="margin-top:8px;">' +
             '<summary style="cursor:pointer;font-weight:700;opacity:.92;">导入</summary>' +
@@ -1185,9 +1213,6 @@
             '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:7px 0;">' +
             btn('diag-pkg', '诊断当前词条命中', '#4b5563') +
             btn('clear-pkg', '清除发布包', '#b45309') +
-            '</div>' +
-            '<div style="display:grid;grid-template-columns:1fr;gap:5px;margin:7px 0;">' +
-            switchRow('convertParens', '回填时半角括号转全角括号') +
             '</div>' +
             '<div style="display:grid;grid-template-columns:1fr;gap:6px;margin-top:6px;">' +
             btn('reset', '恢复默认开关', '#374151') +
@@ -1226,6 +1251,7 @@
                 saveConfig();
                 log('配置已更新:', cb.dataset.cfg, '=', cb.checked);
                 renderControlPanel();
+                syncInstantPunctuation();
                 lastSig = '';
                 tryProcess();
             } else if (arm) {
@@ -1377,14 +1403,28 @@
     function containsTraditionalChinese(text) {
         return TRADITIONAL_CHINESE_RE.test(String(text || ''));
     }
-    function setTextareaValue(text) {
+    function setTextareaValue(text, opts = {}) {
         const ta = getTextarea();
         if (!ta) return false;
+        const preserveSelection = !!opts.preserveSelection;
+        const selStart = preserveSelection ? ta.selectionStart : null;
+        const selEnd = preserveSelection ? ta.selectionEnd : null;
+        const selDirection = preserveSelection ? ta.selectionDirection : null;
         const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
         setter.call(ta, text);
         ta.dispatchEvent(new Event('input', { bubbles: true }));
         ta.dispatchEvent(new Event('change', { bubbles: true }));
         ta.focus();
+        if (preserveSelection && typeof ta.setSelectionRange === 'function') {
+            try {
+                const len = String(text || '').length;
+                ta.setSelectionRange(
+                    Math.min(selStart ?? len, len),
+                    Math.min(selEnd ?? len, len),
+                    selDirection || 'none'
+                );
+            } catch (_) {}
+        }
         return true;
     }
     function getTmText(item, kind) {
@@ -1712,6 +1752,7 @@
         obs._pending = true;
         requestAnimationFrame(() => {
             obs._pending = false;
+            syncInstantPunctuation();
             tryProcess();
             enhanceFilesPageStats();
             if (!document.getElementById(FLOAT_ID)) {
@@ -1729,6 +1770,7 @@
             setTimeout(showUploadBanner, 600);
         }
         renderControlPanel();
+        syncInstantPunctuation();
         enhanceFilesPageStats();
         setTimeout(tryProcess, 1200);
         log('脚本已启动,配置:', config);
