@@ -10,4 +10,6 @@ languagefile {
     S:gtplusplus.item.itemGenericToken.3.tooltip.0=合成三级手泵
     S:gtplusplus.item.itemGenericToken.4.name=手泵交易代币IV
     S:gtplusplus.item.itemGenericToken.4.tooltip.0=合成四级手泵
+    S:Material.wroughtiron=锻铁
+    S:Material.wroughtiron.ChemicalFormula=Fe*
 }
