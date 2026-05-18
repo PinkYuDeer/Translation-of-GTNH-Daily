@@ -1,1 +1,14 @@
 GT5U.gui.text.volumetric_flask.confirm=确认
+gtpp.material.WroughtIron=锻铁
+GT5U.gui.button.liquid_filling_OFF=§7填充流体: §4关闭
+GT5U.gui.button.liquid_filling_ON=§7填充流体: §4打开
+GT5U.gui.button.input_separation_on=输入隔离：开启
+GT5U.gui.button.input_separation_off=输入隔离：关闭
+GT5U.gui.button.batch_mode_on=批处理模式：开启
+GT5U.gui.button.batch_mode_off=批处理模式：关闭
+GT5U.gui.button.lock_recipe_on=锁定配方：开启
+GT5U.gui.button.lock_recipe_off=锁定配方：关闭
+GT5U.gui.button.chunk_loading_on=§7区块加载：§a开启
+GT5U.gui.button.chunk_loading_off=§7区块加载：§4关闭
+GT5U.gui.button.ore_drill_cobblestone_on=§7替换为圆石：§a开启
+GT5U.gui.button.ore_drill_cobblestone_off=§7替换为圆石：§4关闭
