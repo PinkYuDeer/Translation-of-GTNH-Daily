@@ -12,4 +12,25 @@ languagefile {
     S:gtplusplus.item.itemGenericToken.4.tooltip.0=合成四级手泵
     S:Material.wroughtiron=锻铁
     S:Material.wroughtiron.ChemicalFormula=Fe*
+    S:"Escherichia cadaver"=腐肉菌
+    S:"Escherichia koli"=大肠杆菌
+    S:"Material.acidicised1,4-butanediol"=酸化1,4-丁二醇
+    S:"Material.acidicised1,4-butanediol.ChemicalFormula"=HO(CH₂)₄OH
+    S:Material.polytetrahydrofuran=聚四氢呋喃
+    S:Material.polytetrahydrofuran.ChemicalFormula=(C₄H₈O)OH₂
+    S:Material.ptmegelastomer=PTMEG橡胶
+    S:Material.ptmegelastomer.ChemicalFormula=C₄H₈O
+    S:Material.tetrahydrofuran=四氢呋喃
+    S:Material.tetrahydrofuran.ChemicalFormula=(CH₂)₄O
+    S:Material.toluenediisocyanate=甲苯二异氰酸酯
+    S:Material.toluenediisocyanate.ChemicalFormula=CH₃C₆H₃(NCO)₂
+    S:Material.toluenetetramethyldiisocyanate=甲苯四甲基二异氰酸酯
+    S:Material.toluenetetramethyldiisocyanate.ChemicalFormula=(CONH)₂(C₆H₄)₂CH₂(C₄O)
+    S:Material.tungstophosphoricacid=磷钨酸
+    S:Material.tungstophosphoricacid.ChemicalFormula=H₃PW₁₂O₄
+    S:"Pseudomonas Veronii"=石油厌氧菌
+    S:"Saccharomyces cerevisiae"=普通酵母菌
+    S:"Saccharomyces cerevisiae var bayanus"=葡萄酒酵母菌
+    S:"Saccharomyces cerevisiae var cerevisiae"=啤酒酵母菌
+    S:"Saccharomyces escherichia"=通用酵母菌
 }

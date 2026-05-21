@@ -12,3 +12,7 @@ GT5U.gui.button.chunk_loading_on=§7区块加载：§a开启
 GT5U.gui.button.chunk_loading_off=§7区块加载：§4关闭
 GT5U.gui.button.ore_drill_cobblestone_on=§7替换为圆石：§a开启
 GT5U.gui.button.ore_drill_cobblestone_off=§7替换为圆石：§4关闭
+GT5U.gui.text.no_maintenance=缺少维护仓
+GT5U.gui.text.no_muffler=缺少消声仓
+GT5U.gui.text.too_short=结构太短
+GT5U.gui.text.hatch_invalid=仓室要求未满足
