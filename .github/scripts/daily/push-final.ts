@@ -12,6 +12,8 @@
  * records a file import revision rather than assigning every row to the bot.
  * Translation import is refused if PT did not apply the source original first;
  * otherwise stale-marker translations can drift away from the original column.
+ * Source-original verification uses the live strings endpoint because PT's
+ * translation export can briefly lag after a source-file upload.
  *
  * This script consumes `.build/merge-plan.json`:
  *   - `push[]`    — active files to create/update via POST /files
@@ -50,6 +52,8 @@ import { entriesToTips } from './lib/tips-parser.ts'
 const REPO_ARCHIVE_DIR = process.env.REPO_ARCHIVE_DIR ?? 'archive'
 const TIPS_PT_PATH = 'config/Betterloadingscreen/tips/zh_CN.lang'
 const PREVIEW_LIMIT = 120
+const SOURCE_APPLY_TIMEOUT_MS = Number(process.env.PT_SOURCE_APPLY_TIMEOUT_MS ?? 60_000)
+const SOURCE_APPLY_POLL_MS = Number(process.env.PT_SOURCE_APPLY_POLL_MS ?? 5_000)
 
 interface PtFileMutationResponse {
   file?: { id: number, name: string }
@@ -85,6 +89,10 @@ function ptDirname(ptPath: string): string {
 function previewValue(value: string): string {
   const visible = value.replaceAll('\n', '\\n')
   return visible.length <= PREVIEW_LIMIT ? visible : `${visible.slice(0, PREVIEW_LIMIT - 3)}...`
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, ms))
 }
 
 function withLineBreakContexts(
@@ -302,36 +310,106 @@ async function importTranslationBatch(
   )
 }
 
+function sourceOriginalMismatches(
+  remoteByKey: Map<string, PtStringItem>,
+  items: PtStringItem[],
+): { key: string, desired: string, remote: string }[] {
+  const mismatches: { key: string, desired: string, remote: string }[] = []
+  for (const item of items) {
+    const desired = normalizePtNewlines(item.original ?? '', item.key)
+    const remote = remoteByKey.get(item.key)
+    if (remote == null) {
+      mismatches.push({ key: item.key, desired, remote: '<missing>' })
+      continue
+    }
+    const remoteOriginal = normalizePtNewlines(remote.original ?? '', item.key)
+    if (remoteOriginal !== desired)
+      mismatches.push({ key: item.key, desired, remote: remoteOriginal })
+  }
+  return mismatches
+}
+
+function formatSourceMismatchMessage(
+  ptPath: string,
+  mismatches: { key: string, desired: string, remote: string }[],
+): string {
+  const sample = mismatches.slice(0, 3)
+    .map(mismatch =>
+      `${mismatch.key}: expected "${previewValue(mismatch.desired)}", got "${previewValue(mismatch.remote)}"`,
+    )
+    .join('; ')
+  return `PT file ${ptPath} original mismatch after source upload (${mismatches.length} stale/missing string(s)): `
+    + `${sample}; refusing to import translation`
+}
+
+function rowMapToItems<T extends { key: string, original: string, translation?: string | null, stage?: number, context?: string | null }>(
+  rows: T[],
+): Map<string, PtStringItem> {
+  return new Map(rows.map(row => [row.key, {
+    key: row.key,
+    original: row.original,
+    translation: row.translation ?? '',
+    stage: row.stage ?? 0,
+    ...(row.context != null ? { context: row.context } : {}),
+  } satisfies PtStringItem]))
+}
+
+async function waitForUploadedSource(
+  ptPath: string,
+  fileId: number,
+  items: PtStringItem[],
+): Promise<Map<string, PtStringItem>> {
+  const deadline = Date.now() + SOURCE_APPLY_TIMEOUT_MS
+  let loggedWait = false
+
+  while (true) {
+    const remoteByKey = rowMapToItems(await listFileTranslations(PT_18818_ID, fileId))
+    const exportMismatches = sourceOriginalMismatches(remoteByKey, items)
+    if (exportMismatches.length === 0)
+      return remoteByKey
+
+    const liveByKey = rowMapToItems(await listFileStrings(PT_18818_ID, fileId))
+    const mismatches = exportMismatches.filter((mismatch) => {
+      if (mismatch.remote === '<missing>')
+        return true
+      const live = liveByKey.get(mismatch.key)
+      return live == null || normalizePtNewlines(live.original ?? '', mismatch.key) !== mismatch.desired
+    })
+    if (mismatches.length === 0)
+      return remoteByKey
+    if (Date.now() >= deadline)
+      throw new Error(formatSourceMismatchMessage(ptPath, mismatches))
+
+    if (!loggedWait) {
+      const first = mismatches[0]
+      // eslint-disable-next-line no-console
+      console.log(
+        `[push-final] waiting for PT source refresh on ${ptPath}: `
+        + `${first.key} expected "${previewValue(first.desired)}", got "${previewValue(first.remote)}"`,
+      )
+      loggedWait = true
+    }
+    await sleep(SOURCE_APPLY_POLL_MS)
+  }
+}
+
 async function importChangedTranslations(
   ptPath: string,
   fileId: number,
   items: PtStringItem[],
 ): Promise<{ imported: number, forced: number }> {
-  const remoteRows = await listFileTranslations(PT_18818_ID, fileId)
-  const remoteByKey = new Map(remoteRows.map(row => [row.key, row]))
+  const remoteByKey = await waitForUploadedSource(ptPath, fileId, items)
   const normal: PtStringItem[] = []
   const forced: PtStringItem[] = []
 
   for (const item of items) {
-    const remote = remoteByKey.get(item.key)
-    if (!remote)
-      throw new Error(`PT file ${ptPath} missing string after source upload: ${item.key}`)
-
+    const remote = remoteByKey.get(item.key)!
     const desiredTranslation = toPtNewlines(item.translation ?? '', item.key)
     const desiredStage = item.stage ?? 0
-    const desiredOriginal = normalizePtNewlines(item.original ?? '', item.key)
-    const remoteOriginal = normalizePtNewlines(remote.original ?? '', item.key)
     const desiredContext = item.context ?? ''
     const remoteContext = remote.context ?? ''
     const remoteTranslation = remote.translation ?? ''
     const remoteStage = remote.stage ?? 0
-    if (remoteOriginal !== desiredOriginal) {
-      throw new Error(
-        `PT file ${ptPath} original mismatch after source upload for ${item.key}: `
-        + `expected "${previewValue(desiredOriginal)}", got "${previewValue(remoteOriginal)}"; `
-        + 'refusing to import translation',
-      )
-    }
     if (remoteTranslation === desiredTranslation && remoteStage === desiredStage && remoteContext === desiredContext)
       continue
 
