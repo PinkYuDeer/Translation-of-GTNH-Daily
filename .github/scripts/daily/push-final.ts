@@ -13,7 +13,9 @@
  * Translation import is refused if PT did not apply the source original first;
  * otherwise stale-marker translations can drift away from the original column.
  * Source-original verification uses the live strings endpoint because PT's
- * translation export can briefly lag after a source-file upload.
+ * translation export can briefly lag after a source-file upload. If PT keeps
+ * stale originals after the file upload, repair only those originals per
+ * string while preserving the current remote translation/stage.
  *
  * This script consumes `.build/merge-plan.json`:
  *   - `push[]`    — active files to create/update via POST /files
@@ -30,6 +32,7 @@ import { readFileIds, readNewlines, resolveNewlineForm, writeFileIds, type Newli
 import {
   apiDeleteJson,
   apiPostMultipart,
+  apiPutJson,
   importFileTranslations,
   indexFilesByLowerName,
   listFileTranslations,
@@ -345,13 +348,60 @@ function formatSourceMismatchMessage(
 function rowMapToItems<T extends { key: string, original: string, translation?: string | null, stage?: number, context?: string | null }>(
   rows: T[],
 ): Map<string, PtStringItem> {
-  return new Map(rows.map(row => [row.key, {
-    key: row.key,
-    original: row.original,
-    translation: row.translation ?? '',
-    stage: row.stage ?? 0,
-    ...(row.context != null ? { context: row.context } : {}),
-  } satisfies PtStringItem]))
+  return new Map(rows.map((row) => {
+    const id = (row as unknown as { id?: unknown }).id
+    return [row.key, {
+      ...(typeof id === 'number' ? { id } : {}),
+      key: row.key,
+      original: row.original,
+      translation: row.translation ?? '',
+      stage: row.stage ?? 0,
+      ...(row.context != null ? { context: row.context } : {}),
+    } satisfies PtStringItem]
+  }))
+}
+
+async function repairUploadedSourceOriginals(
+  ptPath: string,
+  fileId: number,
+  items: PtStringItem[],
+  liveByKey: Map<string, PtStringItem>,
+  mismatches: { key: string, desired: string, remote: string }[],
+  repairedKeys: Set<string>,
+): Promise<number> {
+  const itemByKey = new Map(items.map(item => [item.key, item]))
+  const tasks = mismatches
+    .filter(mismatch => !repairedKeys.has(mismatch.key))
+    .map((mismatch) => {
+      const live = liveByKey.get(mismatch.key)
+      const desired = itemByKey.get(mismatch.key)
+      if (live?.id == null || desired == null)
+        return undefined
+      return async () => {
+        await apiPutJson(`/projects/${PT_18818_ID}/strings/${live.id}`, {
+          key: desired.key,
+          original: toPtNewlines(desired.original ?? '', desired.key),
+          translation: live.translation ?? '',
+          file: fileId,
+          stage: live.stage ?? 0,
+          ...(desired.context != null && desired.context !== '' ? { context: desired.context } : {}),
+        })
+        repairedKeys.add(mismatch.key)
+      }
+    })
+    .filter((task): task is () => Promise<void> => task != null)
+
+  if (tasks.length === 0)
+    return 0
+
+  // eslint-disable-next-line no-console
+  console.log(`[push-final] repairing ${tasks.length} stale PT source original(s) on ${ptPath}`)
+  const { failures, results } = await runBounded(tasks, CONCURRENCY)
+  if (failures > 0) {
+    const failed = results.find(r => r instanceof Error)
+    throw failed instanceof Error ? failed : new Error(`failed to repair source originals for ${ptPath}`)
+  }
+  return tasks.length
 }
 
 async function waitForUploadedSource(
@@ -361,6 +411,7 @@ async function waitForUploadedSource(
 ): Promise<Map<string, PtStringItem>> {
   const deadline = Date.now() + SOURCE_APPLY_TIMEOUT_MS
   let loggedWait = false
+  const repairedKeys = new Set<string>()
 
   while (true) {
     const remoteByKey = rowMapToItems(await listFileTranslations(PT_18818_ID, fileId))
@@ -379,6 +430,12 @@ async function waitForUploadedSource(
       return remoteByKey
     if (Date.now() >= deadline)
       throw new Error(formatSourceMismatchMessage(ptPath, mismatches))
+
+    const repaired = await repairUploadedSourceOriginals(ptPath, fileId, items, liveByKey, mismatches, repairedKeys)
+    if (repaired > 0) {
+      await sleep(SOURCE_APPLY_POLL_MS)
+      continue
+    }
 
     if (!loggedWait) {
       const first = mismatches[0]
