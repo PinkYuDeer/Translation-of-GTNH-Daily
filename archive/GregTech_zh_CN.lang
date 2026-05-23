@@ -33,4 +33,6 @@ languagefile {
     S:"Saccharomyces cerevisiae var bayanus"=葡萄酒酵母菌
     S:"Saccharomyces cerevisiae var cerevisiae"=啤酒酵母菌
     S:"Saccharomyces escherichia"=通用酵母菌
+    S:hatch_type_inputbus_steam=蒸汽输入总线
+    S:hatch_type_outputbus_steam=蒸汽输出总线
 }
