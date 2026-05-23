@@ -1,2 +1,6 @@
 betterquesting.quest.AAAAAAAAAAAAAAAAAAAJ3A.name=为什么我需要知道有多少粪浆?
 betterquesting.quest.AAAAAAAAAAAAAAAAAAAJ3A.desc=这些是流体版本.
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAJ2Q.name=快速编写样板
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAJ2Q.desc=在样板编码台中,你可以在NEI页面按住Shift并单击"?"按钮直接编写合成样板,即便你的ME网络中没有所需的原料也能成功(在样板终端中进行相同操作时要求有所需原料才能成功编写样板).%n%n虽然,你也能从NEI直接拖拽物品实现样板编写,但这样就慢多了,因为你需要一个一个核对所需原料. 这种操作对于处理模式没有多大用处,因为处理模式的样板基本总是64为一单位.
+betterquesting.quest.CbUsVtoETCy-CB3AlgHRjg.name=高级无线设置工具
+betterquesting.quest.CbUsVtoETCy-CB3AlgHRjg.desc=高级无线设置工具是重度无线用户的必备品。摒弃了传统的一对一往返操作模式，它允许你进入“队列模式”以及“绑定模式”，从而可以一次性选择多个目标并按顺序完成绑定。%n%n在与无线接入器绑定时，它将严格按照队列的先后顺序执行绑定操作。%n%n如需清空队列并重置工具，只需在背包合成格子中将其无序合成为其自身即可。
