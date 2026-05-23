@@ -11,9 +11,11 @@
  *   - English key/original set is authoritative for the normal daily keyspace.
  *   - Current PT 18818 translations are preserved when key+original still match.
  *   - If English changed and 4964 has no fresh exact match, emit a stale marker
- *     `${newEnglish}|旧译：|${oldTranslation}` at stage=0.
+ *     `${newEnglish}\n旧译：\n${oldTranslation}` at stage=0.
  *   - Existing stale markers are repaired to the current English original and
  *     are never nested inside another stale marker.
+ *   - Final translations replace dangerous Java `%s` / `%d` placeholders with
+ *     `xx`; `%n` line-break markers are left to the newline pipeline.
  *   - If 4964 has a non-blank fresh exact match, it fills current PT gaps.
  *     When both 18818 and 4964 already have different exact translations, query
  *     row timestamps; 4964 wins if it is newer or timestamps are unavailable.
@@ -88,9 +90,13 @@ interface MergeStats {
   unresolved4964: number
   blankTranslations: number
   originalFallbacksPreserved: number
+  formatPlaceholdersReplaced: number
 }
 
-const STALE_MARKER_SEPARATOR = '|旧译：|'
+const STALE_MARKER_SEPARATOR = '\n旧译：\n'
+const LEGACY_STALE_MARKER_SEPARATOR = '|旧译：|'
+const STALE_MARKER_SEPARATOR_RE = /\r?\n旧译：\r?\n/
+const FORMAT_PLACEHOLDER_TAIL_RE = /^(?:\d+\$)?[-#+ 0,(<]*\d*(?:\.\d+)?[sd]/
 
 function toPosix(p: string): string {
   return p.split(sep).join('/')
@@ -167,20 +173,73 @@ function staleMarker(key: string, newOriginal: string, oldTranslation: string): 
   return `${normalizeNewlines(newOriginal, key)}${STALE_MARKER_SEPARATOR}${stalePayload(key, oldTranslation)}`
 }
 
-function parseStaleMarker(key: string, value: string | undefined): { newOriginal: string, oldTranslation: string } | undefined {
+function findStaleMarkerSeparator(value: string): { index: number, separator: string } | undefined {
+  const hits: { index: number, separator: string }[] = []
+  const newlineMatch = value.match(STALE_MARKER_SEPARATOR_RE)
+  if (newlineMatch?.index != null)
+    hits.push({ index: newlineMatch.index, separator: newlineMatch[0] })
+  const legacyIndex = value.indexOf(LEGACY_STALE_MARKER_SEPARATOR)
+  if (legacyIndex >= 0)
+    hits.push({ index: legacyIndex, separator: LEGACY_STALE_MARKER_SEPARATOR })
+  hits.sort((a, b) => a.index - b.index)
+  return hits[0]
+}
+
+function parseStaleMarker(
+  key: string,
+  value: string | undefined,
+): { newOriginal: string, oldTranslation: string, separator: string } | undefined {
   if (!value)
     return undefined
-  const index = value.indexOf(STALE_MARKER_SEPARATOR)
-  if (index < 0)
+  const hit = findStaleMarkerSeparator(value)
+  if (!hit)
     return undefined
   return {
-    newOriginal: normalizeNewlines(value.slice(0, index), key),
-    oldTranslation: normalizeNewlines(value.slice(index + STALE_MARKER_SEPARATOR.length), key),
+    newOriginal: normalizeNewlines(value.slice(0, hit.index), key),
+    oldTranslation: normalizeNewlines(value.slice(hit.index + hit.separator.length), key),
+    separator: hit.separator,
   }
 }
 
 function stalePayload(key: string, value: string): string {
   return parseStaleMarker(key, value)?.oldTranslation ?? normalizeNewlines(value, key)
+}
+
+function replaceFormatPlaceholders(value: string): { value: string, replacements: number } {
+  let next = ''
+  let replacements = 0
+  for (let i = 0; i < value.length;) {
+    if (value[i] !== '%') {
+      next += value[i]
+      i++
+      continue
+    }
+
+    let runEnd = i
+    while (value[runEnd] === '%')
+      runEnd++
+
+    const percentCount = runEnd - i
+    const escapedCount = percentCount - (percentCount % 2)
+    next += '%'.repeat(escapedCount)
+    if (percentCount % 2 === 0) {
+      i = runEnd
+      continue
+    }
+
+    const tail = value.slice(runEnd)
+    const match = tail.match(FORMAT_PLACEHOLDER_TAIL_RE)
+    if (match) {
+      next += 'xx'
+      i = runEnd + match[0].length
+      replacements++
+    }
+    else {
+      next += '%'
+      i = runEnd
+    }
+  }
+  return { value: next, replacements }
 }
 
 function hasText(value: string | undefined): value is string {
@@ -450,6 +509,7 @@ async function main(): Promise<void> {
     unresolved4964,
     blankTranslations: 0,
     originalFallbacksPreserved: 0,
+    formatPlaceholdersReplaced: 0,
   }
   const remoteTimestamps = new RemoteTimestampResolver()
   const newlineCache = await readNewlines()
@@ -489,7 +549,7 @@ async function main(): Promise<void> {
       if (current && currentExact) {
         stage = current.stage ?? 0
         const marker = parseStaleMarker(enItem.key, current.translation)
-        if (marker && marker.newOriginal !== enItem.original) {
+        if (marker && (marker.newOriginal !== enItem.original || marker.separator !== STALE_MARKER_SEPARATOR)) {
           translation = staleMarker(enItem.key, enItem.original, marker.oldTranslation)
           stage = 0
           stats.staleMarkerRepaired++
@@ -578,6 +638,11 @@ async function main(): Promise<void> {
         stage = 0
         stats.blankTranslations++
       }
+      else {
+        const sanitized = replaceFormatPlaceholders(translation)
+        translation = sanitized.value
+        stats.formatPlaceholdersReplaced += sanitized.replacements
+      }
       finalItems.push({
         key: enItem.key,
         original: enItem.original,
@@ -644,6 +709,7 @@ async function main(): Promise<void> {
     + `remote-time-checks=${stats.remoteTimeChecks} `
     + `stale-current=${stats.staleFromCurrent} stale-4964=${stats.staleFrom4964} `
     + `stale-repaired=${stats.staleMarkerRepaired} `
+    + `format-placeholders-replaced=${stats.formatPlaceholdersReplaced} `
     + `blank=${stats.blankTranslations} archived-strings=${stats.stringsArchived} `
     + `preserved-original-equals-translation=${stats.originalFallbacksPreserved} `
     + `unresolved-4964=${stats.unresolved4964}`,
