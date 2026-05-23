@@ -14,8 +14,8 @@
  *     `${newEnglish}\n旧译：\n${oldTranslation}` at stage=0.
  *   - Existing stale markers are repaired to the current English original and
  *     are never nested inside another stale marker.
- *   - Final translations replace dangerous Java `%s` / `%d` placeholders with
- *     `xx`; `%n` line-break markers are left to the newline pipeline.
+ *   - Stale-marker old-translation payloads replace dangerous Java `%s` /
+ *     `%d` placeholders with `xx`; normal translations are left untouched.
  *   - If 4964 has a non-blank fresh exact match, it fills current PT gaps.
  *     When both 18818 and 4964 already have different exact translations, query
  *     row timestamps; 4964 wins if it is newer or timestamps are unavailable.
@@ -169,8 +169,12 @@ function itemsEqual(a: PtStringItem[] | undefined, b: PtStringItem[]): boolean {
   return true
 }
 
-function staleMarker(key: string, newOriginal: string, oldTranslation: string): string {
-  return `${normalizeNewlines(newOriginal, key)}${STALE_MARKER_SEPARATOR}${stalePayload(key, oldTranslation)}`
+function staleMarker(key: string, newOriginal: string, oldTranslation: string): { translation: string, replacements: number } {
+  const oldPayload = replaceFormatPlaceholders(stalePayload(key, oldTranslation))
+  return {
+    translation: `${normalizeNewlines(newOriginal, key)}${STALE_MARKER_SEPARATOR}${oldPayload.value}`,
+    replacements: oldPayload.replacements,
+  }
 }
 
 function findStaleMarkerSeparator(value: string): { index: number, separator: string } | undefined {
@@ -550,9 +554,11 @@ async function main(): Promise<void> {
         stage = current.stage ?? 0
         const marker = parseStaleMarker(enItem.key, current.translation)
         if (marker && (marker.newOriginal !== enItem.original || marker.separator !== STALE_MARKER_SEPARATOR)) {
-          translation = staleMarker(enItem.key, enItem.original, marker.oldTranslation)
+          const stale = staleMarker(enItem.key, enItem.original, marker.oldTranslation)
+          translation = stale.translation
           stage = 0
           stats.staleMarkerRepaired++
+          stats.formatPlaceholdersReplaced += stale.replacements
         }
         else {
           translation = current.translation
@@ -616,10 +622,12 @@ async function main(): Promise<void> {
           }
         }
         else if ((source.stage ?? 0) > 0 && !hasCurrentExactTranslation) {
-          translation = staleMarker(enItem.key, enItem.original, source.translation)
+          const stale = staleMarker(enItem.key, enItem.original, source.translation)
+          translation = stale.translation
           stage = 0
           currentDrift.delete(enItem.key)
           stats.staleFrom4964++
+          stats.formatPlaceholdersReplaced += stale.replacements
           handledBySource = true
         }
       }
@@ -627,9 +635,11 @@ async function main(): Promise<void> {
       if (!handledBySource) {
         const drift = currentDrift.get(enItem.key)
         if (drift) {
-          translation = staleMarker(enItem.key, enItem.original, drift.translation)
+          const stale = staleMarker(enItem.key, enItem.original, drift.translation)
+          translation = stale.translation
           stage = 0
           stats.staleFromCurrent++
+          stats.formatPlaceholdersReplaced += stale.replacements
         }
       }
 
@@ -637,11 +647,6 @@ async function main(): Promise<void> {
         translation = ''
         stage = 0
         stats.blankTranslations++
-      }
-      else {
-        const sanitized = replaceFormatPlaceholders(translation)
-        translation = sanitized.value
-        stats.formatPlaceholdersReplaced += sanitized.replacements
       }
       finalItems.push({
         key: enItem.key,
