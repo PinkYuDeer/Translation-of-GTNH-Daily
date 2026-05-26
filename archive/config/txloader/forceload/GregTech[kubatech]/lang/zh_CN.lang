@@ -8,3 +8,4 @@ GT5U.gui.text.EIG_missingwater=没有水!
 GT5U.gui.text.arc_shutdown=电弧炉正在关闭！
 GT5U.gui.text.arc_ignition=电弧炉正在启动！
 GT5U.gui.text.no_electrode=未插入电极！
+GT5U.gui.text.electrode_changed=电极在运行中发生了变化！
