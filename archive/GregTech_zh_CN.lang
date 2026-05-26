@@ -36,4 +36,11 @@ languagefile {
     S:hatch_type_inputbus_steam=蒸汽输入总线
     S:hatch_type_outputbus_steam=蒸汽输出总线
     S:Material.whitemetal=白物质
+    S:hatch_type_airintake=进气仓
+    S:hatch_type_neutronaccelerator=中子加速器
+    S:hatch_type_neutronsensor=中子传感器
+    S:hatch_type_toxicresiduesensor=毒性残留物传感器
+    S:hatch_type_ttdynamo=多安动力仓
+    S:hatch_type_ttenergy=多安能源仓
+    S:pollen.matrix=基质花粉
 }
