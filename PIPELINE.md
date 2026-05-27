@@ -117,6 +117,15 @@
 - `merge-plan.archiveStrings{}` 先按打包路径与仓库 `archive/` 旧文件合并，再由源文件更新移除 PT 内旧词条
 - `merge-plan.archive[]` 先按打包路径与仓库 `archive/` 旧文件合并，再调用 `DELETE /projects/{projectId}/files/{fileId}` 从 PT 删除
 
+### 5.5 `build-progress.ts` — 维护 README 90 天进度图
+
+- 在 push-final 之后跑，确保拉到的 PT 18818 stats 是本次合并落地后的最新状态
+- `GET /api/projects/18818`（公开端点，无需 token）读取 `stats.translated` 与 `stats.total - stats.hidden`，按可见词条计算 `percent = translated / visible`
+- `progress/progress.json` 维护 90 天滚动窗口；每天记录两份快照：`updated`（当天 01:00 CN 本次 run 拍的）与 `settled`（次日 01:00 CN 那次 run 回填的），所以每次 daily 只动 3 天：弃用 90 天前最旧的、把昨天的 `settled` 写成今天这份新鲜快照、把今天的 `updated` 也写成同一份；今天的 `settled` 保持空到明天再写
+- `progress/progress.svg` 由同脚本直出：柱高把百分比线性映射到 `[70, 100]` 视觉带（左下角有「起点 70%」断档标识），颜色 100% 绿 / ≥95% 黄 / 其余红，无数据日全高灰；每根柱子带 `<title>` tooltip，展示日期、`更新时` / `结算时` 两份词条+百分比，今天的结算位标记"待结算"
+- `--backfill` 一次性回填整段窗口（按内置 breakpoint 线性插值，固定 PRNG 种子生成 total 序列）；`--no-fetch` 跳过 PT 调用仅重渲 SVG
+- README 通过 `<img>` 嵌入 `progress/progress.svg`，浏览器在 `<img>` 模式不会向内部 `<rect>` 派发 hover，所以单条 tooltip 需要点开 SVG 单独查看；README 上能看到的是整图概览（颜色/高度）与整图级的 `<title>`
+
 ### 6. `restore-and-pack.ts` — 还原换行 + 打包 7z
 
 - 读 `.cache/newlines.json`，优先按每条原始占位还原；若该 key 没有记录且 key 含 `research_page`，优先用 `<BR>`；否则使用文件级最多占位；仍无记录才退为 `\n`
@@ -124,7 +133,7 @@
 - 并入 Kiwi 直通文件，按参考包目录结构铺好，`7z -mx=9` 打包到 `$ASSETS_PATH/$ARCHIVE_NAME`
 - `PACK_ONLY=1` 环境变量可跳过重建，只重打包（手动重发版用）
 
-随后由 workflow 负责：打 tag、`softprops/action-gh-release` 发 Release、清理过期 daily cache、清理过期 nightly Release。
+随后由 workflow 负责：打 tag、`softprops/action-gh-release` 发 Release、清理过期 daily cache、清理过期 nightly Release。`progress/` 与 `archive/` 的变更由同一个 commit 步骤推回仓库。
 
 ---
 
@@ -191,6 +200,7 @@ Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / 
 │   ├── sync-terms.ts          步骤 3.5
 │   ├── merge-final.ts         步骤 4
 │   ├── push-final.ts          步骤 5
+│   ├── build-progress.ts      步骤 5.5（progress/ 进度图）
 │   └── restore-and-pack.ts    步骤 6
 ├── workflows/
 │   ├── daily.yml              每日 sync + build（含 force 手动模式）

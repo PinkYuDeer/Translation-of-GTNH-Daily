@@ -1,0 +1,652 @@
+{
+  "updatedAt": "2026-05-27T14:27:19.043Z",
+  "projectId": 18818,
+  "projectUrl": "https://paratranz.cn/projects/18818",
+  "history": [
+    {
+      "date": "2026-02-27"
+    },
+    {
+      "date": "2026-02-28"
+    },
+    {
+      "date": "2026-03-01"
+    },
+    {
+      "date": "2026-03-02"
+    },
+    {
+      "date": "2026-03-03"
+    },
+    {
+      "date": "2026-03-04"
+    },
+    {
+      "date": "2026-03-05"
+    },
+    {
+      "date": "2026-03-06"
+    },
+    {
+      "date": "2026-03-07"
+    },
+    {
+      "date": "2026-03-08"
+    },
+    {
+      "date": "2026-03-09"
+    },
+    {
+      "date": "2026-03-10"
+    },
+    {
+      "date": "2026-03-11"
+    },
+    {
+      "date": "2026-03-12"
+    },
+    {
+      "date": "2026-03-13"
+    },
+    {
+      "date": "2026-03-14"
+    },
+    {
+      "date": "2026-03-15"
+    },
+    {
+      "date": "2026-03-16"
+    },
+    {
+      "date": "2026-03-17"
+    },
+    {
+      "date": "2026-03-18"
+    },
+    {
+      "date": "2026-03-19"
+    },
+    {
+      "date": "2026-03-20"
+    },
+    {
+      "date": "2026-03-21"
+    },
+    {
+      "date": "2026-03-22"
+    },
+    {
+      "date": "2026-03-23"
+    },
+    {
+      "date": "2026-03-24"
+    },
+    {
+      "date": "2026-03-25"
+    },
+    {
+      "date": "2026-03-26"
+    },
+    {
+      "date": "2026-03-27"
+    },
+    {
+      "date": "2026-03-28"
+    },
+    {
+      "date": "2026-03-29"
+    },
+    {
+      "date": "2026-03-30"
+    },
+    {
+      "date": "2026-03-31"
+    },
+    {
+      "date": "2026-04-01"
+    },
+    {
+      "date": "2026-04-02"
+    },
+    {
+      "date": "2026-04-03"
+    },
+    {
+      "date": "2026-04-04"
+    },
+    {
+      "date": "2026-04-05"
+    },
+    {
+      "date": "2026-04-06"
+    },
+    {
+      "date": "2026-04-07"
+    },
+    {
+      "date": "2026-04-08"
+    },
+    {
+      "date": "2026-04-09"
+    },
+    {
+      "date": "2026-04-10"
+    },
+    {
+      "date": "2026-04-11"
+    },
+    {
+      "date": "2026-04-12"
+    },
+    {
+      "date": "2026-04-13"
+    },
+    {
+      "date": "2026-04-14"
+    },
+    {
+      "date": "2026-04-15"
+    },
+    {
+      "date": "2026-04-16"
+    },
+    {
+      "date": "2026-04-17"
+    },
+    {
+      "date": "2026-04-18"
+    },
+    {
+      "date": "2026-04-19"
+    },
+    {
+      "date": "2026-04-20",
+      "updated": {
+        "translated": 73028,
+        "total": 82155,
+        "percent": 88.89
+      },
+      "settled": {
+        "translated": 73028,
+        "total": 82155,
+        "percent": 88.89
+      }
+    },
+    {
+      "date": "2026-04-21",
+      "updated": {
+        "translated": 73470,
+        "total": 82172,
+        "percent": 89.41
+      },
+      "settled": {
+        "translated": 73470,
+        "total": 82172,
+        "percent": 89.41
+      }
+    },
+    {
+      "date": "2026-04-22",
+      "updated": {
+        "translated": 73855,
+        "total": 82187,
+        "percent": 89.86
+      },
+      "settled": {
+        "translated": 73855,
+        "total": 82187,
+        "percent": 89.86
+      }
+    },
+    {
+      "date": "2026-04-23",
+      "updated": {
+        "translated": 74243,
+        "total": 82205,
+        "percent": 90.31
+      },
+      "settled": {
+        "translated": 74243,
+        "total": 82205,
+        "percent": 90.31
+      }
+    },
+    {
+      "date": "2026-04-24",
+      "updated": {
+        "translated": 74631,
+        "total": 82223,
+        "percent": 90.77
+      },
+      "settled": {
+        "translated": 74631,
+        "total": 82223,
+        "percent": 90.77
+      }
+    },
+    {
+      "date": "2026-04-25",
+      "updated": {
+        "translated": 75012,
+        "total": 82233,
+        "percent": 91.22
+      },
+      "settled": {
+        "translated": 75012,
+        "total": 82233,
+        "percent": 91.22
+      }
+    },
+    {
+      "date": "2026-04-26",
+      "updated": {
+        "translated": 75392,
+        "total": 82242,
+        "percent": 91.67
+      },
+      "settled": {
+        "translated": 75392,
+        "total": 82242,
+        "percent": 91.67
+      }
+    },
+    {
+      "date": "2026-04-27",
+      "updated": {
+        "translated": 75770,
+        "total": 82249,
+        "percent": 92.12
+      },
+      "settled": {
+        "translated": 75770,
+        "total": 82249,
+        "percent": 92.12
+      }
+    },
+    {
+      "date": "2026-04-28",
+      "updated": {
+        "translated": 76159,
+        "total": 82268,
+        "percent": 92.57
+      },
+      "settled": {
+        "translated": 76159,
+        "total": 82268,
+        "percent": 92.57
+      }
+    },
+    {
+      "date": "2026-04-29",
+      "updated": {
+        "translated": 76541,
+        "total": 82278,
+        "percent": 93.03
+      },
+      "settled": {
+        "translated": 76541,
+        "total": 82278,
+        "percent": 93.03
+      }
+    },
+    {
+      "date": "2026-04-30",
+      "updated": {
+        "translated": 76922,
+        "total": 82288,
+        "percent": 93.48
+      },
+      "settled": {
+        "translated": 76922,
+        "total": 82288,
+        "percent": 93.48
+      }
+    },
+    {
+      "date": "2026-05-01",
+      "updated": {
+        "translated": 77311,
+        "total": 82306,
+        "percent": 93.93
+      },
+      "settled": {
+        "translated": 77311,
+        "total": 82306,
+        "percent": 93.93
+      }
+    },
+    {
+      "date": "2026-05-02",
+      "updated": {
+        "translated": 77689,
+        "total": 82312,
+        "percent": 94.38
+      },
+      "settled": {
+        "translated": 77689,
+        "total": 82312,
+        "percent": 94.38
+      }
+    },
+    {
+      "date": "2026-05-03",
+      "updated": {
+        "translated": 78085,
+        "total": 82337,
+        "percent": 94.84
+      },
+      "settled": {
+        "translated": 78085,
+        "total": 82337,
+        "percent": 94.84
+      }
+    },
+    {
+      "date": "2026-05-04",
+      "updated": {
+        "translated": 78473,
+        "total": 82354,
+        "percent": 95.29
+      },
+      "settled": {
+        "translated": 78473,
+        "total": 82354,
+        "percent": 95.29
+      }
+    },
+    {
+      "date": "2026-05-05",
+      "updated": {
+        "translated": 78858,
+        "total": 82367,
+        "percent": 95.74
+      },
+      "settled": {
+        "translated": 78858,
+        "total": 82367,
+        "percent": 95.74
+      }
+    },
+    {
+      "date": "2026-05-06",
+      "updated": {
+        "translated": 79250,
+        "total": 82388,
+        "percent": 96.19
+      },
+      "settled": {
+        "translated": 79250,
+        "total": 82388,
+        "percent": 96.19
+      }
+    },
+    {
+      "date": "2026-05-07",
+      "updated": {
+        "translated": 79638,
+        "total": 82404,
+        "percent": 96.64
+      },
+      "settled": {
+        "translated": 79638,
+        "total": 82404,
+        "percent": 96.64
+      }
+    },
+    {
+      "date": "2026-05-08",
+      "updated": {
+        "translated": 80023,
+        "total": 82417,
+        "percent": 97.1
+      },
+      "settled": {
+        "translated": 80023,
+        "total": 82417,
+        "percent": 97.1
+      }
+    },
+    {
+      "date": "2026-05-09",
+      "updated": {
+        "translated": 80406,
+        "total": 82427,
+        "percent": 97.55
+      },
+      "settled": {
+        "translated": 80406,
+        "total": 82427,
+        "percent": 97.55
+      }
+    },
+    {
+      "date": "2026-05-10",
+      "updated": {
+        "translated": 80799,
+        "total": 82448,
+        "percent": 98
+      },
+      "settled": {
+        "translated": 80799,
+        "total": 82448,
+        "percent": 98
+      }
+    },
+    {
+      "date": "2026-05-11",
+      "updated": {
+        "translated": 80941,
+        "total": 82463,
+        "percent": 98.15
+      },
+      "settled": {
+        "translated": 80941,
+        "total": 82463,
+        "percent": 98.15
+      }
+    },
+    {
+      "date": "2026-05-12",
+      "updated": {
+        "translated": 81079,
+        "total": 82475,
+        "percent": 98.31
+      },
+      "settled": {
+        "translated": 81079,
+        "total": 82475,
+        "percent": 98.31
+      }
+    },
+    {
+      "date": "2026-05-13",
+      "updated": {
+        "translated": 81215,
+        "total": 82484,
+        "percent": 98.46
+      },
+      "settled": {
+        "translated": 81215,
+        "total": 82484,
+        "percent": 98.46
+      }
+    },
+    {
+      "date": "2026-05-14",
+      "updated": {
+        "translated": 81358,
+        "total": 82500,
+        "percent": 98.62
+      },
+      "settled": {
+        "translated": 81358,
+        "total": 82500,
+        "percent": 98.62
+      }
+    },
+    {
+      "date": "2026-05-15",
+      "updated": {
+        "translated": 81506,
+        "total": 82522,
+        "percent": 98.77
+      },
+      "settled": {
+        "translated": 81506,
+        "total": 82522,
+        "percent": 98.77
+      }
+    },
+    {
+      "date": "2026-05-16",
+      "updated": {
+        "translated": 81639,
+        "total": 82528,
+        "percent": 98.92
+      },
+      "settled": {
+        "translated": 81639,
+        "total": 82528,
+        "percent": 98.92
+      }
+    },
+    {
+      "date": "2026-05-17",
+      "updated": {
+        "translated": 81779,
+        "total": 82541,
+        "percent": 99.08
+      },
+      "settled": {
+        "translated": 81779,
+        "total": 82541,
+        "percent": 99.08
+      }
+    },
+    {
+      "date": "2026-05-18",
+      "updated": {
+        "translated": 81917,
+        "total": 82552,
+        "percent": 99.23
+      },
+      "settled": {
+        "translated": 81917,
+        "total": 82552,
+        "percent": 99.23
+      }
+    },
+    {
+      "date": "2026-05-19",
+      "updated": {
+        "translated": 82065,
+        "total": 82573,
+        "percent": 99.38
+      },
+      "settled": {
+        "translated": 82065,
+        "total": 82573,
+        "percent": 99.38
+      }
+    },
+    {
+      "date": "2026-05-20",
+      "updated": {
+        "translated": 82204,
+        "total": 82585,
+        "percent": 99.54
+      },
+      "settled": {
+        "translated": 82204,
+        "total": 82585,
+        "percent": 99.54
+      }
+    },
+    {
+      "date": "2026-05-21",
+      "updated": {
+        "translated": 82339,
+        "total": 82593,
+        "percent": 99.69
+      },
+      "settled": {
+        "translated": 82339,
+        "total": 82593,
+        "percent": 99.69
+      }
+    },
+    {
+      "date": "2026-05-22",
+      "updated": {
+        "translated": 82481,
+        "total": 82608,
+        "percent": 99.85
+      },
+      "settled": {
+        "translated": 82481,
+        "total": 82608,
+        "percent": 99.85
+      }
+    },
+    {
+      "date": "2026-05-23",
+      "updated": {
+        "translated": 82615,
+        "total": 82615,
+        "percent": 100
+      },
+      "settled": {
+        "translated": 82615,
+        "total": 82615,
+        "percent": 100
+      }
+    },
+    {
+      "date": "2026-05-24",
+      "updated": {
+        "translated": 82635,
+        "total": 82635,
+        "percent": 100
+      },
+      "settled": {
+        "translated": 82635,
+        "total": 82635,
+        "percent": 100
+      }
+    },
+    {
+      "date": "2026-05-25",
+      "updated": {
+        "translated": 82656,
+        "total": 82656,
+        "percent": 100
+      },
+      "settled": {
+        "translated": 82656,
+        "total": 82656,
+        "percent": 100
+      }
+    },
+    {
+      "date": "2026-05-26",
+      "updated": {
+        "translated": 82674,
+        "total": 82674,
+        "percent": 100
+      },
+      "settled": {
+        "translated": 82674,
+        "total": 82674,
+        "percent": 100
+      }
+    },
+    {
+      "date": "2026-05-27",
+      "updated": {
+        "translated": 82679,
+        "total": 82679,
+        "percent": 100
+      }
+    }
+  ]
+}

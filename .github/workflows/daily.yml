@@ -150,17 +150,21 @@ jobs:
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/push-final.ts
 
-      - name: Commit Archived Retired PT Files
+      - name: Update Translation Progress Chart
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/build-progress.ts
+
+      - name: Commit Daily Repo Updates
         shell: bash
         run: |
-          if [ -z "$(git status --porcelain -- archive)" ]; then
-            echo "[archive] no retired PT files to commit"
+          if [ -z "$(git status --porcelain -- archive progress)" ]; then
+            echo "[commit] no archive/progress changes to commit"
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add archive
-          git commit -m "Archive retired PT files"
+          git add archive progress
+          git commit -m "Daily: archive retired PT files and refresh progress chart"
           git push
 
       - name: Rebuild .lang Files and Pack 7z

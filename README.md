@@ -1,5 +1,7 @@
 # Translation-of-GTNH-Daily
 
+[![GTNH Daily 汉化进度（最近 90 天）](progress/progress.svg)](https://paratranz.cn/projects/18818)
+
 ## GT New Horizons 整合包汉化（每日构建版）
 
 本仓库 Fork 自 [Kiwi233/Translation-of-GTNH](https://github.com/Kiwi233/Translation-of-GTNH)，提供基于 **每日自动同步** 的最新汉化版本。
