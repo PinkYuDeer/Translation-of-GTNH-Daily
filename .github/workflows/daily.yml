@@ -146,24 +146,32 @@ jobs:
           FORCE: ${{ inputs.force == true && '1' || '' }}
         run: stdbuf -oL -eL bun .github/scripts/daily/merge-final.ts
 
+      # Pre-push snapshot: PT 18818 still holds yesterday's pushed state here,
+      # so this records YESTERDAY's settled value before today's push changes it.
+      - name: Settle Yesterday's Progress (pre-push)
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/build-progress.ts --settle
+
       - name: Push Merged Final Files to PT 18818
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/push-final.ts
 
-      - name: Update Translation Progress Chart
+      # Post-push snapshot: PT 18818 now reflects today's push, so this records
+      # today's updated value and renders the SVG + README tooltip.
+      - name: Update Translation Progress Chart (post-push)
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/build-progress.ts
 
       - name: Commit Daily Repo Updates
         shell: bash
         run: |
-          if [ -z "$(git status --porcelain -- archive progress)" ]; then
-            echo "[commit] no archive/progress changes to commit"
+          if [ -z "$(git status --porcelain -- archive progress README.md)" ]; then
+            echo "[commit] no archive/progress/README changes to commit"
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add archive progress
+          git add archive progress README.md
           git commit -m "Daily: archive retired PT files and refresh progress chart"
           git push
 

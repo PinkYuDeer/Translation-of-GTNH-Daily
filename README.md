@@ -1,6 +1,8 @@
 # Translation-of-GTNH-Daily
 
-[![GTNH Daily 汉化进度（最近 90 天）](progress/progress.svg)](https://paratranz.cn/projects/18818)
+<!-- progress-chart:start -->
+![GTNH Daily 汉化进度（最近 90 天）](progress/progress.svg "GTNH Daily 汉化进度 · 近3天 05-25 100.00% → 05-26 100.00% → 05-27 100.00% · 最新 82,679/82,679 词条")
+<!-- progress-chart:end -->
 
 ## GT New Horizons 整合包汉化（每日构建版）
 

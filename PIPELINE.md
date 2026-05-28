@@ -119,12 +119,15 @@
 
 ### 5.5 `build-progress.ts` — 维护 README 90 天进度图
 
-- 在 push-final 之后跑，确保拉到的 PT 18818 stats 是本次合并落地后的最新状态
+- 跑两次，夹住 push-final，因为 PT 18818 的 stats 只在 push-final 时变化：
+  - **settle（`--settle`，push-final 之前）**：此刻 PT 还是昨天推送后的状态，所以这份快照就是昨天的 `settled`（昨天译文一天后的成色）。先写它，能让一个已经完工到 100% 的日子保持绿色，不被今天 push 进来的新增未翻译英文拉低
+  - **update（默认，push-final 之后）**：PT 已反映今天的合并推送，这份快照写成今天的 `updated`；今天的 `settled` 留空到明天的 settle 阶段再补
 - `GET /api/projects/18818`（公开端点，无需 token）读取 `stats.translated` 与 `stats.total - stats.hidden`，按可见词条计算 `percent = translated / visible`
-- `progress/progress.json` 维护 90 天滚动窗口；每天记录两份快照：`updated`（当天 01:00 CN 本次 run 拍的）与 `settled`（次日 01:00 CN 那次 run 回填的），所以每次 daily 只动 3 天：弃用 90 天前最旧的、把昨天的 `settled` 写成今天这份新鲜快照、把今天的 `updated` 也写成同一份；今天的 `settled` 保持空到明天再写
-- `progress/progress.svg` 由同脚本直出：柱高把百分比线性映射到 `[70, 100]` 视觉带（左下角有「起点 70%」断档标识），颜色 100% 绿 / ≥95% 黄 / 其余红，无数据日全高灰；每根柱子带 `<title>` tooltip，展示日期、`更新时` / `结算时` 两份词条+百分比，今天的结算位标记"待结算"
-- `--backfill` 一次性回填整段窗口（按内置 breakpoint 线性插值，固定 PRNG 种子生成 total 序列）；`--no-fetch` 跳过 PT 调用仅重渲 SVG
-- README 通过 `<img>` 嵌入 `progress/progress.svg`，浏览器在 `<img>` 模式不会向内部 `<rect>` 派发 hover，所以单条 tooltip 需要点开 SVG 单独查看；README 上能看到的是整图概览（颜色/高度）与整图级的 `<title>`
+- `progress/progress.json` 维护 90 天滚动窗口；每次 daily 动 3 天：弃用 90 天前最旧的、settle 阶段回填昨天的 `settled`、update 阶段写今天的 `updated`
+- `progress/progress.svg` 由同脚本直出：柱高把百分比线性映射到 `[70, 100]` 视觉带（左下角有「起点 70%」断档标识），颜色 100% 绿 / ≥95% 黄 / 其余红，无数据日全高灰；背景透明，文字/分隔线/无数据灰柱/断档斜线由 `<style>` 内的 `prefers-color-scheme` 媒体查询驱动，自动适配 GitHub 黑白主题（彩色柱子两种主题下都够鲜亮，固定不变）
+- settle 阶段只写 `progress.json`；update 阶段才落地 `progress.svg` 与 README，保证产物始终是今天 push 后的最终数字
+- `--backfill` 一次性回填整段窗口（按内置 breakpoint 线性插值，固定 PRNG 种子生成 total 序列）；`--no-fetch` 跳过 PT 调用仅重渲 SVG/README
+- README 通过 `<img>` 嵌入 `progress/progress.svg`，浏览器在 `<img>` 模式（Secure Static Mode）下不会向内部 `<rect>` 派发 hover，逐柱 `<title>` 不触发；因此 README 上 `<!-- progress-chart:start/end -->` 之间的图片行每次由脚本重写，`title` 属性带「近 3 天」整图概览作为唯一的 hover tooltip
 
 ### 6. `restore-and-pack.ts` — 还原换行 + 打包 7z
 

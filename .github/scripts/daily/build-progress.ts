@@ -33,6 +33,15 @@ const PROJECT_URL = 'https://paratranz.cn/projects/18818'
 const DATA_PATH = 'progress/progress.json'
 const SVG_PATH = 'progress/progress.svg'
 
+// The chart image line in the README is regenerated each run so its hover
+// tooltip (the only tooltip GitHub keeps — it renders the SVG as a static
+// <img>) carries a fresh last-3-days summary. Everything between these two
+// markers is replaced wholesale.
+const README_PATH = 'README.md'
+const README_CHART_START = '<!-- progress-chart:start -->'
+const README_CHART_END = '<!-- progress-chart:end -->'
+const SUMMARY_DAYS = 3
+
 // Bar-height visual band. Percent values are linearly remapped into
 // [HEIGHT_FLOOR_PCT, 100] so the small range we usually live in (85-100%)
 // produces visible contrast; anything ≤ HEIGHT_FLOOR_PCT renders as the
@@ -211,61 +220,72 @@ async function fetchTodayStats(): Promise<{ translated: number, total: number }>
   return { translated: info.stats.translated, total: visible }
 }
 
-/**
- * Slide the window so the latest entry is `today`, drop everything older
- * than WINDOW_DAYS, and apply the three-day update:
- *   1. oldest day drops off the left edge
- *   2. yesterday.settled = today's snapshot (today's run "settles" yesterday)
- *   3. today.updated     = today's snapshot
- */
-function mergeWindow(
-  prev: DayEntry[],
-  today: string,
-  todayStats: { translated: number, total: number },
-): DayEntry[] {
+/** Slide the rolling window so the latest entry is `today`, dropping anything
+ *  older than WINDOW_DAYS. Preserves existing entries by date. */
+function slideWindow(prev: DayEntry[], today: string): DayEntry[] {
   const byDate = new Map(prev.map(e => [e.date, e]))
   const out: DayEntry[] = []
   for (let i = WINDOW_DAYS - 1; i >= 0; i--) {
     const d = addDays(today, -i)
     out.push(byDate.get(d) ?? { date: d })
   }
-  const snapshot = makeSnapshot(todayStats.translated, todayStats.total)
+  return out
+}
 
-  // Today: refresh the `updated` snapshot. `settled` stays unset (will be
-  // populated by tomorrow's run).
-  const todayEntry = out[out.length - 1]
-  todayEntry.updated = snapshot
-  todayEntry.settled = undefined
-
-  // Yesterday: settle it with today's fresh snapshot. If yesterday has no
-  // `updated` value (e.g. first run after a gap), seed it too so the bar
-  // still renders.
+/**
+ * Settle phase — runs BEFORE today's push to PT 18818. At this point PT still
+ * reflects yesterday's pushed state (push-final is what changes PT, and it
+ * hasn't run yet), so this snapshot is yesterday's *settled* value: how
+ * yesterday's translation stands a day later. Writing it pre-push is what keeps
+ * a finished 100% day green even though today's push will add fresh untranslated
+ * English and drop today's own percent.
+ */
+function applySettle(
+  prev: DayEntry[],
+  today: string,
+  stats: { translated: number, total: number },
+): DayEntry[] {
+  const out = slideWindow(prev, today)
+  const snapshot = makeSnapshot(stats.translated, stats.total)
   if (out.length >= 2) {
     const yesterday = out[out.length - 2]
     yesterday.settled = snapshot
+    // First run after a gap: seed `updated` too so the bar still renders.
     if (!yesterday.updated)
       yesterday.updated = snapshot
   }
+  return out
+}
 
+/**
+ * Update phase — runs AFTER today's push to PT 18818. PT now reflects today's
+ * merged + pushed content, so this snapshot is today's *updated* value.
+ * `settled` is left unset; tomorrow's settle phase fills it.
+ */
+function applyUpdate(
+  prev: DayEntry[],
+  today: string,
+  stats: { translated: number, total: number },
+): DayEntry[] {
+  const out = slideWindow(prev, today)
+  const todayEntry = out[out.length - 1]
+  todayEntry.updated = makeSnapshot(stats.translated, stats.total)
   return out
 }
 
 // ---------------- SVG renderer ----------------
 
+// Bar/summary colors are theme-independent (vivid enough on light and dark
+// backgrounds). All other colors — text, divider, no-data bars, the axis-break
+// slashes — are driven by the <style> block so they can flip with the GitHub
+// theme via a prefers-color-scheme media query. See renderStyle().
 const COLORS = {
-  bg: '#FAF8F2',
-  textDark: '#3F454F',
-  textMute: '#9098A2',
-  divider: '#E5E1D6',
   green: '#5BB855',
   yellow: '#F0B43C',
   red: '#DC4747',
-  noData: '#D6D8DD',
 } as const
 
-function colorFor(percent: number | undefined): string {
-  if (percent === undefined)
-    return COLORS.noData
+function colorFor(percent: number): string {
   if (percent >= 100)
     return COLORS.green
   if (percent >= 95)
@@ -285,7 +305,29 @@ function fmt(n: number): string {
   return n.toLocaleString('en-US')
 }
 
-const FONT_FAMILY = '-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;PingFang SC&quot;, &quot;Hiragino Sans GB&quot;, &quot;Microsoft YaHei&quot;, &quot;Source Han Sans SC&quot;, sans-serif'
+// Quoted with apostrophes for use inside the CSS <style> block.
+const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Source Han Sans SC', sans-serif"
+
+// GitHub renders README SVGs as <img>, so a prefers-color-scheme media query
+// inside this <style> block is the only way to react to the GitHub theme.
+// The background stays transparent so the chart blends into either theme.
+function renderStyle(): string {
+  return `  <style>
+    text { font-family: ${FONT_FAMILY} }
+    .text-primary { fill: #1f2328 }
+    .text-secondary { fill: #59636e }
+    .divider { stroke: #d1d9e0 }
+    .bar-nodata { fill: #d1d9e0 }
+    .break-slash { stroke: #ffffff }
+    @media (prefers-color-scheme: dark) {
+      .text-primary { fill: #f0f6fc }
+      .text-secondary { fill: #9198a1 }
+      .divider { stroke: #3d444d }
+      .bar-nodata { fill: #3d444d }
+      .break-slash { stroke: #0d1117 }
+    }
+  </style>`
+}
 
 /** Preferred "authoritative" snapshot for height/color: settled > updated. */
 function primarySnapshot(entry: DayEntry): Snapshot | undefined {
@@ -334,8 +376,9 @@ function tooltipFor(entry: DayEntry): string {
  * vertical scale begins at HEIGHT_FLOOR_PCT, not 0%.
  */
 function renderAxisBreak(x: number, y: number): string {
-  // Stub box ~6×8 with two cream slashes acting as the "break" pattern,
-  // followed by a "起点 70%" label.
+  // Stub box ~6×8 with two background-colored slashes acting as the "break"
+  // pattern, followed by a "起点 70%" label. The slash stroke matches the page
+  // background per theme (.break-slash) so the stub appears cut.
   const w = 6
   const h = 8
   const slashTopY1 = y + h * 0.35
@@ -343,10 +386,10 @@ function renderAxisBreak(x: number, y: number): string {
   const slashBotY1 = y + h * 0.85
   const slashBotY2 = y + h * 0.65
   return `  <g aria-hidden="true">
-    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1" fill="${COLORS.noData}"/>
-    <line x1="${x - 1}" y1="${slashTopY1.toFixed(2)}" x2="${x + w + 1}" y2="${slashTopY2.toFixed(2)}" stroke="${COLORS.bg}" stroke-width="1.4"/>
-    <line x1="${x - 1}" y1="${slashBotY1.toFixed(2)}" x2="${x + w + 1}" y2="${slashBotY2.toFixed(2)}" stroke="${COLORS.bg}" stroke-width="1.4"/>
-    <text x="${x + w + 5}" y="${y + h - 1}" font-family="${FONT_FAMILY}" font-size="10" fill="${COLORS.textMute}">起点 ${HEIGHT_FLOOR_PCT}%</text>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1" class="bar-nodata"/>
+    <line x1="${x - 1}" y1="${slashTopY1.toFixed(2)}" x2="${x + w + 1}" y2="${slashTopY2.toFixed(2)}" class="break-slash" stroke-width="1.4"/>
+    <line x1="${x - 1}" y1="${slashBotY1.toFixed(2)}" x2="${x + w + 1}" y2="${slashBotY2.toFixed(2)}" class="break-slash" stroke-width="1.4"/>
+    <text x="${x + w + 5}" y="${y + h - 1}" font-size="10" class="text-secondary">起点 ${HEIGHT_FLOOR_PCT}%</text>
   </g>`
 }
 
@@ -370,7 +413,11 @@ function renderSvg(data: ProgressData): string {
   const lastWithData = [...data.history].reverse().find(e => primarySnapshot(e) !== undefined)
   const summaryPct = primarySnapshot(lastWithData ?? { date: '' })?.percent
   const summaryStr = summaryPct === undefined ? '—' : `${summaryPct.toFixed(2)}%`
-  const summaryColor = colorFor(summaryPct)
+  // Colored summary when there's data; fall back to the themed secondary color
+  // (via class) so the "—" stays legible on both backgrounds.
+  const summaryFill = summaryPct === undefined
+    ? 'class="text-secondary"'
+    : `fill="${colorFor(summaryPct)}"`
 
   const avg = averagePercent(data.history)
   const avgStr = avg === undefined ? '—' : `${avg.toFixed(1)}%`
@@ -380,24 +427,28 @@ function renderSvg(data: ProgressData): string {
     const primary = primarySnapshot(entry)
     const h = barHeight(primary?.percent, chartHeight)
     const y = chartBottom - h
-    const fill = colorFor(primary?.percent)
     const title = tooltipFor(entry)
-    return `    <rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${h.toFixed(2)}" rx="1" ry="1" fill="${fill}"><title>${escapeXml(title)}</title></rect>`
+    // No-data bars take their gray from the themed .bar-nodata class; bars with
+    // data use a fixed theme-independent fill.
+    const fillAttr = primary === undefined
+      ? 'class="bar-nodata"'
+      : `fill="${colorFor(primary.percent)}"`
+    return `    <rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${h.toFixed(2)}" rx="1" ry="1" ${fillAttr}><title>${escapeXml(title)}</title></rect>`
   })
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="GTNH Daily 汉化进度">
+${renderStyle()}
   <title>GTNH Daily 汉化进度（最近 ${WINDOW_DAYS} 天） — ${summaryStr}</title>
-  <rect x="0" y="0" width="${W}" height="${H}" fill="${COLORS.bg}"/>
-  <g font-family="${FONT_FAMILY}" font-size="12">
-    <text x="${sidePad}" y="${headerY}" fill="${COLORS.textDark}">GTNH Daily 汉化进度</text>
-    <text x="${W - sidePad}" y="${headerY}" text-anchor="end" fill="${summaryColor}" font-weight="600">${summaryStr} 已翻译</text>
+  <g font-size="12">
+    <text x="${sidePad}" y="${headerY}" class="text-primary">GTNH Daily 汉化进度</text>
+    <text x="${W - sidePad}" y="${headerY}" text-anchor="end" ${summaryFill} font-weight="600">${summaryStr} 已翻译</text>
   </g>
   <g>
 ${bars.join('\n')}
   </g>
 ${renderAxisBreak(sidePad, axisBreakY)}
-  <line x1="${sidePad}" x2="${W - sidePad}" y1="${dividerY}" y2="${dividerY}" stroke="${COLORS.divider}" stroke-width="1"/>
-  <g font-family="${FONT_FAMILY}" font-size="11" fill="${COLORS.textMute}">
+  <line x1="${sidePad}" x2="${W - sidePad}" y1="${dividerY}" y2="${dividerY}" class="divider" stroke-width="1"/>
+  <g font-size="11" class="text-secondary">
     <text x="${sidePad}" y="${footerY}">${WINDOW_DAYS} 天前</text>
     <text x="${W / 2}" y="${footerY}" text-anchor="middle">过去 ${WINDOW_DAYS} 天 · 平均 ${avgStr}</text>
     <text x="${W - sidePad}" y="${footerY}" text-anchor="end">今天</text>
@@ -420,16 +471,71 @@ async function loadExisting(): Promise<ProgressData | undefined> {
   }
 }
 
-async function writeAll(data: ProgressData): Promise<void> {
+/**
+ * One-line summary of the most recent SUMMARY_DAYS days that have data, used as
+ * the README image's hover tooltip. Single line, no double quotes (it lives
+ * inside a Markdown `"..."` title).
+ */
+function lastDaysSummary(history: DayEntry[], n: number): string {
+  const recent = history.filter(e => primarySnapshot(e) !== undefined).slice(-n)
+  if (recent.length === 0)
+    return 'GTNH Daily 汉化进度 · 暂无数据'
+  const parts = recent.map((e) => {
+    const snap = primarySnapshot(e)!
+    return `${e.date.slice(5)} ${snap.percent.toFixed(2)}%`
+  })
+  const latest = primarySnapshot(recent[recent.length - 1])!
+  return `GTNH Daily 汉化进度 · 近${recent.length}天 ${parts.join(' → ')} · 最新 ${fmt(latest.translated)}/${fmt(latest.total)} 词条`
+}
+
+function readmeChartBlock(data: ProgressData): string {
+  const tooltip = lastDaysSummary(data.history, SUMMARY_DAYS)
+  return `${README_CHART_START}\n![GTNH Daily 汉化进度（最近 ${WINDOW_DAYS} 天）](${SVG_PATH} "${tooltip}")\n${README_CHART_END}`
+}
+
+async function updateReadme(data: ProgressData): Promise<void> {
+  let readme: string
+  try {
+    readme = await fs.readFile(README_PATH, 'utf-8')
+  }
+  catch (err) {
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      console.warn(`[build-progress] ${README_PATH} not found; skipping README update`)
+      return
+    }
+    throw err
+  }
+  const start = readme.indexOf(README_CHART_START)
+  const end = readme.indexOf(README_CHART_END)
+  if (start === -1 || end === -1 || end < start) {
+    console.warn(`[build-progress] chart markers not found in ${README_PATH}; skipping README update`)
+    return
+  }
+  const next = readme.slice(0, start) + readmeChartBlock(data) + readme.slice(end + README_CHART_END.length)
+  if (next !== readme) {
+    await fs.writeFile(README_PATH, next)
+    console.log(`[build-progress] refreshed chart tooltip in ${README_PATH}`)
+  }
+}
+
+async function writeJson(data: ProgressData): Promise<void> {
   await fs.mkdir(path.dirname(DATA_PATH), { recursive: true })
   await fs.writeFile(DATA_PATH, `${JSON.stringify(data, null, 2)}\n`)
+}
+
+async function writeAll(data: ProgressData): Promise<void> {
+  await writeJson(data)
   await fs.writeFile(SVG_PATH, renderSvg(data))
+  await updateReadme(data)
 }
 
 async function main(): Promise<void> {
   const args = new Set(process.argv.slice(2))
   const isBackfill = args.has('--backfill')
   const noFetch = args.has('--no-fetch')
+  // Pre-push phase: fetch PT's pre-push stats and record them as YESTERDAY's
+  // settled value, then write JSON only (the post-push run renders SVG/README).
+  const isSettle = args.has('--settle')
 
   const today = todayDateString()
   let data: ProgressData
@@ -464,19 +570,36 @@ async function main(): Promise<void> {
       // eslint-disable-next-line no-console
       console.log('[build-progress] --no-fetch: re-rendering SVG only')
     }
+    else if (isSettle) {
+      const stats = await fetchTodayStats()
+      const history = applySettle(existing.history, today, stats)
+      data = { ...existing, updatedAt: new Date().toISOString(), history }
+      const yesterday = history[history.length - 2]
+      // eslint-disable-next-line no-console
+      console.log(`[build-progress] settle ${yesterday?.date} translated=${yesterday?.settled?.translated} total=${yesterday?.settled?.total} percent=${yesterday?.settled?.percent}`)
+    }
     else {
       const stats = await fetchTodayStats()
-      const history = mergeWindow(existing.history, today, stats)
+      const history = applyUpdate(existing.history, today, stats)
       data = { ...existing, updatedAt: new Date().toISOString(), history }
       const last = history[history.length - 1]
       // eslint-disable-next-line no-console
-      console.log(`[build-progress] ${today} translated=${last.updated?.translated} total=${last.updated?.total} percent=${last.updated?.percent}`)
+      console.log(`[build-progress] update ${today} translated=${last.updated?.translated} total=${last.updated?.total} percent=${last.updated?.percent}`)
     }
   }
 
-  await writeAll(data)
-  // eslint-disable-next-line no-console
-  console.log(`[build-progress] wrote ${DATA_PATH}, ${SVG_PATH}`)
+  // The settle phase only mutates JSON; the post-push run owns the rendered
+  // artifacts so SVG/README always reflect today's final (post-push) numbers.
+  if (isSettle) {
+    await writeJson(data)
+    // eslint-disable-next-line no-console
+    console.log(`[build-progress] wrote ${DATA_PATH} (settle)`)
+  }
+  else {
+    await writeAll(data)
+    // eslint-disable-next-line no-console
+    console.log(`[build-progress] wrote ${DATA_PATH}, ${SVG_PATH}, ${README_PATH}`)
+  }
 }
 
 void main().catch((err) => {
