@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         GTNH Daily ParaTranz Helper
 // @namespace    paratranz-auto-100
-// @version      5.19
-// @description  1) 悬浮总控分区折叠; 2) files 页未翻译数量增强; 3) 纯 lang 发布包与单文件词库回填; 4) TM 自动复制与数字/电压迁移; 5) 标点转换支持 ()→（）并保留 [] 与数字后英文句点; 6) 输入区标点自动模式与选区括号回转
+// @version      5.21
+// @description  1) 悬浮总控分区折叠; 2) files 页未翻译数量增强; 3) 纯 lang 发布包与单文件词库回填; 4) TM 自动复制与数字/电压迁移; 5) 标点转换支持 ()→（）并保留 [] 与数字后英文句点; 6) 输入区自动整理、旧译去除与选区括号回转
 // @match        https://paratranz.cn/*
 // @run-at       document-idle
 // @require      https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js
@@ -34,6 +34,7 @@
         enableTmInText: true,         // C "在文本中" 全字相等仅复制
         enableTokenDiffTransfer: true,// D 顶部 TM 原文仅数字/电压差异时自动迁移
         enableInstantPunctuation: false,// 输入区半角标点自动替换(无转换不提示,转换后提示)
+        enableAutoTrimOldTranslation: false,// 输入区自动删除旧译标记及之前内容
         enableAutoFillOriginal: false,// E 显示"自动填充原文"浮动面板(用于颜表情等原文即译文的情况)
     };
 
@@ -158,6 +159,33 @@
         return true;
     }
 
+    const OLD_TRANSLATION_MARKER_RE = /(?:^|\r?\n|\r)[ \t]*旧译[：:][ \t]*(?:\r?\n|\r)?/;
+
+    function removeBeforeOldTranslationMarker(opts = {}) {
+        const auto = !!opts.auto;
+        const ta = getTextarea();
+        if (!ta) {
+            if (!auto) showToast('E', '未找到输入区');
+            return false;
+        }
+        const before = ta.value;
+        const hit = OLD_TRANSLATION_MARKER_RE.exec(before);
+        if (!hit) {
+            if (!auto) showToast('E', '输入区没有旧译标记');
+            return false;
+        }
+        const after = before.slice(hit.index + hit[0].length);
+        if (after === before) {
+            if (!auto) showToast('E', '输入区没有可删除的旧译前缀');
+            return false;
+        }
+        setTextareaValue(after);
+        try { ta.setSelectionRange(0, 0); } catch (_) {}
+        showToast('E', auto ? '自动模式已删除旧译标记及之前内容' : '已删除旧译标记及之前内容');
+        log('已删除旧译标记及之前内容:', before, '→', after);
+        return true;
+    }
+
     let instantPunctuationTextarea = null;
     let instantPunctuationComposing = false;
     let instantPunctuationCompositionGuardUntil = 0;
@@ -175,6 +203,11 @@
         convertTextareaChinesePunctuation({ auto: true, preserveSelection: true });
     }
 
+    function runAutoTrimOldTranslation(ev) {
+        if (!config.enableAutoTrimOldTranslation || isInstantPunctuationBlocked(ev)) return;
+        removeBeforeOldTranslationMarker({ auto: true });
+    }
+
     function ensureInstantPunctuationBinding() {
         const ta = getTextarea();
         if (!ta || ta === instantPunctuationTextarea) return;
@@ -190,12 +223,14 @@
             instantPunctuationCompositionGuardUntil = Date.now() + 160;
         });
         ta.addEventListener('input', (ev) => {
+            runAutoTrimOldTranslation(ev);
             runInstantPunctuation(ev);
         });
     }
 
     function syncInstantPunctuation() {
         ensureInstantPunctuationBinding();
+        runAutoTrimOldTranslation();
         runInstantPunctuation();
     }
 
@@ -1191,6 +1226,7 @@
                 '<div style="display:flex;flex-direction:column;gap:7px;align-items:flex-end;">' +
                 '<button data-act="punctuate" title="输入区半角标点转全角" style="width:46px;height:32px;border:0;border-radius:999px;cursor:pointer;background:#dc2626;color:#fff;font-weight:700;box-shadow:none;font-size:12px;">标点</button>' +
                 '<button data-act="paren-ascii-selection" title="选择区全角括号转半角" style="width:46px;height:32px;border:0;border-radius:999px;cursor:pointer;background:#4f46e5;color:#fff;font-weight:700;box-shadow:none;font-size:12px;">括号</button>' +
+                '<button data-act="old-translation-trim" title="删除旧译标记及之前内容" style="width:46px;height:32px;border:0;border-radius:999px;cursor:pointer;background:#0f766e;color:#fff;font-weight:700;box-shadow:none;font-size:12px;">旧译</button>' +
                 '<button data-act="expand" title="展开 ParaTranz 辅助总控" style="width:46px;height:46px;border:0;border-radius:999px;cursor:pointer;background:#2563eb;color:#fff;font-weight:800;box-shadow:none;">PT</button>' +
                 '</div>';
             el.addEventListener('click', (ev) => {
@@ -1200,6 +1236,8 @@
                     convertTextareaChinesePunctuation();
                 } else if (b.dataset.act === 'paren-ascii-selection') {
                     convertSelectedFullwidthParenthesesToHalfwidth();
+                } else if (b.dataset.act === 'old-translation-trim') {
+                    removeBeforeOldTranslationMarker();
                 } else if (b.dataset.act === 'expand') {
                     GM_setValue(STORE_FLOAT_COLLAPSED, false);
                     renderControlPanel(true);
@@ -1231,10 +1269,12 @@
             '<div style="font-weight:700;margin-bottom:5px;">输入区按钮</div>' +
             '<div style="display:grid;grid-template-columns:1fr;gap:5px;margin:7px 0;">' +
             switchRow('enableInstantPunctuation', '输入区半角标点自动模式(无转换不提示,转换后提示)') +
+            switchRow('enableAutoTrimOldTranslation', '自动删除旧译标记及之前内容(无命中不提示,命中后提示)') +
             '</div>' +
             '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:7px 0 10px;">' +
             btn('punctuate', '输入区半角标点转全角(含 ()→（）,保留 [] 与数字后英文句点)', '#dc2626') +
             btn('paren-ascii-selection', '选择区全角括号转半角(（）→())', '#4f46e5') +
+            btn('old-translation-trim', '删除旧译标记及之前内容', '#0f766e') +
             '</div>' +
             '<details style="margin-top:8px;">' +
             '<summary style="cursor:pointer;font-weight:700;opacity:.92;">导入</summary>' +
@@ -1326,6 +1366,8 @@
                 convertTextareaChinesePunctuation();
             } else if (act === 'paren-ascii-selection') {
                 convertSelectedFullwidthParenthesesToHalfwidth();
+            } else if (act === 'old-translation-trim') {
+                removeBeforeOldTranslationMarker();
             } else if (act === 'up-pkg') {
                 promptUpload(() => renderControlPanel());
             } else if (act === 'diag-pkg') {
