@@ -31,7 +31,12 @@ const WINDOW_DAYS = 90
 const PROJECT_ID = 18818
 const PROJECT_URL = 'https://paratranz.cn/projects/18818'
 const DATA_PATH = 'progress/progress.json'
-const SVG_PATH = 'progress/progress.svg'
+// Two pre-rendered variants: GitHub renders README SVGs as an isolated <img>,
+// so an in-SVG prefers-color-scheme media query can't read the page theme.
+// Instead each file bakes one palette via inline attributes and the README
+// picks between them with a <picture> element (GitHub's supported approach).
+const SVG_LIGHT_PATH = 'progress/progress.svg'
+const SVG_DARK_PATH = 'progress/progress-dark.svg'
 
 // The chart image line in the README is regenerated each run so its hover
 // tooltip (the only tooltip GitHub keeps — it renders the SVG as a static
@@ -275,22 +280,48 @@ function applyUpdate(
 
 // ---------------- SVG renderer ----------------
 
-// Bar/summary colors are theme-independent (vivid enough on light and dark
-// backgrounds). All other colors — text, divider, no-data bars, the axis-break
-// slashes — are driven by the <style> block so they can flip with the GitHub
-// theme via a prefers-color-scheme media query. See renderStyle().
-const COLORS = {
+// Bar colors are theme-independent (vivid on both backgrounds). The rest of the
+// palette is baked per-theme into a dedicated SVG file via inline attributes.
+const BAR = {
   green: '#5BB855',
   yellow: '#F0B43C',
   red: '#DC4747',
 } as const
 
+interface Palette {
+  /** Page background this variant is drawn for; the axis-break slashes use it
+   *  to "cut" the stub, and it must match GitHub's canvas in that theme. */
+  pageBg: string
+  text: string
+  textMute: string
+  divider: string
+  noData: string
+}
+
+// Colors mirror GitHub's own light/dark canvas + text tokens so the chart
+// blends in. Background stays transparent (no bg rect); pageBg is only used for
+// the axis-break slashes.
+const LIGHT: Palette = {
+  pageBg: '#ffffff',
+  text: '#1f2328',
+  textMute: '#59636e',
+  divider: '#d1d9e0',
+  noData: '#d1d9e0',
+}
+const DARK: Palette = {
+  pageBg: '#0d1117',
+  text: '#f0f6fc',
+  textMute: '#9198a1',
+  divider: '#3d444d',
+  noData: '#3d444d',
+}
+
 function colorFor(percent: number): string {
   if (percent >= 100)
-    return COLORS.green
+    return BAR.green
   if (percent >= 95)
-    return COLORS.yellow
-  return COLORS.red
+    return BAR.yellow
+  return BAR.red
 }
 
 function escapeXml(s: string): string {
@@ -305,29 +336,8 @@ function fmt(n: number): string {
   return n.toLocaleString('en-US')
 }
 
-// Quoted with apostrophes for use inside the CSS <style> block.
-const FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Source Han Sans SC', sans-serif"
-
-// GitHub renders README SVGs as <img>, so a prefers-color-scheme media query
-// inside this <style> block is the only way to react to the GitHub theme.
-// The background stays transparent so the chart blends into either theme.
-function renderStyle(): string {
-  return `  <style>
-    text { font-family: ${FONT_FAMILY} }
-    .text-primary { fill: #1f2328 }
-    .text-secondary { fill: #59636e }
-    .divider { stroke: #d1d9e0 }
-    .bar-nodata { fill: #d1d9e0 }
-    .break-slash { stroke: #ffffff }
-    @media (prefers-color-scheme: dark) {
-      .text-primary { fill: #f0f6fc }
-      .text-secondary { fill: #9198a1 }
-      .divider { stroke: #3d444d }
-      .bar-nodata { fill: #3d444d }
-      .break-slash { stroke: #0d1117 }
-    }
-  </style>`
-}
+// HTML-entity quotes: this string goes into a font-family SVG attribute.
+const FONT_FAMILY = '-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;PingFang SC&quot;, &quot;Hiragino Sans GB&quot;, &quot;Microsoft YaHei&quot;, &quot;Source Han Sans SC&quot;, sans-serif'
 
 /** Preferred "authoritative" snapshot for height/color: settled > updated. */
 function primarySnapshot(entry: DayEntry): Snapshot | undefined {
@@ -375,10 +385,10 @@ function tooltipFor(entry: DayEntry): string {
  * Two diagonal "slash" marks across a faint stub communicate that the
  * vertical scale begins at HEIGHT_FLOOR_PCT, not 0%.
  */
-function renderAxisBreak(x: number, y: number): string {
-  // Stub box ~6×8 with two background-colored slashes acting as the "break"
-  // pattern, followed by a "起点 70%" label. The slash stroke matches the page
-  // background per theme (.break-slash) so the stub appears cut.
+function renderAxisBreak(x: number, y: number, p: Palette): string {
+  // Stub box ~6×8 with two page-background-colored slashes acting as the
+  // "break" pattern, followed by a "起点 70%" label. The slash stroke matches
+  // this theme's page background so the stub appears cut.
   const w = 6
   const h = 8
   const slashTopY1 = y + h * 0.35
@@ -386,14 +396,14 @@ function renderAxisBreak(x: number, y: number): string {
   const slashBotY1 = y + h * 0.85
   const slashBotY2 = y + h * 0.65
   return `  <g aria-hidden="true">
-    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1" class="bar-nodata"/>
-    <line x1="${x - 1}" y1="${slashTopY1.toFixed(2)}" x2="${x + w + 1}" y2="${slashTopY2.toFixed(2)}" class="break-slash" stroke-width="1.4"/>
-    <line x1="${x - 1}" y1="${slashBotY1.toFixed(2)}" x2="${x + w + 1}" y2="${slashBotY2.toFixed(2)}" class="break-slash" stroke-width="1.4"/>
-    <text x="${x + w + 5}" y="${y + h - 1}" font-size="10" class="text-secondary">起点 ${HEIGHT_FLOOR_PCT}%</text>
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1" fill="${p.noData}"/>
+    <line x1="${x - 1}" y1="${slashTopY1.toFixed(2)}" x2="${x + w + 1}" y2="${slashTopY2.toFixed(2)}" stroke="${p.pageBg}" stroke-width="1.4"/>
+    <line x1="${x - 1}" y1="${slashBotY1.toFixed(2)}" x2="${x + w + 1}" y2="${slashBotY2.toFixed(2)}" stroke="${p.pageBg}" stroke-width="1.4"/>
+    <text x="${x + w + 5}" y="${y + h - 1}" font-family="${FONT_FAMILY}" font-size="10" fill="${p.textMute}">起点 ${HEIGHT_FLOOR_PCT}%</text>
   </g>`
 }
 
-function renderSvg(data: ProgressData): string {
+function renderSvg(data: ProgressData, p: Palette): string {
   const W = 1040
   const H = 128
   const sidePad = 16
@@ -413,11 +423,8 @@ function renderSvg(data: ProgressData): string {
   const lastWithData = [...data.history].reverse().find(e => primarySnapshot(e) !== undefined)
   const summaryPct = primarySnapshot(lastWithData ?? { date: '' })?.percent
   const summaryStr = summaryPct === undefined ? '—' : `${summaryPct.toFixed(2)}%`
-  // Colored summary when there's data; fall back to the themed secondary color
-  // (via class) so the "—" stays legible on both backgrounds.
-  const summaryFill = summaryPct === undefined
-    ? 'class="text-secondary"'
-    : `fill="${colorFor(summaryPct)}"`
+  // Colored summary when there's data; muted otherwise so "—" stays legible.
+  const summaryColor = summaryPct === undefined ? p.textMute : colorFor(summaryPct)
 
   const avg = averagePercent(data.history)
   const avgStr = avg === undefined ? '—' : `${avg.toFixed(1)}%`
@@ -428,27 +435,22 @@ function renderSvg(data: ProgressData): string {
     const h = barHeight(primary?.percent, chartHeight)
     const y = chartBottom - h
     const title = tooltipFor(entry)
-    // No-data bars take their gray from the themed .bar-nodata class; bars with
-    // data use a fixed theme-independent fill.
-    const fillAttr = primary === undefined
-      ? 'class="bar-nodata"'
-      : `fill="${colorFor(primary.percent)}"`
-    return `    <rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${h.toFixed(2)}" rx="1" ry="1" ${fillAttr}><title>${escapeXml(title)}</title></rect>`
+    const fill = primary === undefined ? p.noData : colorFor(primary.percent)
+    return `    <rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${barWidth.toFixed(2)}" height="${h.toFixed(2)}" rx="1" ry="1" fill="${fill}"><title>${escapeXml(title)}</title></rect>`
   })
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="GTNH Daily 汉化进度">
-${renderStyle()}
   <title>GTNH Daily 汉化进度（最近 ${WINDOW_DAYS} 天） — ${summaryStr}</title>
-  <g font-size="12">
-    <text x="${sidePad}" y="${headerY}" class="text-primary">GTNH Daily 汉化进度</text>
-    <text x="${W - sidePad}" y="${headerY}" text-anchor="end" ${summaryFill} font-weight="600">${summaryStr} 已翻译</text>
+  <g font-family="${FONT_FAMILY}" font-size="12">
+    <text x="${sidePad}" y="${headerY}" fill="${p.text}">GTNH Daily 汉化进度</text>
+    <text x="${W - sidePad}" y="${headerY}" text-anchor="end" fill="${summaryColor}" font-weight="600">${summaryStr} 已翻译</text>
   </g>
   <g>
 ${bars.join('\n')}
   </g>
-${renderAxisBreak(sidePad, axisBreakY)}
-  <line x1="${sidePad}" x2="${W - sidePad}" y1="${dividerY}" y2="${dividerY}" class="divider" stroke-width="1"/>
-  <g font-size="11" class="text-secondary">
+${renderAxisBreak(sidePad, axisBreakY, p)}
+  <line x1="${sidePad}" x2="${W - sidePad}" y1="${dividerY}" y2="${dividerY}" stroke="${p.divider}" stroke-width="1"/>
+  <g font-family="${FONT_FAMILY}" font-size="11" fill="${p.textMute}">
     <text x="${sidePad}" y="${footerY}">${WINDOW_DAYS} 天前</text>
     <text x="${W / 2}" y="${footerY}" text-anchor="middle">过去 ${WINDOW_DAYS} 天 · 平均 ${avgStr}</text>
     <text x="${W - sidePad}" y="${footerY}" text-anchor="end">今天</text>
@@ -473,8 +475,7 @@ async function loadExisting(): Promise<ProgressData | undefined> {
 
 /**
  * One-line summary of the most recent SUMMARY_DAYS days that have data, used as
- * the README image's hover tooltip. Single line, no double quotes (it lives
- * inside a Markdown `"..."` title).
+ * the README image's hover tooltip (escaped into the <img title> attribute).
  */
 function lastDaysSummary(history: DayEntry[], n: number): string {
   const recent = history.filter(e => primarySnapshot(e) !== undefined).slice(-n)
@@ -488,9 +489,20 @@ function lastDaysSummary(history: DayEntry[], n: number): string {
   return `GTNH Daily 汉化进度 · 近${recent.length}天 ${parts.join(' → ')} · 最新 ${fmt(latest.translated)}/${fmt(latest.total)} 词条`
 }
 
+// <picture> lets GitHub pick the dark variant via prefers-color-scheme in the
+// README's own (theme-aware) context — unlike an in-SVG media query, which an
+// <img>-rendered SVG can't evaluate against the page theme.
 function readmeChartBlock(data: ProgressData): string {
-  const tooltip = lastDaysSummary(data.history, SUMMARY_DAYS)
-  return `${README_CHART_START}\n![GTNH Daily 汉化进度（最近 ${WINDOW_DAYS} 天）](${SVG_PATH} "${tooltip}")\n${README_CHART_END}`
+  const tooltip = escapeXml(lastDaysSummary(data.history, SUMMARY_DAYS))
+  const alt = `GTNH Daily 汉化进度（最近 ${WINDOW_DAYS} 天）`
+  return [
+    README_CHART_START,
+    '<picture>',
+    `  <source media="(prefers-color-scheme: dark)" srcset="${SVG_DARK_PATH}">`,
+    `  <img alt="${alt}" src="${SVG_LIGHT_PATH}" title="${tooltip}">`,
+    '</picture>',
+    README_CHART_END,
+  ].join('\n')
 }
 
 async function updateReadme(data: ProgressData): Promise<void> {
@@ -525,7 +537,8 @@ async function writeJson(data: ProgressData): Promise<void> {
 
 async function writeAll(data: ProgressData): Promise<void> {
   await writeJson(data)
-  await fs.writeFile(SVG_PATH, renderSvg(data))
+  await fs.writeFile(SVG_LIGHT_PATH, renderSvg(data, LIGHT))
+  await fs.writeFile(SVG_DARK_PATH, renderSvg(data, DARK))
   await updateReadme(data)
 }
 
@@ -598,7 +611,7 @@ async function main(): Promise<void> {
   else {
     await writeAll(data)
     // eslint-disable-next-line no-console
-    console.log(`[build-progress] wrote ${DATA_PATH}, ${SVG_PATH}, ${README_PATH}`)
+    console.log(`[build-progress] wrote ${DATA_PATH}, ${SVG_LIGHT_PATH}, ${SVG_DARK_PATH}, ${README_PATH}`)
   }
 }
 

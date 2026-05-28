@@ -124,10 +124,11 @@
   - **update（默认，push-final 之后）**：PT 已反映今天的合并推送，这份快照写成今天的 `updated`；今天的 `settled` 留空到明天的 settle 阶段再补
 - `GET /api/projects/18818`（公开端点，无需 token）读取 `stats.translated` 与 `stats.total - stats.hidden`，按可见词条计算 `percent = translated / visible`
 - `progress/progress.json` 维护 90 天滚动窗口；每次 daily 动 3 天：弃用 90 天前最旧的、settle 阶段回填昨天的 `settled`、update 阶段写今天的 `updated`
-- `progress/progress.svg` 由同脚本直出：柱高把百分比线性映射到 `[70, 100]` 视觉带（左下角有「起点 70%」断档标识），颜色 100% 绿 / ≥95% 黄 / 其余红，无数据日全高灰；背景透明，文字/分隔线/无数据灰柱/断档斜线由 `<style>` 内的 `prefers-color-scheme` 媒体查询驱动，自动适配 GitHub 黑白主题（彩色柱子两种主题下都够鲜亮，固定不变）
-- settle 阶段只写 `progress.json`；update 阶段才落地 `progress.svg` 与 README，保证产物始终是今天 push 后的最终数字
+- 柱高把百分比线性映射到 `[70, 100]` 视觉带（左下角有「起点 70%」断档标识），颜色 100% 绿 / ≥95% 黄 / 其余红，无数据日全高灰
+- **黑白主题**：直出两份 SVG —— `progress/progress.svg`（亮色）与 `progress/progress-dark.svg`（暗色），背景透明，文字/分隔线/无数据灰柱/断档斜线的颜色按主题用**内联属性**烤死（不用 `<style>`/`class`，彩色柱子两套配色一致）。GitHub 把 README 里的 SVG 当隔离的 `<img>` 渲染，SVG 内部的 `prefers-color-scheme` 读不到页面主题，所以不靠 SVG 内媒体查询；改由 README 的 `<picture>` 在页面（主题感知）上下文里选 source
+- settle 阶段只写 `progress.json`；update 阶段才落地两份 SVG 与 README，保证产物始终是今天 push 后的最终数字
 - `--backfill` 一次性回填整段窗口（按内置 breakpoint 线性插值，固定 PRNG 种子生成 total 序列）；`--no-fetch` 跳过 PT 调用仅重渲 SVG/README
-- README 通过 `<img>` 嵌入 `progress/progress.svg`，浏览器在 `<img>` 模式（Secure Static Mode）下不会向内部 `<rect>` 派发 hover，逐柱 `<title>` 不触发；因此 README 上 `<!-- progress-chart:start/end -->` 之间的图片行每次由脚本重写，`title` 属性带「近 3 天」整图概览作为唯一的 hover tooltip
+- README 在 `<!-- progress-chart:start/end -->` 之间由脚本每次重写为一个 `<picture>`：`<source media="(prefers-color-scheme: dark)">` 指向暗色 SVG，`<img>` 兜底亮色 SVG。`<img>` 模式（Secure Static Mode）下浏览器不会向 SVG 内部 `<rect>` 派发 hover，逐柱 `<title>` 不触发，因此 `<img title>` 带「近 3 天」整图概览作为 README 上唯一的 hover tooltip
 
 ### 6. `restore-and-pack.ts` — 还原换行 + 打包 7z
 

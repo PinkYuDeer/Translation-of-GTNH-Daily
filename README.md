@@ -1,7 +1,10 @@
 # Translation-of-GTNH-Daily
 
 <!-- progress-chart:start -->
-![GTNH Daily 汉化进度（最近 90 天）](progress/progress.svg "GTNH Daily 汉化进度 · 近3天 05-26 100.00% → 05-27 100.00% → 05-28 99.97% · 最新 82,744/82,771 词条")
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="progress/progress-dark.svg">
+  <img alt="GTNH Daily 汉化进度（最近 90 天）" src="progress/progress.svg" title="GTNH Daily 汉化进度 · 近3天 05-26 100.00% → 05-27 100.00% → 05-28 99.97% · 最新 82,744/82,771 词条">
+</picture>
 <!-- progress-chart:end -->
 
 ## GT New Horizons 整合包汉化（每日构建版）
