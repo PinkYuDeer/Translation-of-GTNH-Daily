@@ -48,7 +48,7 @@ import {
   serializeGregTechLang,
   serializeLang,
 } from './lib/lang-parser.ts'
-import { normalizePtNewlines, restoreNewlines, toPtNewlines, withLineBreakContext } from './lib/newlines.ts'
+import { normalizePtNewlines, restoreNewlines, stripLineBreakContext, toPtNewlines, withLineBreakContext } from './lib/newlines.ts'
 import { stripArchiveSuffix, toPtJsonPath } from './lib/path-map.ts'
 import { entriesToTips } from './lib/tips-parser.ts'
 
@@ -463,8 +463,11 @@ async function importChangedTranslations(
     const remote = remoteByKey.get(item.key)!
     const desiredTranslation = toPtNewlines(item.translation ?? '', item.key)
     const desiredStage = item.stage ?? 0
-    const desiredContext = item.context ?? ''
-    const remoteContext = remote.context ?? ''
+    // Ignore the derived `@LineBreak=` marker here too: it reaches PT via the
+    // source upload (toPtSourceItems carries context), so it must not by itself
+    // force a translation re-import every run.
+    const desiredContext = stripLineBreakContext(item.context)
+    const remoteContext = stripLineBreakContext(remote.context)
     const remoteTranslation = remote.translation ?? ''
     const remoteStage = remote.stage ?? 0
     if (remoteTranslation === desiredTranslation && remoteStage === desiredStage && remoteContext === desiredContext)

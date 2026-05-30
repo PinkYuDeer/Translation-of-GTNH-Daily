@@ -142,11 +142,36 @@ export function lineBreakContextValue(form: NewlineForm): string {
   return form === '<BR>' ? '<BR>-up' : form
 }
 
+/** Default newline form when sniffing found nothing: literal `\n`. */
+export const DEFAULT_NEWLINE_FORM: NewlineForm = '\\n'
+
+/**
+ * Attach the derived `@LineBreak=<form>` marker to a string's context, replacing
+ * any existing marker. Every entry gets a marker — when no form was sniffed we
+ * fall back to literal `\n` (`DEFAULT_NEWLINE_FORM`) so the marker is uniform
+ * across the whole project. The marker is *derived* metadata (a pure function of
+ * key + sniffed form), so change-detection must ignore it: compare contexts with
+ * `stripLineBreakContext`, otherwise the marker — which the PT artifact export
+ * does not round-trip — produces phantom diffs and re-pushes every run.
+ */
 export function withLineBreakContext(context: string | undefined, form: NewlineForm | undefined): string | undefined {
   const lines = context && context.length > 0
     ? context.split(/\r?\n/).filter(line => !line.startsWith(LINE_BREAK_CONTEXT_PREFIX))
     : []
-  if (form)
-    lines.push(`${LINE_BREAK_CONTEXT_PREFIX}${lineBreakContextValue(form)}`)
+  lines.push(`${LINE_BREAK_CONTEXT_PREFIX}${lineBreakContextValue(form ?? DEFAULT_NEWLINE_FORM)}`)
   return lines.length > 0 ? lines.join('\n') : undefined
+}
+
+/**
+ * Drop the derived `@LineBreak=` line(s) from a context, leaving only the
+ * human-authored remainder. Use this on both sides of any context equality test
+ * so the derived marker never triggers a spurious push / forced import.
+ */
+export function stripLineBreakContext(context: string | undefined | null): string {
+  if (!context)
+    return ''
+  return context
+    .split(/\r?\n/)
+    .filter(line => !line.startsWith(LINE_BREAK_CONTEXT_PREFIX))
+    .join('\n')
 }

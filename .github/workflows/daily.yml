@@ -181,6 +181,22 @@ jobs:
         env:
           ARCHIVE_NAME: daily-${{ env.NB_LOCAL_DATE }}.7z
 
+      # When tips are 100% translated AND ahead of Kiwi233's master, restore-and-pack
+      # writes the finished config/Betterloadingscreen/tips/zh_CN.txt to the worktree.
+      # Commit it to our master; the maintainer PRs it upstream manually.
+      - name: Commit Upstream-Ready Tips
+        shell: bash
+        run: |
+          if [ -z "$(git status --porcelain -- config/Betterloadingscreen/tips archive/tips)" ]; then
+            echo "[commit] no upstream-ready tips changes to commit"
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add config/Betterloadingscreen/tips archive/tips
+          git commit -m "Daily: tips fully translated & ahead of upstream"
+          git push
+
       - name: Save Daily Cache
         if: steps.restore-daily-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4

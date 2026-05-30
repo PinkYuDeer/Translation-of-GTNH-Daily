@@ -39,7 +39,7 @@ import { dirname, join, relative, sep } from 'node:path'
 import { BUILD_DIR, PT_18818_ID, PT_4964_ID, assertToken } from './lib/config.ts'
 import { readFileIds, readNewlines, resolveNewlineForm, writeJson } from './lib/cache.ts'
 import { dedupePtItemsByKey, type PtStringItem } from './lib/lang-parser.ts'
-import { hasNewlinePlaceholder, normalizeNewlines, normalizePtNewlines, withLineBreakContext } from './lib/newlines.ts'
+import { hasNewlinePlaceholder, normalizeNewlines, normalizePtNewlines, stripLineBreakContext, withLineBreakContext } from './lib/newlines.ts'
 import {
   indexFilesByLowerName,
   listFileStrings,
@@ -161,7 +161,9 @@ function itemsEqual(a: PtStringItem[] | undefined, b: PtStringItem[]): boolean {
       || x.original !== y.original
       || x.translation !== y.translation
       || x.stage !== y.stage
-      || (x.context ?? '') !== (y.context ?? '')
+      // Compare only the human part of context; the derived `@LineBreak=` marker
+      // does not round-trip through the PT artifact and must not force a push.
+      || stripLineBreakContext(x.context) !== stripLineBreakContext(y.context)
     ) {
       return false
     }
