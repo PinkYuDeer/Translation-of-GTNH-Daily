@@ -134,7 +134,7 @@
 
 - 读 `.cache/newlines.json`，优先按每条原始占位还原；若该 key 没有记录且 key 含 `research_page`，优先用 `<BR>`；否则使用文件级最多占位；仍无记录才退为 `\n`
 - 合成 `.lang`；空译不写入包内文件（Minecraft 会回落到 `en_US.lang`）
-- tips `.txt` 按 `archive/tips/keymap.json` 的英文序合并（Kiwi233 优先、我方 PT 译文补缺），空行跳过；100% 汉化时把完整文件暂存到 `.build/upstream-tips/`（见「tips 稳定 key 注册表」），不进我们 master
+- tips `.txt` 按 `archive/tips/keymap.json` 的英文序合并（**我方 PT 译文优先、Kiwi233 仅补缺**），空行跳过；100% 汉化时把完整文件暂存到 `.build/upstream-tips/`（见「tips 稳定 key 注册表」），不进我们 master
 - 并入 Kiwi 直通文件，按参考包目录结构铺好，`7z -mx=9` 打包到 `$ASSETS_PATH/$ARCHIVE_NAME`
 - `PACK_ONLY=1` 环境变量可跳过重建，只重打包（手动重发版用）
 
@@ -190,7 +190,7 @@ Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / 
 - `config/txloader/forceload/____gtnhoverridenames_zhcn/lang/zh_CN.lang` — 汉化组中文覆盖名，绕开 PT 校对流程
 - `resources/minecraft/**` — 打包时落到 `config/txloader/forceload/minecraft/**`，用于补字库
 
-> `config/Betterloadingscreen/tips/zh_CN.txt` 不再是纯直通：它会进入 PT 18818（合成 .lang），打包时按 Kiwi233 优先、我方 PT 译文补缺合并。详见下节「tips 稳定 key 注册表」。
+> `config/Betterloadingscreen/tips/zh_CN.txt` 不再是纯直通：它会进入 PT 18818（合成 .lang）；同步与打包都以**我方 PT 译文为准、Kiwi233 仅补缺**。详见下节「tips 稳定 key 注册表」。
 
 ---
 
@@ -207,7 +207,15 @@ loading-screen 的 tips 是一行一句的纯文本，PT 只能存 key/value。�
 
 ### 领先上游时推到 `up/master` 分支
 
-`restore-and-pack` 合并出完整 zh_CN.txt（Kiwi233 优先、我方 PT 译文补缺，按英文序）。当**所有活跃 tip 都已汉化**（100%）时，把成品暂存到 `.build/upstream-tips/config/Betterloadingscreen/tips/zh_CN.txt`——**不进我们 master**。
+`restore-and-pack` 合并出完整 zh_CN.txt（**我方 PT 译文优先、Kiwi233 仅补缺**，按英文序）。当**所有活跃 tip 都已汉化**（100%）时，把成品暂存到 `.build/upstream-tips/config/Betterloadingscreen/tips/zh_CN.txt`——**不进我们 master**。
+
+> **tips 归属权 + 新鲜度判定**：Kiwi233 的 zh_CN.txt 无逐行原文/时间戳，无法直接判断它的同位行是否过期。于是 `pull-zh-4964` 维护一份快照 `archive/tips/kiwi-seen.json`（每个 key 上次见到的 Kiwi233 行），逐 key 决策：
+> - 18818 无译文 → Kiwi233 补空缺；
+> - 18818 与 Kiwi233 一致 → 无冲突；
+> - 二者不一致、且 Kiwi233 的行**相对快照变了** → 这是上游的真实更新，**采用**（新译仍然要）；
+> - 二者不一致、但 Kiwi233 的行**没变** → 我们是领先方，**保留我方译文**（避免把旧译同步回来覆盖 PT 上的修正）。
+>
+> 首次运行无快照时所有冲突都保留我方，绝不在建立基线前误覆盖领先译文。tips 以 daily 为准，我方修正经 `up/master` 反向 PR 上游。
 
 随后 `Publish Upstream-Ready Tips to up/master` 步骤：
 

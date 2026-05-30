@@ -40,6 +40,14 @@ export const TIPS_UPSTREAM_STAGE = 'upstream-tips'
 export const TIPS_KEYMAP_FILE = 'tips/keymap.json'
 /** Human-readable add/retire/reword/revive log, relative to REPO_ARCHIVE_DIR. */
 export const TIPS_CHANGELOG_FILE = 'tips/changelog.md'
+/**
+ * Last-seen Kiwi233 zh line per tip key (`{key: line}`), relative to
+ * REPO_ARCHIVE_DIR. Acts as the "is upstream's line new or stale?" baseline:
+ * Kiwi233's tips file has no timestamps, so a changed line vs this snapshot is a
+ * genuine upstream update we should take, while an unchanged line that differs
+ * from our PT translation means ours is the ahead one and Kiwi's is stale.
+ */
+export const TIPS_KIWI_SEEN_FILE = 'tips/kiwi-seen.json'
 
 export const CONCURRENCY = 5
 export const RATE_LIMIT_RETRY_MS = 60_000

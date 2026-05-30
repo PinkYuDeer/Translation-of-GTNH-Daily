@@ -206,10 +206,10 @@ async function loadTipsLang(absPath: string): Promise<Map<string, string>> {
 }
 
 /**
- * Tips are merged for packing: Kiwi233's reviewed line wins, our PT 18818
- * translation fills the gaps Kiwi hasn't covered yet (the daily project can be
- * ahead). Lines are emitted in the English file order (`registry.order`), with
- * Kiwi233's 8-line preamble (7 comments + the PT feedback notice) preserved.
+ * Tips are merged for packing: our PT 18818 translation wins, Kiwi233 only fills
+ * keys we have no translation for (the daily project owns tips and can be ahead).
+ * Lines are emitted in the English file order (`registry.order`), with Kiwi233's
+ * 8-line preamble (7 comments + the PT feedback notice) preserved.
  *
  * When the merged result covers every active tip (100% translated), the full
  * file is staged to `BUILD_DIR/upstream-tips/<TIPS_OUTPUT_REL>` (NOT committed to
@@ -245,8 +245,11 @@ async function rebuildTipsTxt(zhLangRoot: string): Promise<string | undefined> {
       kiwiByKey.set(key, kiwiContent[i])
   })
 
+  // Our merged 18818 translation wins; Kiwi233 only fills keys we have no
+  // translation for. Mirrors pull-zh-4964's "daily owns tips" rule so a fix made
+  // on PT actually ships, instead of being masked by Kiwi233's stale line.
   const ourByKey = await loadTipsLang(join(zhLangRoot, TIPS_PT_PATH))
-  const chosen = order.map(key => kiwiByKey.get(key) ?? ourByKey.get(key) ?? '')
+  const chosen = order.map(key => ourByKey.get(key) || kiwiByKey.get(key) || '')
 
   // Packed file: skip untranslated lines (Minecraft would otherwise show blanks).
   const packBody = chosen.filter(v => v.length > 0).join('\n')

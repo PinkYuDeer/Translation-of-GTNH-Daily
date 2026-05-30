@@ -43,7 +43,7 @@ import {
 } from './lib/pt-client.ts'
 import { readJson, writeJson } from './lib/cache.ts'
 import { parseTipsLines } from './lib/tips-parser.ts'
-import { REPO_ARCHIVE_DIR, TIPS_KEYMAP_FILE } from './lib/config.ts'
+import { REPO_ARCHIVE_DIR, TIPS_KEYMAP_FILE, TIPS_KIWI_SEEN_FILE } from './lib/config.ts'
 import type { TipsRegistry } from './lib/tips-registry.ts'
 import { stripPtJsonSuffix } from './lib/path-map.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
@@ -189,6 +189,18 @@ async function tryArtifactFlow(outRoot: string): Promise<boolean> {
  * before Kiwi233 translates them. We warn but do not fail: uncovered EN tips
  * are emitted with empty translation (stage=0) so diff-zh skips them and they
  * remain untranslated on PT 18818. Extra ZH lines past the EN count are ignored.
+ *
+ * Ownership + freshness: Kiwi233's zh_CN.txt has no per-line originals or
+ * timestamps, so to tell a genuine upstream update from a stale line we keep a
+ * snapshot of the last Kiwi233 line we saw per key (`archive/tips/kiwi-seen.json`)
+ * and decide per key:
+ *   - 18818 has no translation → Kiwi233 fills the gap.
+ *   - 18818 == Kiwi233 → no conflict.
+ *   - 18818 != Kiwi233 and Kiwi233's line *changed* vs the snapshot → a real
+ *     upstream update; take it (override ours — new translations are still wanted).
+ *   - 18818 != Kiwi233 and Kiwi233's line is *unchanged* → ours is ahead; keep it.
+ * On first run (no snapshot) every conflict keeps ours, so we never clobber an
+ * ahead translation before a baseline exists.
  */
 async function buildTipsFrom4964Kiwi(): Promise<PtStringItem[] | undefined> {
   const enFile = join(BUILD_DIR, 'en', 'config/Betterloadingscreen/tips/zh_CN.lang.en.json')
@@ -208,15 +220,58 @@ async function buildTipsFrom4964Kiwi(): Promise<PtStringItem[] | undefined> {
       + 'aligning by position, extras stay untranslated',
     )
   }
-  return order.map((key, i) => {
-    const zh = zhLines[i]
+
+  // Current PT 18818 translation per key (what we'd be overriding).
+  const currentByKey = new Map<string, string>()
+  const currentTips = join(BUILD_DIR, 'zh-current', 'config/Betterloadingscreen/tips/zh_CN.lang.json')
+  if (existsSync(currentTips)) {
+    const rows = JSON.parse(await readFile(currentTips, 'utf8')) as PtStringItem[]
+    for (const row of rows)
+      currentByKey.set(row.key, row.translation ?? '')
+  }
+
+  // Baseline: the Kiwi233 line we saw last sync, per key.
+  const seenPath = join(REPO_ARCHIVE_DIR, TIPS_KIWI_SEEN_FILE)
+  const kiwiSeen = (await readJson<Record<string, string>>(seenPath)) ?? {}
+  const nextSeen: Record<string, string> = {}
+
+  let filled = 0
+  let tookUpstream = 0
+  let keptDaily = 0
+  const items = order.map((key, i) => {
+    const kiwiNow = zhLines[i]
+    const ours = currentByKey.get(key) ?? ''
+    let translation = ''
+    if (kiwiNow != null) {
+      nextSeen[key] = kiwiNow // record current Kiwi line as next run's baseline
+      if (ours.trim().length === 0) {
+        translation = kiwiNow // gap fill
+        filled++
+      }
+      else if (ours !== kiwiNow) {
+        // Take Kiwi only if its line actually changed since we last saw it
+        // (a genuine upstream update); otherwise it's stale and we keep ours.
+        if (kiwiSeen[key] !== undefined && kiwiNow !== kiwiSeen[key]) {
+          translation = kiwiNow
+          tookUpstream++
+        }
+        else {
+          keptDaily++
+        }
+      }
+    }
     return {
       key,
       original: origByKey.get(key) ?? '',
-      translation: zh ?? '',
-      stage: zh != null ? 1 : 0, // Kiwi233 rows are reviewed; uncovered rows start at 0
+      translation, // empty here = "keep 18818's translation" (merge skips empty source)
+      stage: translation.length > 0 ? 1 : 0, // Kiwi233 rows are reviewed
     }
   })
+  await writeJson(seenPath, nextSeen)
+  if (filled || tookUpstream || keptDaily)
+    // eslint-disable-next-line no-console
+    console.log(`[pull-zh-4964] tips: filled=${filled} took-upstream-update=${tookUpstream} kept-daily=${keptDaily}`)
+  return items
 }
 
 async function copyExtras(): Promise<void> {
