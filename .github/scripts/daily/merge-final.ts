@@ -162,6 +162,14 @@ export interface PushDiff {
  * differ from current PT, or undefined if identical. `undefined` means "no push
  * needed"; the returned field both gates the push and explains (in logs) why a
  * no-change day still pushes, so we can chase down any remaining non-convergence.
+ *
+ * Comparison is **order-insensitive** — matched by key, not position. PT's
+ * artifact export returns strings in string-id order, which for older files no
+ * longer matches our English line order (POST /files updates originals but never
+ * reorders existing strings). Comparing position-by-position made every such file
+ * look changed and re-push daily, with no way to ever converge. Keys are matched
+ * by value instead; only a genuine key-set / field difference triggers a push.
+ *
  * The derived `@LineBreak=` context marker is excluded (it does not round-trip
  * through the PT artifact and must not force a push).
  */
@@ -170,19 +178,21 @@ function firstDiff(a: PtStringItem[] | undefined, b: PtStringItem[]): PushDiff |
   const bb = b.map(normalizeItem)
   if (aa.length !== bb.length)
     return { field: 'length', cur: String(aa.length), fin: String(bb.length) }
-  for (let i = 0; i < aa.length; i++) {
-    const x = aa[i]
-    const y = bb[i]
-    if (x.key !== y.key)
-      return { field: 'key', cur: x.key, fin: y.key }
+  const curByKey = new Map(aa.map(x => [x.key, x]))
+  // Equal lengths + every final key present in current (deduped, unique keys)
+  // ⟹ identical key sets, so a key-by-key walk fully covers both sides.
+  for (const y of bb) {
+    const x = curByKey.get(y.key)
+    if (x == null)
+      return { field: 'key', key: y.key, cur: '<missing>', fin: y.key }
     if (x.original !== y.original)
-      return { field: 'original', key: x.key, cur: x.original, fin: y.original }
+      return { field: 'original', key: y.key, cur: x.original, fin: y.original }
     if (x.translation !== y.translation)
-      return { field: 'translation', key: x.key, cur: x.translation, fin: y.translation }
+      return { field: 'translation', key: y.key, cur: x.translation, fin: y.translation }
     if (x.stage !== y.stage)
-      return { field: 'stage', key: x.key, cur: String(x.stage), fin: String(y.stage) }
+      return { field: 'stage', key: y.key, cur: String(x.stage), fin: String(y.stage) }
     if (stripLineBreakContext(x.context) !== stripLineBreakContext(y.context))
-      return { field: 'context', key: x.key, cur: x.context ?? '', fin: y.context ?? '' }
+      return { field: 'context', key: y.key, cur: x.context ?? '', fin: y.context ?? '' }
   }
   return undefined
 }
