@@ -189,6 +189,14 @@ async function tryArtifactFlow(outRoot: string): Promise<boolean> {
  * before Kiwi233 translates them. We warn but do not fail: uncovered EN tips
  * are emitted with empty translation (stage=0) so diff-zh skips them and they
  * remain untranslated on PT 18818. Extra ZH lines past the EN count are ignored.
+ *
+ * Ownership: **once PT 18818 has a translation for a tip, the daily project owns
+ * it** — Kiwi233 only seeds *gaps*. Kiwi's zh_CN.txt has no per-line originals or
+ * timestamps, so when an English tip changes but Kiwi's positional line stays the
+ * old text, we cannot tell its line is stale. If we paired that old line with the
+ * new English original (sourceExact) the generic merge would sync the stale Kiwi
+ * line back over the fix we just made on PT. So we suppress Kiwi's line for any
+ * key 18818 already translated, and let it fill only where 18818 is empty.
  */
 async function buildTipsFrom4964Kiwi(): Promise<PtStringItem[] | undefined> {
   const enFile = join(BUILD_DIR, 'en', 'config/Betterloadingscreen/tips/zh_CN.lang.en.json')
@@ -208,15 +216,35 @@ async function buildTipsFrom4964Kiwi(): Promise<PtStringItem[] | undefined> {
       + 'aligning by position, extras stay untranslated',
     )
   }
-  return order.map((key, i) => {
+
+  // Keys PT 18818 already has a non-empty translation for — Kiwi must not override.
+  const ownedByDaily = new Set<string>()
+  const currentTips = join(BUILD_DIR, 'zh-current', 'config/Betterloadingscreen/tips/zh_CN.lang.json')
+  if (existsSync(currentTips)) {
+    const rows = JSON.parse(await readFile(currentTips, 'utf8')) as PtStringItem[]
+    for (const row of rows) {
+      if ((row.translation ?? '').trim().length > 0)
+        ownedByDaily.add(row.key)
+    }
+  }
+
+  let suppressed = 0
+  const items = order.map((key, i) => {
     const zh = zhLines[i]
+    const fill = zh != null && !ownedByDaily.has(key)
+    if (zh != null && !fill)
+      suppressed++
     return {
       key,
       original: origByKey.get(key) ?? '',
-      translation: zh ?? '',
-      stage: zh != null ? 1 : 0, // Kiwi233 rows are reviewed; uncovered rows start at 0
+      translation: fill ? zh : '', // gap-fill only; empty here = "keep 18818's translation"
+      stage: fill ? 1 : 0, // Kiwi233 rows are reviewed; suppressed/uncovered rows start at 0
     }
   })
+  if (suppressed > 0)
+    // eslint-disable-next-line no-console
+    console.log(`[pull-zh-4964] tips: kept ${suppressed} daily-owned translation(s) over Kiwi233`)
+  return items
 }
 
 async function copyExtras(): Promise<void> {

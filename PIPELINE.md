@@ -134,7 +134,7 @@
 
 - 读 `.cache/newlines.json`，优先按每条原始占位还原；若该 key 没有记录且 key 含 `research_page`，优先用 `<BR>`；否则使用文件级最多占位；仍无记录才退为 `\n`
 - 合成 `.lang`；空译不写入包内文件（Minecraft 会回落到 `en_US.lang`）
-- tips `.txt` 按 `archive/tips/keymap.json` 的英文序合并（Kiwi233 优先、我方 PT 译文补缺），空行跳过；100% 汉化时把完整文件暂存到 `.build/upstream-tips/`（见「tips 稳定 key 注册表」），不进我们 master
+- tips `.txt` 按 `archive/tips/keymap.json` 的英文序合并（**我方 PT 译文优先、Kiwi233 仅补缺**），空行跳过；100% 汉化时把完整文件暂存到 `.build/upstream-tips/`（见「tips 稳定 key 注册表」），不进我们 master
 - 并入 Kiwi 直通文件，按参考包目录结构铺好，`7z -mx=9` 打包到 `$ASSETS_PATH/$ARCHIVE_NAME`
 - `PACK_ONLY=1` 环境变量可跳过重建，只重打包（手动重发版用）
 
@@ -190,7 +190,7 @@ Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / 
 - `config/txloader/forceload/____gtnhoverridenames_zhcn/lang/zh_CN.lang` — 汉化组中文覆盖名，绕开 PT 校对流程
 - `resources/minecraft/**` — 打包时落到 `config/txloader/forceload/minecraft/**`，用于补字库
 
-> `config/Betterloadingscreen/tips/zh_CN.txt` 不再是纯直通：它会进入 PT 18818（合成 .lang），打包时按 Kiwi233 优先、我方 PT 译文补缺合并。详见下节「tips 稳定 key 注册表」。
+> `config/Betterloadingscreen/tips/zh_CN.txt` 不再是纯直通：它会进入 PT 18818（合成 .lang）；同步与打包都以**我方 PT 译文为准、Kiwi233 仅补缺**。详见下节「tips 稳定 key 注册表」。
 
 ---
 
@@ -207,7 +207,9 @@ loading-screen 的 tips 是一行一句的纯文本，PT 只能存 key/value。�
 
 ### 领先上游时推到 `up/master` 分支
 
-`restore-and-pack` 合并出完整 zh_CN.txt（Kiwi233 优先、我方 PT 译文补缺，按英文序）。当**所有活跃 tip 都已汉化**（100%）时，把成品暂存到 `.build/upstream-tips/config/Betterloadingscreen/tips/zh_CN.txt`——**不进我们 master**。
+`restore-and-pack` 合并出完整 zh_CN.txt（**我方 PT 译文优先、Kiwi233 仅补缺**，按英文序）。当**所有活跃 tip 都已汉化**（100%）时，把成品暂存到 `.build/upstream-tips/config/Betterloadingscreen/tips/zh_CN.txt`——**不进我们 master**。
+
+> **tips 归属权**：一旦某条 tip 在 PT 18818 有了非空译文，daily 即拥有它，`pull-zh-4964` 只用 Kiwi233 补空缺、绝不覆盖。原因：Kiwi233 的 zh_CN.txt 无逐行原文/时间戳，英文改写后若它的同位行仍是旧文，我们无法分辨其是否过期；若把旧行配上新英文原文，通用合并会在下次同步时把旧译同步回来、覆盖我们刚在 PT 上做的修正。代价：Kiwi233 对已有词条的更新不会被 daily 拉回（tips 以 daily 为准，通过 `up/master` 反向 PR 上游）。
 
 随后 `Publish Upstream-Ready Tips to up/master` 步骤：
 
