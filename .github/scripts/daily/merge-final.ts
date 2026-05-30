@@ -148,27 +148,43 @@ function hasLegacyPlaceholder(items: PtStringItem[] | undefined): boolean {
   )
 }
 
-function itemsEqual(a: PtStringItem[] | undefined, b: PtStringItem[]): boolean {
+type PushDiffField = 'length' | 'key' | 'original' | 'translation' | 'stage' | 'context'
+
+export interface PushDiff {
+  field: PushDiffField
+  key?: string
+  cur: string
+  fin: string
+}
+
+/**
+ * Change detection + diagnostic: return the first field that makes a merged file
+ * differ from current PT, or undefined if identical. `undefined` means "no push
+ * needed"; the returned field both gates the push and explains (in logs) why a
+ * no-change day still pushes, so we can chase down any remaining non-convergence.
+ * The derived `@LineBreak=` context marker is excluded (it does not round-trip
+ * through the PT artifact and must not force a push).
+ */
+function firstDiff(a: PtStringItem[] | undefined, b: PtStringItem[]): PushDiff | undefined {
   const aa = (a ?? []).map(normalizeItem)
   const bb = b.map(normalizeItem)
   if (aa.length !== bb.length)
-    return false
+    return { field: 'length', cur: String(aa.length), fin: String(bb.length) }
   for (let i = 0; i < aa.length; i++) {
     const x = aa[i]
     const y = bb[i]
-    if (
-      x.key !== y.key
-      || x.original !== y.original
-      || x.translation !== y.translation
-      || x.stage !== y.stage
-      // Compare only the human part of context; the derived `@LineBreak=` marker
-      // does not round-trip through the PT artifact and must not force a push.
-      || stripLineBreakContext(x.context) !== stripLineBreakContext(y.context)
-    ) {
-      return false
-    }
+    if (x.key !== y.key)
+      return { field: 'key', cur: x.key, fin: y.key }
+    if (x.original !== y.original)
+      return { field: 'original', key: x.key, cur: x.original, fin: y.original }
+    if (x.translation !== y.translation)
+      return { field: 'translation', key: x.key, cur: x.translation, fin: y.translation }
+    if (x.stage !== y.stage)
+      return { field: 'stage', key: x.key, cur: String(x.stage), fin: String(y.stage) }
+    if (stripLineBreakContext(x.context) !== stripLineBreakContext(y.context))
+      return { field: 'context', key: x.key, cur: x.context ?? '', fin: y.context ?? '' }
   }
-  return true
+  return undefined
 }
 
 function staleMarker(key: string, newOriginal: string, oldTranslation: string): { translation: string, replacements: number } {
@@ -519,6 +535,9 @@ async function main(): Promise<void> {
   }
   const remoteTimestamps = new RemoteTimestampResolver()
   const newlineCache = await readNewlines()
+  // Diagnostic: why each file is pushed, and one example per reason.
+  const pushReasons = new Map<string, number>()
+  const pushExamples = new Map<string, string>()
 
   for (const [ptPath, enItems] of enFiles) {
     const currentFile = currentFiles.get(ptPath)
@@ -674,7 +693,22 @@ async function main(): Promise<void> {
     const legacyPlaceholderRewrite = hasLegacyPlaceholder(currentFile?.raw)
     if (!existed)
       stats.filesCreated++
-    if (force || !itemsEqual(currentItems, finalItems) || legacyPlaceholderRewrite) {
+    const diff = existed ? firstDiff(currentItems, finalItems) : undefined
+    if (force || !existed || diff != null || legacyPlaceholderRewrite) {
+      // Diagnostic: tally why this file is being pushed (force / new / legacy
+      // placeholder rewrite take precedence and are bucketed separately).
+      const reason = force
+        ? 'force'
+        : !existed
+            ? 'new'
+            : diff != null
+                ? diff.field
+                : 'legacy-placeholder'
+      pushReasons.set(reason, (pushReasons.get(reason) ?? 0) + 1)
+      if (diff != null && !pushExamples.has(reason)) {
+        pushExamples.set(reason, `${ptPath}${diff.key ? ` key=${diff.key}` : ''} `
+          + `cur=${JSON.stringify(diff.cur.slice(0, 60))} fin=${JSON.stringify(diff.fin.slice(0, 60))}`)
+      }
       plan.push.push(ptPath)
       stats.filesChanged++
       if (
@@ -704,6 +738,18 @@ async function main(): Promise<void> {
   if (emptyEnFilesSkipped > 0)
     // eslint-disable-next-line no-console
     console.log(`[merge-final] skipped ${emptyEnFilesSkipped} empty English file(s); existing PT copies will be archived`)
+
+  if (pushReasons.size > 0) {
+    const reasons = [...pushReasons.entries()].sort((a, b) => b[1] - a[1])
+    // eslint-disable-next-line no-console
+    console.log(`[merge-final] push-reasons: ${reasons.map(([k, v]) => `${k}=${v}`).join(' ')}`)
+    for (const [reason] of reasons) {
+      const example = pushExamples.get(reason)
+      if (example)
+        // eslint-disable-next-line no-console
+        console.log(`[merge-final]   e.g. ${reason}: ${example}`)
+    }
+  }
 
   // eslint-disable-next-line no-console
   console.log(
