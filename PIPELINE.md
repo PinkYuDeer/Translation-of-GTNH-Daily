@@ -209,7 +209,13 @@ loading-screen 的 tips 是一行一句的纯文本，PT 只能存 key/value。�
 
 `restore-and-pack` 合并出完整 zh_CN.txt（**我方 PT 译文优先、Kiwi233 仅补缺**，按英文序）。当**所有活跃 tip 都已汉化**（100%）时，把成品暂存到 `.build/upstream-tips/config/Betterloadingscreen/tips/zh_CN.txt`——**不进我们 master**。
 
-> **tips 归属权**：一旦某条 tip 在 PT 18818 有了非空译文，daily 即拥有它，`pull-zh-4964` 只用 Kiwi233 补空缺、绝不覆盖。原因：Kiwi233 的 zh_CN.txt 无逐行原文/时间戳，英文改写后若它的同位行仍是旧文，我们无法分辨其是否过期；若把旧行配上新英文原文，通用合并会在下次同步时把旧译同步回来、覆盖我们刚在 PT 上做的修正。代价：Kiwi233 对已有词条的更新不会被 daily 拉回（tips 以 daily 为准，通过 `up/master` 反向 PR 上游）。
+> **tips 归属权 + 新鲜度判定**：Kiwi233 的 zh_CN.txt 无逐行原文/时间戳，无法直接判断它的同位行是否过期。于是 `pull-zh-4964` 维护一份快照 `archive/tips/kiwi-seen.json`（每个 key 上次见到的 Kiwi233 行），逐 key 决策：
+> - 18818 无译文 → Kiwi233 补空缺；
+> - 18818 与 Kiwi233 一致 → 无冲突；
+> - 二者不一致、且 Kiwi233 的行**相对快照变了** → 这是上游的真实更新，**采用**（新译仍然要）；
+> - 二者不一致、但 Kiwi233 的行**没变** → 我们是领先方，**保留我方译文**（避免把旧译同步回来覆盖 PT 上的修正）。
+>
+> 首次运行无快照时所有冲突都保留我方，绝不在建立基线前误覆盖领先译文。tips 以 daily 为准，我方修正经 `up/master` 反向 PR 上游。
 
 随后 `Publish Upstream-Ready Tips to up/master` 步骤：
 
