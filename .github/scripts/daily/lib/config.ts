@@ -21,6 +21,18 @@ export const CACHE_DIR: string = process.env.CACHE_DIR ?? '.cache'
 export const BUILD_DIR: string = process.env.BUILD_DIR ?? '.build'
 export const REPO_CACHE_DIR: string = process.env.REPO_CACHE_DIR ?? '.build/repo-cache'
 
+/** Git-tracked archive dir (retired strings, tips key registry + changelog). */
+export const REPO_ARCHIVE_DIR: string = process.env.REPO_ARCHIVE_DIR ?? 'archive'
+
+/** Loading-screen tips paths. */
+export const TIPS_PT_PATH = 'config/Betterloadingscreen/tips/zh_CN.lang'
+/** Finished, ahead-of-upstream tips .txt committed to our master for manual PR. */
+export const TIPS_OUTPUT_PATH = 'config/Betterloadingscreen/tips/zh_CN.txt'
+/** Stable key registry, relative to REPO_ARCHIVE_DIR. */
+export const TIPS_KEYMAP_FILE = 'tips/keymap.json'
+/** Human-readable add/retire/reword/revive log, relative to REPO_ARCHIVE_DIR. */
+export const TIPS_CHANGELOG_FILE = 'tips/changelog.md'
+
 export const CONCURRENCY = 5
 export const RATE_LIMIT_RETRY_MS = 60_000
 

@@ -133,11 +133,12 @@
 ### 6. `restore-and-pack.ts` — 还原换行 + 打包 7z
 
 - 读 `.cache/newlines.json`，优先按每条原始占位还原；若该 key 没有记录且 key 含 `research_page`，优先用 `<BR>`；否则使用文件级最多占位；仍无记录才退为 `\n`
-- 合成 `.lang` / `tips 的 .txt`；空译不写入包内文件（Minecraft 会回落到 `en_US.lang`）
+- 合成 `.lang`；空译不写入包内文件（Minecraft 会回落到 `en_US.lang`）
+- tips `.txt` 按 `archive/tips/keymap.json` 的英文序合并（Kiwi233 优先、我方 PT 译文补缺），空行跳过；100% 且领先上游时另写跟踪路径 `config/Betterloadingscreen/tips/zh_CN.txt`（见「tips 稳定 key 注册表」）
 - 并入 Kiwi 直通文件，按参考包目录结构铺好，`7z -mx=9` 打包到 `$ASSETS_PATH/$ARCHIVE_NAME`
 - `PACK_ONLY=1` 环境变量可跳过重建，只重打包（手动重发版用）
 
-随后由 workflow 负责：打 tag、`softprops/action-gh-release` 发 Release、清理过期 daily cache、清理过期 nightly Release。`progress/` 与 `archive/` 的变更由同一个 commit 步骤推回仓库。
+随后由 workflow 负责：打 tag、`softprops/action-gh-release` 发 Release、清理过期 daily cache、清理过期 nightly Release。`progress/` 与 `archive/`（含 `archive/tips/`）的变更由 commit 步骤推回仓库；tips 领先上游的成品由打包后的 `Commit Upstream-Ready Tips` 步骤单独提交到 master。
 
 ---
 
@@ -171,6 +172,14 @@ Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / 
 - **归一化**（fetch-en + merge-final）：所有形式统一成真换行，避免"格式差异"触发假变更
 - **还原**（restore-and-pack）：按每词条原形式把真换行回写成原字面；若 key 包含 `questing.quest` 或 `betterquesting`，优先使用 `%n`；若 key 缺少逐词条记录且包含 `research_page`，优先退到 `<BR>`；其余退到该文件最多的形式。`<BR>` 的任务书仍是 `<BR>`，使用 `[br]` 的仍是 `[br]`，使用 `%n` 的仍是 `%n`，使用 `\n` 的仍是 `\n`，使用 `\\n` 的仍是 `\\n`
 
+### `@LineBreak=` context 标记与"假变更"收敛
+
+上传 PT 时每个词条都带一条 `@LineBreak=<形式>` 的 context 标记，方便校对者看出该词条用哪种换行；**没有嗅到形式的词条统一退到 `\n`**，保证全项目每条都有该标记。
+
+但这条标记是 **由 key + 嗅探形式纯派生出来的元数据**，而 PT 的 artifact 导出（`pull-current-18818` 的主路径）并不回传 context。若把它纳入变更比对，含换行的那批文件（约 67 个）会因为"现网无标记、本地有标记"被永远判为变更，每天空推、并触发上万次 `forced` 译文导入。
+
+因此：**变更检测一律忽略 `@LineBreak=` 标记**——`merge-final` 的 `itemsEqual` 与 `push-final` 的 `importChangedTranslations` 都用 `stripLineBreakContext` 只比对 context 的人工部分。标记本身仍随 source 上传写入 PT，但不再单独驱动推送/导入。校对者新加的真实 context 仍能被检测到。
+
 ---
 
 ## 绕过 PT 的直通文件
@@ -179,8 +188,26 @@ Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / 
 
 - `config/InGameInfoXML/InGameInfo_zh_CN.xml` — 遗留 XML，手工维护
 - `config/txloader/forceload/____gtnhoverridenames_zhcn/lang/zh_CN.lang` — 汉化组中文覆盖名，绕开 PT 校对流程
-- `config/Betterloadingscreen/tips/zh_CN.txt` — 中文行与英文按行同构对齐后喂给 daily 流水线
 - `resources/minecraft/**` — 打包时落到 `config/txloader/forceload/minecraft/**`，用于补字库
+
+> `config/Betterloadingscreen/tips/zh_CN.txt` 不再是纯直通：它会进入 PT 18818（合成 .lang），打包时按 Kiwi233 优先、我方 PT 译文补缺合并。详见下节「tips 稳定 key 注册表」。
+
+---
+
+## tips 稳定 key 注册表
+
+loading-screen 的 tips 是一行一句的纯文本，PT 只能存 key/value。过去按行号给键（`tip.0001…`），英文插入/删除一行就会把后面所有行的内容挪到别的键上，PT 把整条尾巴当成「原文变了」，逐条历史错位、每次同步都要重对齐。
+
+现在改为 **稳定 key 注册表**（`archive/tips/keymap.json`，纳入 git 跟踪、随 daily commit 回推）：
+
+- 每个 tip 首见即分配单调递增、永不复用的 `id`（key = `tip.<id 补零>`）。
+- 每次 `fetch-en` 用 LCS 对齐「上次英文序」（`registry.order`）与本次英文：未变保留 key；纯插入分配新 id（或复活文本完全相同的 retired 项）；纯删除标记 retired（保留以备复活）；**同位置一删一增且相似度 ≥ 0.5 判为「改写」**——保留原 key、更新英文，于是 PT 看到「同 key、original 变了」，`merge-final` 的 stale 标记自动保住旧译。
+- **两套顺序解耦**：上传 PT 按 `id` 升序（新词条天然追加在末尾，已有行槽位不动，PT diff 最干净）；打包 / 生成 `.txt` 按英文原文序（`registry.order`）。
+- 增删改写的人读日志写到 `archive/tips/changelog.md`。
+
+### 领先上游时回推本仓库 master
+
+`restore-and-pack` 合并出完整 zh_CN.txt（Kiwi233 优先、我方 PT 译文补缺，按英文序）。当**所有活跃 tip 都已汉化**且**结果与 Kiwi233 当前 zh_CN.txt 不同**（即我方 100% 且领先上游）时，把成品写到跟踪路径 `config/Betterloadingscreen/tips/zh_CN.txt`，由 workflow 提交到**我们的 master**（维护者手动 PR 到 Kiwi233）。上游一旦合并、不再领先，下次便不再改动该文件（幂等）。
 
 ---
 
@@ -196,7 +223,8 @@ Minecraft 不同 mod / 文件对换行的字面写法不一：`<BR>` / `<br>` / 
 │   │   ├── newlines.ts        嗅探 / 归一 / 还原
 │   │   ├── path-map.ts        4964 ↔ 18818 路径映射、退役后缀
 │   │   ├── pt-client.ts       PT REST 客户端（429 退避 / 并发池）
-│   │   └── tips-parser.ts     tips.txt ↔ 合成 .lang
+│   │   ├── tips-parser.ts     tips.txt ↔ 合成 .lang
+│   │   └── tips-registry.ts   tips 稳定 key 注册表 + LCS 对齐（增删/改写/复活）
 │   ├── generate-gregtech-lang.ts 步骤 0
 │   ├── fetch-en.ts            步骤 1
 │   ├── pull-current-18818.ts  步骤 2

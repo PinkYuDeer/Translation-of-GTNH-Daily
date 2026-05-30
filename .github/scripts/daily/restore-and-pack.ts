@@ -48,9 +48,17 @@ import { copyFile, cp, mkdir, mkdtemp, readdir, readFile, writeFile } from 'node
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 
-import { BUILD_DIR, REPO_CACHE_DIR } from './lib/config.ts'
-import { readNewlines, resolveNewlineForm, type NewlineFileForms } from './lib/cache.ts'
-import { entriesToTips } from './lib/tips-parser.ts'
+import {
+  BUILD_DIR,
+  REPO_ARCHIVE_DIR,
+  REPO_CACHE_DIR,
+  TIPS_CHANGELOG_FILE,
+  TIPS_KEYMAP_FILE,
+  TIPS_OUTPUT_PATH,
+} from './lib/config.ts'
+import { readJson, readNewlines, resolveNewlineForm, type NewlineFileForms } from './lib/cache.ts'
+import { parseTipsLines } from './lib/tips-parser.ts'
+import type { TipsRegistry } from './lib/tips-registry.ts'
 import {
   type LangEntry,
   type PtStringItem,
@@ -183,43 +191,85 @@ async function rebuildLangTree(): Promise<string> {
   return outRoot
 }
 
+/** Parse our emitted tips `.lang` mirror (`key=value` per line) into a map. */
+async function loadTipsLang(absPath: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  if (!existsSync(absPath))
+    return map
+  for (const line of (await readFile(absPath, 'utf8')).split('\n')) {
+    const idx = line.indexOf('=')
+    if (idx < 0)
+      continue
+    map.set(line.slice(0, idx).trim(), line.slice(idx + 1))
+  }
+  return map
+}
+
 /**
- * Tips are maintained outside PT. Prefer the direct Kiwi233 repo copy; only if
- * that file is absent do we fall back to reassembling the synthetic PT mirror.
+ * Tips are merged for packing: Kiwi233's reviewed line wins, our PT 18818
+ * translation fills the gaps Kiwi hasn't covered yet (the daily project can be
+ * ahead). Lines are emitted in the English file order (`registry.order`), with
+ * Kiwi233's 8-line preamble (7 comments + the PT feedback notice) preserved.
  *
- * Fallback mode converts the keyed mirror back to the `.txt` layout Minecraft
- * expects; the first 8 lines of Kiwi233's zh_CN.txt (7 comment lines + the PT
- * feedback notice) are preserved verbatim as the preamble.
+ * When the merged result covers every active tip *and* differs from Kiwi233's
+ * current zh_CN.txt (i.e. we are 100% translated and ahead of upstream), the
+ * full file is also written to the git-tracked `TIPS_OUTPUT_PATH` so it can be
+ * committed to our master and manually PR'd upstream. Idempotent: once upstream
+ * catches up, "ahead" goes false and we stop touching the tracked file.
+ *
+ * Falls back to copying Kiwi233's file verbatim if the key registry is missing.
  */
 async function rebuildTipsTxt(zhLangRoot: string): Promise<string | undefined> {
   const kiwiTips = join(REPO_CACHE_DIR, 'kiwi/config/Betterloadingscreen/tips/zh_CN.txt')
   const outPath = join(BUILD_DIR, 'zh-tips/config/Betterloadingscreen/tips/zh_CN.txt')
   await mkdir(dirname(outPath), { recursive: true })
-  if (existsSync(kiwiTips)) {
-    await copyFile(kiwiTips, outPath)
-    return outPath
-  }
 
-  const tipsLangPath = join(zhLangRoot, TIPS_PT_PATH)
-  if (!existsSync(tipsLangPath))
+  const registry = await readJson<TipsRegistry>(join(REPO_ARCHIVE_DIR, TIPS_KEYMAP_FILE))
+  if (!registry?.order || !existsSync(kiwiTips)) {
+    // No stable order to map against (or no upstream copy): preserve old behaviour.
+    if (existsSync(kiwiTips)) {
+      await copyFile(kiwiTips, outPath)
+      return outPath
+    }
     return undefined
-  const text = await readFile(tipsLangPath, 'utf8')
-  // Parse our own emitted .lang by splitting on first `=` per line.
-  const entries: LangEntry[] = []
-  for (const line of text.split('\n')) {
-    const idx = line.indexOf('=')
-    if (idx < 0) continue
-    entries.push({ key: line.slice(0, idx).trim(), value: line.slice(idx + 1) })
   }
-  const body = entriesToTips(entries)
+  const order = registry.order
 
-  let preamble = ''
-  if (existsSync(kiwiTips)) {
-    const kiwiText = (await readFile(kiwiTips, 'utf8')).replace(/\r\n/g, '\n')
-    const lines = kiwiText.split('\n').slice(0, 8)
-    preamble = `${lines.join('\n')}\n`
+  const kiwiText = (await readFile(kiwiTips, 'utf8')).replace(/\r\n/g, '\n')
+  const preamble = kiwiText.split('\n').slice(0, 8).join('\n')
+  const kiwiContent = parseTipsLines(kiwiText, 9)
+  const kiwiByKey = new Map<string, string>()
+  order.forEach((key, i) => {
+    if (i < kiwiContent.length && kiwiContent[i].trim().length > 0)
+      kiwiByKey.set(key, kiwiContent[i])
+  })
+
+  const ourByKey = await loadTipsLang(join(zhLangRoot, TIPS_PT_PATH))
+  const chosen = order.map(key => kiwiByKey.get(key) ?? ourByKey.get(key) ?? '')
+
+  // Packed file: skip untranslated lines (Minecraft would otherwise show blanks).
+  const packBody = chosen.filter(v => v.length > 0).join('\n')
+  await writeFile(outPath, `${preamble}\n${packBody}\n`, 'utf8')
+
+  // Upstream candidate: only when fully translated AND ahead of Kiwi233.
+  const complete = chosen.every(v => v.length > 0)
+  const ahead = JSON.stringify(chosen) !== JSON.stringify(kiwiContent)
+  if (complete && ahead) {
+    await mkdir(dirname(TIPS_OUTPUT_PATH), { recursive: true })
+    await writeFile(TIPS_OUTPUT_PATH, `${preamble}\n${chosen.join('\n')}\n`, 'utf8')
+    const today = new Date().toISOString().slice(0, 10)
+    const note = `## ${today} 上游候选\n`
+      + `- tips 全部 ${chosen.length} 条已汉化且领先上游，已写入 \`${TIPS_OUTPUT_PATH}\` 待手动 PR 到 Kiwi233 master\n\n`
+    const changelogPath = join(REPO_ARCHIVE_DIR, TIPS_CHANGELOG_FILE)
+    const prev = existsSync(changelogPath) ? await readFile(changelogPath, 'utf8') : '# Tips key 变更日志\n\n'
+    await writeFile(changelogPath, prev + note, 'utf8')
+    // eslint-disable-next-line no-console
+    console.log(`[restore] tips 100% & ahead of upstream → wrote ${TIPS_OUTPUT_PATH}`)
   }
-  await writeFile(outPath, preamble + body, 'utf8')
+  else {
+    // eslint-disable-next-line no-console
+    console.log(`[restore] tips complete=${complete} ahead=${ahead}; no upstream candidate emitted`)
+  }
   return outPath
 }
 

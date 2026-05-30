@@ -41,8 +41,10 @@ import {
   runBounded,
   sleep,
 } from './lib/pt-client.ts'
-import { writeJson } from './lib/cache.ts'
-import { parseTipsLines, tipsToEntries } from './lib/tips-parser.ts'
+import { readJson, writeJson } from './lib/cache.ts'
+import { parseTipsLines } from './lib/tips-parser.ts'
+import { REPO_ARCHIVE_DIR, TIPS_KEYMAP_FILE } from './lib/config.ts'
+import type { TipsRegistry } from './lib/tips-registry.ts'
 import { stripPtJsonSuffix } from './lib/path-map.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
 
@@ -174,18 +176,19 @@ async function tryArtifactFlow(outRoot: string): Promise<boolean> {
 }
 
 /**
- * Tips: align Kiwi233's zh_CN.txt with fetch-en's synthetic English keys.
+ * Tips: align Kiwi233's zh_CN.txt with the stable tip keys.
  *
  * Upstream puts different-sized header blocks on each side. English: 7 comment
  * lines (content from line 8). Chinese: 7 comment lines + 1 PT feedback notice
- * on line 8 (content from line 9). We skip the respective headers and align
- * the rest by position.
+ * on line 8 (content from line 9). We skip the respective headers; the i-th
+ * Kiwi content line lines up with the i-th English tip in file order, which is
+ * `registry.order[i]` (the English file order persisted by fetch-en — note the
+ * `.en.json` is now id-ordered, so we must use `order`, not its array index).
  *
  * Line counts may legitimately differ — English tips are added in the modpack
- * before Kiwi233 translates them. We warn but do not fail: extra EN tips are
- * emitted with empty translation (stage=0) so diff-zh skips them and they
- * remain untranslated on PT 18818 until someone updates the repo-side zh_CN.txt.
- * Extra ZH lines past the EN count are ignored (upstream removed those tips).
+ * before Kiwi233 translates them. We warn but do not fail: uncovered EN tips
+ * are emitted with empty translation (stage=0) so diff-zh skips them and they
+ * remain untranslated on PT 18818. Extra ZH lines past the EN count are ignored.
  */
 async function buildTipsFrom4964Kiwi(): Promise<PtStringItem[] | undefined> {
   const enFile = join(BUILD_DIR, 'en', 'config/Betterloadingscreen/tips/zh_CN.lang.en.json')
@@ -193,22 +196,25 @@ async function buildTipsFrom4964Kiwi(): Promise<PtStringItem[] | undefined> {
   if (!existsSync(enFile) || !existsSync(zhFile))
     return undefined
   const enItems = JSON.parse(await readFile(enFile, 'utf8')) as PtStringItem[]
+  const origByKey = new Map(enItems.map(item => [item.key, item.original]))
+  const registry = await readJson<TipsRegistry>(join(REPO_ARCHIVE_DIR, TIPS_KEYMAP_FILE))
+  // Fall back to id order (== file order on a bootstrap run) if order is absent.
+  const order = registry?.order ?? enItems.map(item => item.key)
   const zhLines = parseTipsLines(await readFile(zhFile, 'utf8'), 9)
-  if (enItems.length !== zhLines.length) {
+  if (order.length !== zhLines.length) {
     // eslint-disable-next-line no-console
     console.warn(
-      `[pull-zh-4964] tips line mismatch (en=${enItems.length} zh=${zhLines.length}); `
+      `[pull-zh-4964] tips line mismatch (en=${order.length} zh=${zhLines.length}); `
       + 'aligning by position, extras stay untranslated',
     )
   }
-  const zhEntries = tipsToEntries(zhLines)
-  return enItems.map((en, i) => {
-    const zh = zhEntries[i]
+  return order.map((key, i) => {
+    const zh = zhLines[i]
     return {
-      key: en.key,
-      original: en.original,
-      translation: zh?.value ?? '',
-      stage: zh ? 1 : 0, // Kiwi233 rows are reviewed; uncovered rows start at 0
+      key,
+      original: origByKey.get(key) ?? '',
+      translation: zh ?? '',
+      stage: zh != null ? 1 : 0, // Kiwi233 rows are reviewed; uncovered rows start at 0
     }
   })
 }

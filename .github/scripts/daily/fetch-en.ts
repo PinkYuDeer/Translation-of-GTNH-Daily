@@ -25,13 +25,21 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, readdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, sep } from 'node:path'
 
-import { BUILD_DIR, REPO_CACHE_DIR, UPSTREAM } from './lib/config.ts'
-import { writeJson, readNewlines, writeNewlines, type NewlineFileForms, type NewlineForm } from './lib/cache.ts'
-import { dedupePtItemsByKey, parseLang, langToPtItems, type PtStringItem } from './lib/lang-parser.ts'
-import { parseTipsLines, tipsToEntries } from './lib/tips-parser.ts'
+import {
+  BUILD_DIR,
+  REPO_ARCHIVE_DIR,
+  REPO_CACHE_DIR,
+  TIPS_CHANGELOG_FILE,
+  TIPS_KEYMAP_FILE,
+  UPSTREAM,
+} from './lib/config.ts'
+import { readJson, writeJson, readNewlines, writeNewlines, type NewlineFileForms, type NewlineForm } from './lib/cache.ts'
+import { dedupePtItemsByKey, parseLang, type PtStringItem } from './lib/lang-parser.ts'
+import { parseTipsLines } from './lib/tips-parser.ts'
+import { alignTips, renderChangelogSection, type TipsRegistry } from './lib/tips-registry.ts'
 import { isPercentNewlineKey, normalizeNewlines, sniffNewline } from './lib/newlines.ts'
 import { rewriteTargetRelpath, stripVersionSuffix } from './lib/path-map.ts'
 
@@ -188,16 +196,41 @@ function mergeNewlineForms(
 }
 
 /**
- * Tips get a synthetic `tip.0001 …` key layout. Newline sniffing does not
- * apply — each tip line is a standalone value.
+ * Tips are keyed via a stable registry (`archive/tips/keymap.json`) rather than
+ * positionally, so inserting/deleting/rewording an English line no longer
+ * shifts every later key. Entries are emitted in id-ascending order (append
+ * order) so existing PT rows never move; the English file order is persisted as
+ * `registry.order` for the .txt packer and the Kiwi alignment in pull-zh-4964.
+ * Newline sniffing does not apply — each tip line is a standalone value.
  */
-function processTipsFile(content: string): PtStringItem[] {
+async function processTipsFile(content: string): Promise<PtStringItem[]> {
   // en_US.txt's first 7 lines are the upstream comment block; content starts
   // at line 8. Chinese shifts this by 1 (line 8 is the PT feedback notice);
   // see pull-zh-4964's buildTipsFrom4964Kiwi for the zh side.
   const lines = parseTipsLines(content, 8)
-  const entries = tipsToEntries(lines)
-  return langToPtItems(entries)
+  const today = new Date().toISOString().slice(0, 10)
+  const keymapPath = join(REPO_ARCHIVE_DIR, TIPS_KEYMAP_FILE)
+  const registry = await readJson<TipsRegistry>(keymapPath)
+  const result = alignTips(lines, registry, today)
+
+  await writeJson(keymapPath, { ...result.registry, order: result.order })
+
+  if (result.bootstrap) {
+    // eslint-disable-next-line no-console
+    console.log(`[fetch-en] tips registry bootstrap: ${result.ptEntries.length} entries`)
+  }
+  else if (result.changes.length > 0) {
+    const changelogPath = join(REPO_ARCHIVE_DIR, TIPS_CHANGELOG_FILE)
+    await mkdir(dirname(changelogPath), { recursive: true })
+    const prev = existsSync(changelogPath)
+      ? await readFile(changelogPath, 'utf8')
+      : '# Tips key 变更日志\n\n'
+    await writeFile(changelogPath, prev + renderChangelogSection(today, result.changes), 'utf8')
+    // eslint-disable-next-line no-console
+    console.log(`[fetch-en] tips changes: ${result.changes.length} (see ${TIPS_CHANGELOG_FILE})`)
+  }
+
+  return result.ptEntries.map(e => ({ key: e.key, original: e.original, translation: '', stage: 0 }))
 }
 
 /**
@@ -313,7 +346,7 @@ async function main(): Promise<void> {
   const tipsFile = join(modpackRoot, 'config/Betterloadingscreen/tips/en_US.txt')
   if (existsSync(tipsFile)) {
     const ptPath = 'config/Betterloadingscreen/tips/zh_CN.lang'
-    const items = processTipsFile(await readFile(tipsFile, 'utf8'))
+    const items = await processTipsFile(await readFile(tipsFile, 'utf8'))
     if (items.length > 0)
       collected.set(ptPath, { ptPath, source: 'G', entries: items })
   }
