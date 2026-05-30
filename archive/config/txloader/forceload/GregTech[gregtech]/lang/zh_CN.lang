@@ -183,3 +183,4 @@ GT5U.gui.text.computation_loss=§4由于算力不足关机.
 GT5U.gui.text.critical_ph_value=pH超出临界值。
 GT5U.gui.text.bec_clogged=当前存在超过3个凝聚态物体
 GT5U.gui.text.structure_error.exo_foundry_too_many_hatch=仓室过多
+GT5U.EBF.heat=热容
