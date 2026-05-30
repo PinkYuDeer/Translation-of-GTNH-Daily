@@ -52,9 +52,9 @@ import {
   BUILD_DIR,
   REPO_ARCHIVE_DIR,
   REPO_CACHE_DIR,
-  TIPS_CHANGELOG_FILE,
   TIPS_KEYMAP_FILE,
-  TIPS_OUTPUT_PATH,
+  TIPS_OUTPUT_REL,
+  TIPS_UPSTREAM_STAGE,
 } from './lib/config.ts'
 import { readJson, readNewlines, resolveNewlineForm, type NewlineFileForms } from './lib/cache.ts'
 import { parseTipsLines } from './lib/tips-parser.ts'
@@ -211,11 +211,12 @@ async function loadTipsLang(absPath: string): Promise<Map<string, string>> {
  * ahead). Lines are emitted in the English file order (`registry.order`), with
  * Kiwi233's 8-line preamble (7 comments + the PT feedback notice) preserved.
  *
- * When the merged result covers every active tip *and* differs from Kiwi233's
- * current zh_CN.txt (i.e. we are 100% translated and ahead of upstream), the
- * full file is also written to the git-tracked `TIPS_OUTPUT_PATH` so it can be
- * committed to our master and manually PR'd upstream. Idempotent: once upstream
- * catches up, "ahead" goes false and we stop touching the tracked file.
+ * When the merged result covers every active tip (100% translated), the full
+ * file is staged to `BUILD_DIR/upstream-tips/<TIPS_OUTPUT_REL>` (NOT committed to
+ * our master). A later workflow step force-syncs the `up/master` branch from
+ * upstream master and drops this file on top, so the maintainer gets a clean
+ * single-file diff to PR upstream. The "ahead of upstream" gate is the workflow's
+ * diff against freshly-fetched upstream master, not this script.
  *
  * Falls back to copying Kiwi233's file verbatim if the key registry is missing.
  */
@@ -251,24 +252,20 @@ async function rebuildTipsTxt(zhLangRoot: string): Promise<string | undefined> {
   const packBody = chosen.filter(v => v.length > 0).join('\n')
   await writeFile(outPath, `${preamble}\n${packBody}\n`, 'utf8')
 
-  // Upstream candidate: only when fully translated AND ahead of Kiwi233.
+  // Stage the full file for the up/master publish step only when 100% covered.
+  // "Ahead of upstream" is decided there (diff vs freshly-fetched upstream master).
   const complete = chosen.every(v => v.length > 0)
-  const ahead = JSON.stringify(chosen) !== JSON.stringify(kiwiContent)
-  if (complete && ahead) {
-    await mkdir(dirname(TIPS_OUTPUT_PATH), { recursive: true })
-    await writeFile(TIPS_OUTPUT_PATH, `${preamble}\n${chosen.join('\n')}\n`, 'utf8')
-    const today = new Date().toISOString().slice(0, 10)
-    const note = `## ${today} 上游候选\n`
-      + `- tips 全部 ${chosen.length} 条已汉化且领先上游，已写入 \`${TIPS_OUTPUT_PATH}\` 待手动 PR 到 Kiwi233 master\n\n`
-    const changelogPath = join(REPO_ARCHIVE_DIR, TIPS_CHANGELOG_FILE)
-    const prev = existsSync(changelogPath) ? await readFile(changelogPath, 'utf8') : '# Tips key 变更日志\n\n'
-    await writeFile(changelogPath, prev + note, 'utf8')
+  if (complete) {
+    const stagePath = join(BUILD_DIR, TIPS_UPSTREAM_STAGE, TIPS_OUTPUT_REL)
+    await mkdir(dirname(stagePath), { recursive: true })
+    await writeFile(stagePath, `${preamble}\n${chosen.join('\n')}\n`, 'utf8')
     // eslint-disable-next-line no-console
-    console.log(`[restore] tips 100% & ahead of upstream → wrote ${TIPS_OUTPUT_PATH}`)
+    console.log(`[restore] tips 100% translated → staged ${stagePath} for up/master`)
   }
   else {
+    const missing = chosen.filter(v => v.length === 0).length
     // eslint-disable-next-line no-console
-    console.log(`[restore] tips complete=${complete} ahead=${ahead}; no upstream candidate emitted`)
+    console.log(`[restore] tips not fully translated (${missing} missing); no up/master candidate`)
   }
   return outPath
 }

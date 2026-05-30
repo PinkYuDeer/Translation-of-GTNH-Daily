@@ -134,11 +134,11 @@
 
 - 读 `.cache/newlines.json`，优先按每条原始占位还原；若该 key 没有记录且 key 含 `research_page`，优先用 `<BR>`；否则使用文件级最多占位；仍无记录才退为 `\n`
 - 合成 `.lang`；空译不写入包内文件（Minecraft 会回落到 `en_US.lang`）
-- tips `.txt` 按 `archive/tips/keymap.json` 的英文序合并（Kiwi233 优先、我方 PT 译文补缺），空行跳过；100% 且领先上游时另写跟踪路径 `config/Betterloadingscreen/tips/zh_CN.txt`（见「tips 稳定 key 注册表」）
+- tips `.txt` 按 `archive/tips/keymap.json` 的英文序合并（Kiwi233 优先、我方 PT 译文补缺），空行跳过；100% 汉化时把完整文件暂存到 `.build/upstream-tips/`（见「tips 稳定 key 注册表」），不进我们 master
 - 并入 Kiwi 直通文件，按参考包目录结构铺好，`7z -mx=9` 打包到 `$ASSETS_PATH/$ARCHIVE_NAME`
 - `PACK_ONLY=1` 环境变量可跳过重建，只重打包（手动重发版用）
 
-随后由 workflow 负责：打 tag、`softprops/action-gh-release` 发 Release、清理过期 daily cache、清理过期 nightly Release。`progress/` 与 `archive/`（含 `archive/tips/`）的变更由 commit 步骤推回仓库；tips 领先上游的成品由打包后的 `Commit Upstream-Ready Tips` 步骤单独提交到 master。
+随后由 workflow 负责：打 tag、`softprops/action-gh-release` 发 Release、清理过期 daily cache、清理过期 nightly Release。`progress/` 与 `archive/`（含 `archive/tips/` 的 keymap 与 changelog）的变更由 commit 步骤推回 master；tips 领先上游的成品**不进 master**，由打包后的 `Publish Upstream-Ready Tips to up/master` 步骤推到 `up/master` 分支（见下节）。
 
 ---
 
@@ -205,9 +205,17 @@ loading-screen 的 tips 是一行一句的纯文本，PT 只能存 key/value。�
 - **两套顺序解耦**：上传 PT 按 `id` 升序（新词条天然追加在末尾，已有行槽位不动，PT diff 最干净）；打包 / 生成 `.txt` 按英文原文序（`registry.order`）。
 - 增删改写的人读日志写到 `archive/tips/changelog.md`。
 
-### 领先上游时回推本仓库 master
+### 领先上游时推到 `up/master` 分支
 
-`restore-and-pack` 合并出完整 zh_CN.txt（Kiwi233 优先、我方 PT 译文补缺，按英文序）。当**所有活跃 tip 都已汉化**且**结果与 Kiwi233 当前 zh_CN.txt 不同**（即我方 100% 且领先上游）时，把成品写到跟踪路径 `config/Betterloadingscreen/tips/zh_CN.txt`，由 workflow 提交到**我们的 master**（维护者手动 PR 到 Kiwi233）。上游一旦合并、不再领先，下次便不再改动该文件（幂等）。
+`restore-and-pack` 合并出完整 zh_CN.txt（Kiwi233 优先、我方 PT 译文补缺，按英文序）。当**所有活跃 tip 都已汉化**（100%）时，把成品暂存到 `.build/upstream-tips/config/Betterloadingscreen/tips/zh_CN.txt`——**不进我们 master**。
+
+随后 `Publish Upstream-Ready Tips to up/master` 步骤：
+
+1. **从上游 master 强制同步**：full-clone `Kiwi233/Translation-of-GTNH@master`；
+2. 把暂存的成品覆盖进去，`git status` 判断是否**领先**（与刚拉取的上游当前文件不同）；
+3. 若领先：在上游 master 之上建/重置 `up/master` 分支、提交这一个文件、**force-push 到我们 fork 的 `up/master`**。
+
+于是 `up/master = 上游 master + 我们这一个 tips 文件`，维护者从 `<fork>:up/master → Kiwi233:master` 一键发 PR，diff 干净只含该文件。上游一旦合并、不再领先，该步在第 2 步即跳过（幂等）。keymap 与 changelog 仍只在 master 维护，不进 PR。
 
 ---
 

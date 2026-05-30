@@ -181,21 +181,38 @@ jobs:
         env:
           ARCHIVE_NAME: daily-${{ env.NB_LOCAL_DATE }}.7z
 
-      # When tips are 100% translated AND ahead of Kiwi233's master, restore-and-pack
-      # writes the finished config/Betterloadingscreen/tips/zh_CN.txt to the worktree.
-      # Commit it to our master; the maintainer PRs it upstream manually.
-      - name: Commit Upstream-Ready Tips
+      # When tips are 100% translated, restore-and-pack stages the finished file at
+      # .build/upstream-tips/<rel>. Publish it to a dedicated `up/master` branch that
+      # is force-synced from upstream master each run, so the maintainer gets a clean
+      # single-file diff to PR upstream. Nothing here touches our own master.
+      - name: Publish Upstream-Ready Tips to up/master
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          UPSTREAM_REPO: Kiwi233/Translation-of-GTNH
+          REL: config/Betterloadingscreen/tips/zh_CN.txt
         run: |
-          if [ -z "$(git status --porcelain -- config/Betterloadingscreen/tips archive/tips)" ]; then
-            echo "[commit] no upstream-ready tips changes to commit"
+          SRC=".build/upstream-tips/$REL"
+          if [ ! -f "$SRC" ]; then
+            echo "[up/master] tips not 100% translated this run; skipping"
+            exit 0
+          fi
+          TMP="$(mktemp -d)"
+          # Force-sync up/master from upstream master (full clone avoids shallow-push rejection).
+          git clone --no-tags --branch master "https://github.com/${UPSTREAM_REPO}.git" "$TMP"
+          install -D "$SRC" "$TMP/$REL"
+          cd "$TMP"
+          if [ -z "$(git status --porcelain -- "$REL")" ]; then
+            echo "[up/master] tips already match upstream; not ahead, skipping"
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add config/Betterloadingscreen/tips archive/tips
-          git commit -m "Daily: tips fully translated & ahead of upstream"
-          git push
+          git checkout -B up/master
+          git add "$REL"
+          git commit -m "Update loading-screen tips zh_CN.txt (GTNH Daily ahead-of-upstream)"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" up/master
+          echo "[up/master] published; open a PR from ${GITHUB_REPOSITORY}:up/master -> ${UPSTREAM_REPO}:master"
 
       - name: Save Daily Cache
         if: steps.restore-daily-cache.outputs.cache-hit != 'true'
