@@ -43,4 +43,6 @@ languagefile {
     S:hatch_type_ttdynamo=多安动力仓
     S:hatch_type_ttenergy=多安能源仓
     S:pollen.matrix=基质花粉
+    S:gt.blockmachines.luv_beamline_input_hatch.name=束流输入仓(LuV)
+    S:gt.blockmachines.luv_beamline_output_hatch.name=束流输出仓(LuV)
 }
