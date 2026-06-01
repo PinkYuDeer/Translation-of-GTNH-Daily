@@ -8,3 +8,7 @@ GT5U.gui.text.gtnhlanth.low_input_eut=输入EU/t太低了,无法产生光子!
 GT5U.gui.text.gtnhlanth.scerror=数学错误，配方损坏？
 GT5U.gui.text.gtnhlanth.inputinterrupt=输入束流不得中断或改变！
 GT5U.gui.text.gtnhlanth.noparticle=粒子缺失（生成率为0）！
+gtnhlanth.tt.tc.info8=§f处理时间 = 5 秒 * §6所需最低通量§f / §e输入束流通量
+gtnhlanth.tt.tc.info9=每tick最多可处理的总量，取决于聚焦输入总线中所有同种§a掩模§7的耐久度之和
+gtnhlanth.tt.tc.focusinputbus=聚焦输入总线
+gtnhlanth.tt.tc.beamlineinputhatch=束流输入仓

@@ -1,11 +1,8 @@
 {
-  "updatedAt": "2026-05-31T17:37:18.641Z",
+  "updatedAt": "2026-06-01T19:05:05.765Z",
   "projectId": 18818,
   "projectUrl": "https://paratranz.cn/projects/18818",
   "history": [
-    {
-      "date": "2026-03-04"
-    },
     {
       "date": "2026-03-05"
     },
@@ -696,6 +693,19 @@
         "translated": 75202,
         "total": 75249,
         "percent": 99.94
+      },
+      "settled": {
+        "translated": 75249,
+        "total": 75249,
+        "percent": 100
+      }
+    },
+    {
+      "date": "2026-06-02",
+      "updated": {
+        "translated": 75202,
+        "total": 75323,
+        "percent": 99.84
       }
     }
   ]
