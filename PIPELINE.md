@@ -7,7 +7,7 @@
 ## 分支策略
 
 - **`master`**：唯一长期分支，保存工作流与同步脚本
-- **Tags / Releases**：每日构建自动生成 `0-nightly-build/YYYY-MM-DD` tag 与对应 Release，过期的 Release 由 cleanup job 自动清理
+- **Tags / Releases**：每日构建自动生成 `0-nightly-build/YYYY-MM-DD` tag 与对应 Release（同日重复构建原地覆盖同 tag、不产生残留 draft），过期的 Release 由 cleanup job 自动清理
 - 汉化原文历史由上游 [GTNewHorizons/GTNH-Translations](https://github.com/GTNewHorizons/GTNH-Translations) 保存；校对译文由 [PT 项目 4964](https://paratranz.cn/projects/4964) 保存
 
 ---
@@ -89,7 +89,8 @@
 
 ### 3.5 `sync-terms.ts` — 术语表同步
 
-- `GET /projects/4964/terms` → `PUT /projects/18818/terms`
+- 以 4964 为准，把 18818 的术语表**镜像**成 4964 的副本：按术语原文比对两边，对差异逐条走 per-term CRUD —— `POST .../terms`（4964 有、18818 无）新增、`PUT .../terms/{id}`（内容不同）更新、`DELETE .../terms/{id}`（18818 有、4964 无）删除，**增删改都同步**，无差异则一条不发
+- 不再用 `PUT /projects/18818/terms`（multipart 批量导入）：它只插入新词条，不更新改动、也不删除上游已删的词条，两边会越漂越远
 - 保证 18818 的术语表永远跟着 4964 走
 
 ### 4. `merge-final.ts` — 本地整合
@@ -122,6 +123,7 @@
 - 跑两次，夹住 push-final，因为 PT 18818 的 stats 只在 push-final 时变化：
   - **settle（`--settle`，push-final 之前）**：此刻 PT 还是昨天推送后的状态，所以这份快照就是昨天的 `settled`（昨天译文一天后的成色）。先写它，能让一个已经完工到 100% 的日子保持绿色，不被今天 push 进来的新增未翻译英文拉低
   - **update（默认，push-final 之后）**：PT 已反映今天的合并推送，这份快照写成今天的 `updated`；今天的 `settled` 留空到明天的 settle 阶段再补
+- **仅定时构建写进度**：settle / update 两步都带 `if: github.event_name == 'schedule'`。手动 `workflow_dispatch` 跳过它们——否则会把构建当时（已在定时 push 之后）的成色错当成某天快照写进 `progress.json`，污染记录；定时任务失败后用「Re-run」重跑仍是 `schedule` 事件，照常记录
 - `GET /api/projects/18818`（公开端点，无需 token）读取 `stats.translated` 与 `stats.total - stats.hidden`，按可见词条计算 `percent = translated / visible`
 - `progress/progress.json` 维护 90 天滚动窗口；每次 daily 动 3 天：弃用 90 天前最旧的、settle 阶段回填昨天的 `settled`、update 阶段写今天的 `updated`
 - 柱高把百分比线性映射到 `[70, 100]` 视觉带（左下角有「起点 70%」断档标识），颜色 100% 绿 / ≥95% 黄 / 其余红，无数据日全高灰
@@ -138,7 +140,7 @@
 - 并入 Kiwi 直通文件，按参考包目录结构铺好，`7z -mx=9` 打包到 `$ASSETS_PATH/$ARCHIVE_NAME`
 - `PACK_ONLY=1` 环境变量可跳过重建，只重打包（手动重发版用）
 
-随后由 workflow 负责：打 tag、`softprops/action-gh-release` 发 Release、清理过期 daily cache、清理过期 nightly Release。`progress/` 与 `archive/`（含 `archive/tips/` 的 keymap 与 changelog）的变更由 commit 步骤推回 master；tips 领先上游的成品**不进 master**，由打包后的 `Publish Upstream-Ready Tips to up/master` 步骤推到 `up/master` 分支（见下节）。
+随后由 workflow 负责：打 tag、`softprops/action-gh-release@v2` 发 Release、清理过期 daily cache、清理过期 nightly Release。**tag 用 `git push -f` 原地移动、不再 delete+recreate**：删 tag 会把对应已发布 Release 变成 draft，而按 tag 查询的 Release API 看不到 draft，于是下次发布另起一个新 Release、旧 draft 永久残留（按日期去重的清理 job 也碰不到它）；原地移动 tag 则让 Release 留在原处被就地更新（`@v2` 默认 `overwrite_files`，覆盖同名 .7z），实现「同 tag 直接覆盖」。另有一步按 id 删除带 `0-nightly-build/*` tag 名的 draft Release，清掉历史遗留。`progress/` 与 `archive/`（含 `archive/tips/` 的 keymap 与 changelog）的变更由 commit 步骤推回 master；tips 领先上游的成品**不进 master**，由打包后的 `Publish Upstream-Ready Tips to up/master` 步骤推到 `up/master` 分支（见下节）。
 
 ---
 

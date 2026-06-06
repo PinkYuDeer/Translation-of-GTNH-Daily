@@ -148,7 +148,11 @@ jobs:
 
       # Pre-push snapshot: PT 18818 still holds yesterday's pushed state here,
       # so this records YESTERDAY's settled value before today's push changes it.
+      # Progress tracks the 01:00 daily cadence, so only scheduled runs (and their
+      # re-runs) may write it — a manual workflow_dispatch would otherwise stamp a
+      # day's snapshot with mid-day, post-scheduled-push numbers and corrupt it.
       - name: Settle Yesterday's Progress (pre-push)
+        if: ${{ github.event_name == 'schedule' }}
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/build-progress.ts --settle
 
@@ -157,8 +161,10 @@ jobs:
         run: stdbuf -oL -eL bun .github/scripts/daily/push-final.ts
 
       # Post-push snapshot: PT 18818 now reflects today's push, so this records
-      # today's updated value and renders the SVG + README tooltip.
+      # today's updated value and renders the SVG + README tooltip. Scheduled-only
+      # for the same reason as the settle step above.
       - name: Update Translation Progress Chart (post-push)
+        if: ${{ github.event_name == 'schedule' }}
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/build-progress.ts
 
@@ -301,12 +307,20 @@ jobs:
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          # Force-update the tag in place. Do NOT delete+recreate it: deleting a
+          # tag turns its published Release into a draft, and since the by-tag
+          # release API skips drafts the next publish creates a brand-new Release
+          # while the draft lingers forever (the dated cleanup job dedupes by tag
+          # name and never prunes it). Moving the tag keeps the Release attached,
+          # so softprops updates it in place and overwrites the same-day asset.
           git tag -f ${{ env.NB_TAG }}
-          git push --delete origin ${{ env.NB_TAG }} || true
-          git push origin ${{ env.NB_TAG }}
+          git push -f origin ${{ env.NB_TAG }}
 
+      # @v2 updates the existing Release for this tag in place and, with
+      # overwrite_files defaulting to true, replaces the same-day .7z asset
+      # rather than erroring on a duplicate name.
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.NB_TAG }}
           name: 每日构建 - ${{ env.NB_LOCAL_DATE }}
@@ -315,6 +329,27 @@ jobs:
 
             自动构建于 ${{ env.NB_LOCAL_DATE }} ${{ env.NB_LOCAL_TIME }}
           files: ${{ env.ASSETS_PATH }}/*
+
+      # Sweep up draft Releases orphaned by the historical delete+recreate tag
+      # flow. They keep a `0-nightly-build/*` tag_name but, being drafts, are
+      # invisible to the by-tag release API and to the dated cleanup job. Match
+      # and delete them by id so a published Release on the same tag is untouched.
+      - name: Cleanup Orphaned Nightly Draft Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          ids="$(gh api --paginate "repos/$REPO/releases" \
+            --jq '.[] | select(.draft == true) | select((.tag_name // "") | startswith("0-nightly-build/")) | .id')"
+          if [ -z "$ids" ]; then
+            echo "[cleanup-drafts] no orphaned nightly drafts"
+            exit 0
+          fi
+          for id in $ids; do
+            echo "[cleanup-drafts] deleting draft release id=$id"
+            gh api -X DELETE "repos/$REPO/releases/$id"
+          done
 
   cleanup-outdated-daily-builds:
     name: Cleanup Outdated Daily Builds
