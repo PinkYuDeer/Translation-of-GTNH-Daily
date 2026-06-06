@@ -22,8 +22,11 @@
  *   - 4964 rows that still have translation text but are stage=0 are treated as
  *     stale/unreviewed. They must not overwrite a translated 18818 row; if the
  *     18818 original drifted, the 18818 translation is emitted as a stale marker.
- *   - If 4964 has a translated key but with older English, it also becomes a stale
- *     marker, overriding current PT's older translation payload.
+ *   - If 4964 has a translated key but with older English, it supplies the stale
+ *     marker payload only when current PT has no translation of its own. When we
+ *     do have one, OUR translation is kept as the 旧译 base: 18818 tracks 4964
+ *     daily, so a drifted 18818 row is based on English at least as new as 4964's,
+ *     and taking 4964 would regress the reference when upstream hasn't moved.
  *   - 4964 rows/files without an English counterpart are ignored. The upstream
  *     PT project is a translation source only, never an English key source.
  *   - Final rows whose translation is blank after trim stay blank at stage=0.
@@ -652,11 +655,21 @@ async function main(): Promise<void> {
             }
           }
         }
-        else if ((source.stage ?? 0) > 0 && !hasCurrentExactTranslation) {
+        else if (
+          (source.stage ?? 0) > 0
+          && !hasCurrentExactTranslation
+          && !currentDrift.has(enItem.key)
+        ) {
+          // 4964's English is stale too (its original no longer matches). Use its
+          // translation as the 旧译 base only when we have no current PT
+          // translation of our own; otherwise fall through so the drift branch
+          // below keeps OUR translation. 18818 tracks 4964 daily, so when our row
+          // has drifted it is based on English at least as new as 4964's — taking
+          // 4964 here would regress the reference to an older translation when
+          // upstream hasn't moved.
           const stale = staleMarker(enItem.key, enItem.original, source.translation)
           translation = stale.translation
           stage = 0
-          currentDrift.delete(enItem.key)
           stats.staleFrom4964++
           stats.formatPlaceholdersReplaced += stale.replacements
           handledBySource = true
