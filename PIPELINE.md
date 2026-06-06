@@ -219,11 +219,12 @@ loading-screen 的 tips 是一行一句的纯文本，PT 只能存 key/value。�
 
 随后 `Publish Upstream-Ready Tips to up/master` 步骤：
 
-1. **从上游 master 强制同步**：full-clone `Kiwi233/Translation-of-GTNH@master`；
-2. 把暂存的成品覆盖进去，`git status` 判断是否**领先**（与刚拉取的上游当前文件不同）；
-3. 若领先：在上游 master 之上建/重置 `up/master` 分支、提交这一个文件、**force-push 到我们 fork 的 `up/master`**。
+1. **缓存比对（先于克隆）**：把本次成品与 `.cache/up-master/tips-last-pushed.txt`（随 daily `.cache` 持久化，记录上次推到 `up/master` 的字节）逐字节对比；**完全一致则整步跳过**——既不每天 force-push 制造脏历史，也不会覆盖 reviewer 推到 `up/master` 上的评审修改。该缓存只认「我方上次推送的内容」，与分支上的评审改动无关；手动 `force=true` 触发可绕过它强制重推。
+2. **从上游 master 强制同步**：full-clone `Kiwi233/Translation-of-GTNH@master`；
+3. 把暂存的成品覆盖进去，`git status` 判断是否**领先**（与刚拉取的上游当前文件不同）；
+4. 若领先：在上游 master 之上建/重置 `up/master` 分支、提交这一个文件、**force-push 到我们 fork 的 `up/master`**，并把成品写回缓存。
 
-于是 `up/master = 上游 master + 我们这一个 tips 文件`，维护者从 `<fork>:up/master → Kiwi233:master` 一键发 PR，diff 干净只含该文件。上游一旦合并、不再领先，该步在第 2 步即跳过（幂等）。keymap 与 changelog 仍只在 master 维护，不进 PR。
+于是 `up/master = 上游 master + 我们这一个 tips 文件`，维护者从 `<fork>:up/master → Kiwi233:master` 一键发 PR，diff 干净只含该文件。上游一旦合并、不再领先，该步在第 3 步即跳过（幂等）；译文未变时第 1 步即跳过（不再每天 force-push）。keymap 与 changelog 仍只在 master 维护，不进 PR。
 
 ---
 
