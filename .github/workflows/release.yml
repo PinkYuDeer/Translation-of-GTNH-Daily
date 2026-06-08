@@ -101,12 +101,13 @@ jobs:
           ARCHIVE_NAME: ${{ github.ref_name }}.7z
         run: stdbuf -oL -eL bun .github/scripts/daily/restore-and-pack.ts
 
-      # NotEnoughCharacters 字库随发版一起附上（daily 不打；保留上游 Release 的这份额外资产）。
-      - name: Download NotEnoughCharacters Font Mod
+      # NeverEnoughCharacters-Rework（NEC 重制版字库）随发版一起附上（daily 不打）。
+      # 版本固定便于复现；升级时改下面两行即可。
+      - name: Download NeverEnoughCharacters-Rework Font Mod
         shell: bash
         env:
-          NEC_URL: https://raw.githubusercontent.com/Kiwi233/Translation-of-GTNH/NotEnoughCharacters/NotEnoughCharacters-1.6.1.jar
-          NEC_NAME: NotEnoughCharacters-1.6.1.jar
+          NEC_URL: https://github.com/asdflj/NeverEnoughCharacters-Rework/releases/download/v0.1.5/nech-v0.1.5.jar
+          NEC_NAME: nech-v0.1.5.jar
         run: |
           mkdir -p "$ASSETS_PATH"
           curl -fSL --retry 3 "$NEC_URL" -o "$ASSETS_PATH/$NEC_NAME"

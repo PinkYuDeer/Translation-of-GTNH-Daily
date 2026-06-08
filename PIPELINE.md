@@ -145,7 +145,7 @@
 
 ### 手动发版 `release.yml`
 
-发一个「仅含 tag」的 Release（tag 非 `0-nightly-build/**`）即触发。本仓库不把译文文件提交进 git（它们在 PT 上），所以发版**复用 daily 的拉取 + 打包链**、而不是打包 checkout：`generate-gregtech-lang`（`GT5U_LANG_USE_CACHE_ONLY=1`，从 gt5u-lang 缓存还原，不跑 ~40min 的 GT5U 客户端）→ `fetch-en` → `pull-current-18818` → `pull-zh-4964` → `merge-final` → `restore-and-pack`（`ARCHIVE_NAME=${tag}.7z`），产出与 daily 同结构的 7z，再附上 NotEnoughCharacters 字库，由 `softprops/action-gh-release@v2` 挂到该 tag 的 Release 上。
+发一个「仅含 tag」的 Release（tag 非 `0-nightly-build/**`）即触发。本仓库不把译文文件提交进 git（它们在 PT 上），所以发版**复用 daily 的拉取 + 打包链**、而不是打包 checkout：`generate-gregtech-lang`（`GT5U_LANG_USE_CACHE_ONLY=1`，从 gt5u-lang 缓存还原，不跑 ~40min 的 GT5U 客户端）→ `fetch-en` → `pull-current-18818` → `pull-zh-4964` → `merge-final` → `restore-and-pack`（`ARCHIVE_NAME=${tag}.7z`），产出与 daily 同结构的 7z，再附上 NeverEnoughCharacters-Rework（NEC 重制版）字库，由 `softprops/action-gh-release@v2` 挂到该 tag 的 Release 上。
 
 与 daily 的区别：**只读 PT、不回推**——没有 `sync-terms` / `push-final` / 进度图 / `up/master`，也不向仓库 commit 任何东西（fetch-en / pull 写到工作区 `archive/*` 的变更不提交）。缓存按 `gt5u-lang-`、`daily-` 前缀从默认分支（master）回退获取（tag ref 取不到自身缓存）；缓存冷时仅换行占位退化为 `\n`，而 GregTech.lang 若无可用缓存则发版失败（需先至少跑过一次 daily）。
 
@@ -264,7 +264,7 @@ loading-screen 的 tips 是一行一句的纯文本，PT 只能存 key/value。�
 │   ├── daily.yml              每日 sync + build（含 force 手动模式）
 │   ├── export-pt-lang-package.yml
 │   ├── issue-dispatch.yml     Issue 表单触发固定工作流
-│   └── release.yml            手动发版：复用 daily 拉取+打包链（只读 PT）+ NEC 字库
+│   └── release.yml            手动发版：复用 daily 拉取+打包链（只读 PT）+ NEC 重制版字库
 └── ISSUE_TEMPLATE/
     ├── 0-FOS.md
     ├── 1-daily-sync.yml
