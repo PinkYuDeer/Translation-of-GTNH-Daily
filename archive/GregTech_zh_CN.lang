@@ -45,4 +45,6 @@ languagefile {
     S:pollen.matrix=基质花粉
     S:gt.blockmachines.luv_beamline_input_hatch.name=束流输入仓(LuV)
     S:gt.blockmachines.luv_beamline_output_hatch.name=束流输出仓(LuV)
+    S:gt.blockmachines.hatch.pattern_provider.crafting.name=合成样板供应总线
+    S:gt.blockmachines.hatch.pattern_provider.crafting.tooltip=为多方块机器输入物品  \n使用螺丝刀Shift+右键点击开启/关闭自动整理\n容量：36 组
 }
