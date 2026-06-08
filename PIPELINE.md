@@ -71,7 +71,7 @@
 - `.build/generated-gregtech/GregTech.lang` 必须存在；`daily-history/GregTech.lang` 不再作为回退来源
 - 枚举 A–G 七类英文源（见脚本顶部说明），按 PT 18818 路径写成统一 JSON 骨架
 - **去重**：同一目标路径同时来自 `daily-history` 与 `Modpack` 时，`daily-history` 胜
-- **任务书（betterquesting）路径迁移**：上游把 DefaultQuests lang 从 `config/txloader/load/betterquesting/lang/` 移到 `config/txloader/forceload/betterquesting/lang/`；其 `en_US.lang` 现**仅存在于 daily-history 的 forceload 目录**（Modpack 只放 `template.lang`）。`dailyHistoryToPtPath` 对**这一条** forceload 路径做窄特例收录（其余 forceload 仍由 Modpack 提供，保持「Modpack 负责 forceload」的优先级）。旧译搬运见步骤 4 的一次性迁移
+- **任务书（betterquesting）路径迁移**：上游把 DefaultQuests lang 从 `config/txloader/load/betterquesting/lang/` 移到 `config/txloader/forceload/betterquesting/lang/`；其 `en_US.lang` 现**仅存在于 daily-history 的 forceload 目录**（Modpack 只放 `template.lang`）。`dailyHistoryToPtPath` 对**这一条** forceload 路径做窄特例收录（其余 forceload 仍由 Modpack 提供，保持「Modpack 负责 forceload」的优先级）
 - **换行嗅探**：逐词条识别英文原文使用的是 `<BR>` / `<br>` / `[br]` / `%n` / 字面 `\n` / 字面 `\\n`，并逐文件统计出现最多的形式，写入 `.cache/newlines.json`
 - 输出：`.build/en/<pt-path>.en.json`（所有值已归一化为真换行）
 
@@ -106,7 +106,6 @@
 - 4964 中英文侧已无的条目/文件一律忽略，不再作为 source-only 补入 18818
 - 最终译文 `trim()` 后为空的条目保持空译并置 stage=0；已有 18818 译文即使等于原文也保留，因为颜色值、ID、数字等词条常以原文作合法译文
 - 退役文件（英文侧消失，或已带 `.disable` / `.achive` 等旧后缀）与活跃文件内已移除词条单独记录，后续归档到仓库并从 PT 删除
-- **任务书一次性迁移**：上游把任务书 lang 从 load 移到 forceload 后，旧译仍在旧 load 路径。构建 `zh-current` 后，若新 forceload 路径尚无现网数据而旧 load 路径有，就把旧文件作为新路径的「当前态」种入——key+original 一致 → 旧译被保留并落到 forceload；旧 load 路径同轮因无英文源而归档删除，无损。PT 18818 出现 forceload 文件后该迁移由 `!has(new)` 守卫自动失效
 
 输出：
 - `.build/zh-final/<pt-path>.json` — 最终 PT 文件内容
