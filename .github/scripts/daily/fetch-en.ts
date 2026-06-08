@@ -116,6 +116,14 @@ function dailyHistoryToPtPath(rel: string): string | undefined {
   // C: config/txloader/load/<id>/lang/en_US.lang → zh_CN.lang
   if (rel.startsWith('config/txloader/load/'))
     return rel.replace(/en_US\.lang$/, 'zh_CN.lang')
+  // C2: quest book ("任务书", the DefaultQuests lang) moved load→forceload
+  // upstream. Its en_US.lang now lives ONLY here in daily-history's forceload
+  // dir — the Modpack ships just template.lang there, so modpackToPtPath can't
+  // supply it. Ingest this one forceload path narrowly; every other forceload
+  // file still comes from the Modpack (keeping daily-history out of forceload
+  // preserves the "Modpack owns forceload" precedence for everything else).
+  if (rel === 'config/txloader/forceload/betterquesting/lang/en_US.lang')
+    return rel.replace(/en_US\.lang$/, 'zh_CN.lang')
   return undefined
 }
 

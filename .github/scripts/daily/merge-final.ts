@@ -473,6 +473,21 @@ async function main(): Promise<void> {
     })
   }
 
+  // One-time quest-book migration: upstream moved the DefaultQuests lang
+  // load→forceload (see fetch-en's C2), but PT 18818's existing translations
+  // still sit at the old load path. Seed the new forceload path with the old
+  // file's rows so the merge preserves them (same keys + originals) instead of
+  // emitting a blank new file and archiving the old one untranslated. The old
+  // load path, now English-less, is archived in the same run — no translation
+  // loss. Self-disables once PT 18818 actually holds the forceload file.
+  const QUEST_BOOK_OLD_PT_PATH = 'config/txloader/load/betterquesting/lang/zh_CN.lang'
+  const QUEST_BOOK_NEW_PT_PATH = 'config/txloader/forceload/betterquesting/lang/zh_CN.lang'
+  if (!currentFiles.has(QUEST_BOOK_NEW_PT_PATH)) {
+    const oldQuestBook = currentFiles.get(QUEST_BOOK_OLD_PT_PATH)
+    if (oldQuestBook)
+      currentFiles.set(QUEST_BOOK_NEW_PT_PATH, oldQuestBook)
+  }
+
   const targetEntries = [...enFiles.keys()].map(ptPath => ({ name: `${ptPath}.json` }))
   const targetByName = new Map(targetEntries.map(entry => [entry.name, entry]))
   const targetByModId = indexByModId(targetEntries)

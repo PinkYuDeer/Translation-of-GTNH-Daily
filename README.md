@@ -68,7 +68,7 @@
 | `config/txloader/forceload/____gtnhoverridenames_zhcn/**`（Kiwi233 直通）| 同路径原样复制                                                           |
 | `resources/minecraft/**`（Kiwi233 直通，字库等资源）                    | `config/txloader/forceload/minecraft/**`                                 |
 
-> 同一目标路径同时被 `daily-history` 与 `Modpack` 覆盖时（例如 betterquesting），以 `daily-history` 为准。
+> 同一目标路径同时被 `daily-history` 与 `Modpack` 覆盖时，以 `daily-history` 为准。任务书（betterquesting）的 DefaultQuests lang 已随上游从 `config/txloader/load/betterquesting/` 迁到 `config/txloader/forceload/betterquesting/`，英文源取自 daily-history 的 forceload 目录。
 
 ---
 
