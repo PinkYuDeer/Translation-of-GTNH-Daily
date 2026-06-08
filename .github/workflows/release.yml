@@ -1,40 +1,121 @@
 name: 0. Release
 
-# 手动发版：push 非每日构建的 tag 时触发。
+# 手动发版：push 非每日构建的 tag 时触发（例如直接发一个「仅含 tag」的 Release）。
 # 每日构建用 `0-nightly-build/**` 形式的 tag，由 daily.yml 自己创建 Release，
-# 因此这里显式排除，避免重复发布和对空 orphan commit 的二次打包。
+# 因此这里显式排除，避免重复发布。
+#
+# 这里复用 daily 的拉取 + 打包链：发版当下从 PT 18818 拉取全量汉化、与英文/4964/Kiwi
+# 合并、重建 .lang 并打成与 daily 同结构的 7z。与 daily 的区别：
+#   - GregTech.lang 复用最近一次 daily 的 gt5u-lang 缓存（不再跑 ~40min 的 GT5U 客户端）；
+#   - 不回推 PT（无 push-final / sync-terms）、不动进度图、不发 up/master、不提交仓库。
+# 因为本仓库不把译文文件提交进 git（它们在 PT 上），所以不能像上游那样直接打包 checkout。
 on:
   push:
     tags-ignore:
       - '0-nightly-build/**'
 
+permissions:
+  contents: write
+
 env:
-  REPO_PATH: .repo.local.d
+  # PT 主站凭据（读 4964、读 18818）；发版只读取，不回推。
+  PARATRANZ_TOKEN: ${{ secrets.PARATRANZ_TOKEN }}
+  PT_4964_ID: ${{ secrets.PARATRANZ_PROJECT_ID }}
+  PT_18818_ID: ${{ secrets.PARATRANZ_DAILY_PROJECT_ID }}
+  # 兼容旧命名；脚本会自动读取其中之一
+  PARATRANZ_DAILY_PROJECT_ID: ${{ secrets.PARATRANZ_DAILY_PROJECT_ID }}
+
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # 构建/缓存/上游克隆目录（脚本都从这里读，与 daily 一致）
+  BUILD_DIR: .build
+  CACHE_DIR: .cache
+  REPO_CACHE_DIR: .build/repo-cache
+
+  # 最终 7z 输出位置
   ASSETS_PATH: .assets.local.d
 
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          path: ${{ env.REPO_PATH }}
+      - name: Checkout Repo
+        uses: actions/checkout@v4
 
-      - name: Build Release Assets
-        uses: Kiwi233/Translation-of-GTNH/.github/actions/run-script@master
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          script: release.ts
+          bun-version: latest
+
+      # newlines.json（占位还原）与 file-ids 等可复用状态在 daily 缓存里；恢复它能让
+      # 打出的 .lang 与 daily 字节一致。PT 状态下面都会重新拉取，缓存冷只会让换行退化。
+      # tag ref 取不到自身缓存，靠 `daily-` 前缀回退到默认分支（master）当天的缓存。
+      - name: Restore Daily Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache
+          key: daily-release-${{ github.ref_name }}
+          restore-keys: |
+            daily-
+
+      # 复用最近一次 daily 跑出的 GregTech.lang（gt5u-lang 缓存，独立于上面的 daily 缓存
+      # 即时保存，更可靠）。同样靠前缀回退到默认分支的缓存。
+      - name: Restore GregTech.lang Cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/generated-gregtech
+          key: gt5u-lang-release-${{ github.ref_name }}
+          restore-keys: |
+            gt5u-lang-
+
+      # ========== 三源整合流水线（只读 PT，不回推）==========
+      # GregTech.lang：cache-only，从缓存还原到 .build/generated-gregtech/，不跑 GT5U 客户端。
+      - name: Restore GregTech.lang from Cache (no GT5U run)
+        shell: bash
+        env:
+          GT5U_LANG_USE_CACHE_ONLY: '1'
+        run: stdbuf -oL -eL bun .github/scripts/daily/generate-gregtech-lang.ts
+
+      - name: Fetch English (A–G) + Normalize Newlines
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/fetch-en.ts
+
+      - name: Pull Current PT 18818 State
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/pull-current-18818.ts
+
+      - name: Pull PT 4964 + Stage Kiwi233 Extras
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/pull-zh-4964.ts
+
+      - name: Merge English + PT 18818 + PT 4964 Locally
+        shell: bash
+        run: stdbuf -oL -eL bun .github/scripts/daily/merge-final.ts
+
+      - name: Rebuild .lang Files and Pack 7z
+        shell: bash
         env:
           ARCHIVE_NAME: ${{ github.ref_name }}.7z
+        run: stdbuf -oL -eL bun .github/scripts/daily/restore-and-pack.ts
+
+      # NotEnoughCharacters 字库随发版一起附上（daily 不打；保留上游 Release 的这份额外资产）。
+      - name: Download NotEnoughCharacters Font Mod
+        shell: bash
+        env:
           NEC_URL: https://raw.githubusercontent.com/Kiwi233/Translation-of-GTNH/NotEnoughCharacters/NotEnoughCharacters-1.6.1.jar
           NEC_NAME: NotEnoughCharacters-1.6.1.jar
+        run: |
+          mkdir -p "$ASSETS_PATH"
+          curl -fSL --retry 3 "$NEC_URL" -o "$ASSETS_PATH/$NEC_NAME"
 
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }} 版本汉化
           body: |
-            请阅读主页ReadMe以获知详细用法
+            请阅读主页 README 以获知详细用法
           files: ${{ env.ASSETS_PATH }}/*
