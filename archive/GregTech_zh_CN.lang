@@ -47,4 +47,9 @@ languagefile {
     S:gt.blockmachines.luv_beamline_output_hatch.name=束流输出仓(LuV)
     S:gt.blockmachines.hatch.pattern_provider.crafting.name=合成样板供应总线
     S:gt.blockmachines.hatch.pattern_provider.crafting.tooltip=为多方块机器输入物品  \n使用螺丝刀Shift+右键点击开启/关闭自动整理\n容量：36 组
+    S:hatch_type_coolantinputhatch=冷却液输入仓
+    S:hatch_type_coolantoutputhatch=冷却液输出仓
+    S:hatch_type_heliuminputhatch=氦输入仓
+    S:hatch_type_steamoutputhatch=蒸汽输出仓
+    S:hatch_type_waterinputhatch=蓄水仓
 }
