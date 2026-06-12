@@ -16,3 +16,4 @@ GT5U.gui.text.cropsnh.industrialFarm.seedOverflow=库存种子已超出上限
 GT5U.gui.text.cropsnh.industrialFarm.cannotGrow=这个种子不能在当前的环境中生长
 GT5U.gui.text.cropsnh.industrialFarm.notEnoughWater=水量不足
 GT5U.gui.text.cropsnh.industrialFarm.notEnoughEnrichedFertilizer=富集肥料不足
+cropsnh_tooltip.NaNCertificate=已接受挑战！

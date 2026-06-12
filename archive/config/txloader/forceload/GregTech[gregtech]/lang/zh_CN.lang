@@ -193,3 +193,4 @@ item.gt.cell.entangled_quantium.name=纠缠玻色-爱因斯坦凝聚态量子单
 item.gt.cell.prepared_infinity.name=预处理玻色-爱因斯坦凝聚态无尽单元
 GT5U.gui.tooltip.hatch.crafting_pattern_provider.1=§e大型分子装配室（LMA）§r的样板存储
 GT5U.gui.tooltip.hatch.crafting_pattern_provider.2=容量：%d样板
+GT5U.multiblock.scanner.recipesDone=配方完成：§a%s
