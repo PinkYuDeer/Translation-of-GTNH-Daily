@@ -8,7 +8,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        提交后会触发 `0. Export PT Lang Package`, 从 PT 18818 导出纯 lang 原文/译文包并更新最新 Release.
+        提交后会触发 `0. Export PT Lang Package`, 从 PT 20315 导出纯 lang 原文/译文包并更新最新 Release.
 
   - type: dropdown
     id: target
@@ -16,7 +16,7 @@ body:
       label: 触发目标 target
       description: 选择要触发的固定工作流.
       options:
-        - Export PT Lang Package - 导出 PT 18818 当前纯 lang 原文/译文包
+        - Export PT Lang Package - 导出 PT 20315 当前纯 lang 原文/译文包
       default: 0
     validations:
       required: true
@@ -27,7 +27,7 @@ body:
       label: 数据来源 source_project
       description: 选择导出数据来源.
       options:
-        - "PT 18818 - Daily 项目当前全部 lang 文件"
+        - "PT 20315 - Daily 项目当前全部 lang 文件"
       default: 0
     validations:
       required: true

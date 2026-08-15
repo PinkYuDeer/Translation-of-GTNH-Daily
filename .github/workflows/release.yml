@@ -4,10 +4,10 @@ name: 0. Release
 # 每日构建用 `0-nightly-build/**` 形式的 tag，由 daily.yml 自己创建 Release，
 # 因此这里显式排除，避免重复发布。
 #
-# 这里复用 daily 的拉取 + 打包链：发版当下从 PT 18818 拉取全量汉化、与英文/4964/Kiwi
+# 这里复用 daily 的拉取 + 打包链：发版当下从 PT 20315 拉取全量汉化、与英文/4964/Kiwi
 # 合并、重建 .lang 并打成与 daily 同结构的 7z。与 daily 的区别：
 #   - GregTech.lang 复用最近一次 daily 的 gt5u-lang 缓存（不再跑 ~40min 的 GT5U 客户端）；
-#   - 不回推 PT（无 push-final / sync-terms）、不动进度图、不发 up/master、不提交仓库。
+#   - 不回推 PT（无 push-final / sync-terms）、不动进度图、不提交仓库。
 # 因为本仓库不把译文文件提交进 git（它们在 PT 上），所以不能像上游那样直接打包 checkout。
 on:
   push:
@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 env:
-  # PT 主站凭据（读 4964、读 18818）；发版只读取，不回推。
+  # PT 主站凭据（读 4964、读 20315）；发版只读取，不回推。
   PARATRANZ_TOKEN: ${{ secrets.PARATRANZ_TOKEN }}
   PT_4964_ID: ${{ secrets.PARATRANZ_PROJECT_ID }}
   PT_18818_ID: ${{ secrets.PARATRANZ_DAILY_PROJECT_ID }}
@@ -83,7 +83,7 @@ jobs:
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/fetch-en.ts
 
-      - name: Pull Current PT 18818 State
+      - name: Pull Current PT 20315 State
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/pull-current-18818.ts
 
@@ -91,7 +91,7 @@ jobs:
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/pull-zh-4964.ts
 
-      - name: Merge English + PT 18818 + PT 4964 Locally
+      - name: Merge English + PT 20315 + PT 4964 Locally
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/merge-final.ts
 

@@ -1,7 +1,7 @@
 /**
  * Build the translation-progress chart shown in the GitHub README.
  *
- * Reads the latest ParaTranz 18818 stats and maintains a rolling 90-day
+ * Reads the latest Daily ParaTranz project stats and maintains a rolling 90-day
  * window at `progress/progress.json`. Each day records two snapshots so
  * the tooltip can show both numbers separately:
  *   - updated: stats captured by THIS day's 01:00 CN daily run
@@ -28,8 +28,8 @@ import path from 'node:path'
 import { API_BASE, PT_18818_ID } from './lib/config.ts'
 
 const WINDOW_DAYS = 90
-const PROJECT_ID = 18818
-const PROJECT_URL = 'https://paratranz.cn/projects/18818'
+const PROJECT_ID = Number(PT_18818_ID)
+const PROJECT_URL = `https://paratranz.cn/projects/${PT_18818_ID}`
 const DATA_PATH = 'progress/progress.json'
 // Two pre-rendered variants: GitHub renders README SVGs as an isolated <img>,
 // so an in-SVG prefers-color-scheme media query can't read the page theme.
@@ -238,7 +238,7 @@ function slideWindow(prev: DayEntry[], today: string): DayEntry[] {
 }
 
 /**
- * Settle phase — runs BEFORE today's push to PT 18818. At this point PT still
+ * Settle phase — runs BEFORE today's push to the Daily PT project. At this point PT still
  * reflects yesterday's pushed state (push-final is what changes PT, and it
  * hasn't run yet), so this snapshot is yesterday's *settled* value: how
  * yesterday's translation stands a day later. Writing it pre-push is what keeps
@@ -263,7 +263,7 @@ function applySettle(
 }
 
 /**
- * Update phase — runs AFTER today's push to PT 18818. PT now reflects today's
+ * Update phase — runs AFTER today's push to the Daily PT project. PT now reflects today's
  * merged + pushed content, so this snapshot is today's *updated* value.
  * `settled` is left unset; tomorrow's settle phase fills it.
  */
@@ -578,23 +578,33 @@ async function main(): Promise<void> {
       console.error(`[build-progress] no existing ${DATA_PATH}; run with --backfill first`)
       process.exit(1)
     }
+    const currentProject = existing.projectId === PROJECT_ID
+      ? { ...existing, projectUrl: PROJECT_URL }
+      : {
+          updatedAt: new Date().toISOString(),
+          projectId: PROJECT_ID,
+          projectUrl: PROJECT_URL,
+          history: slideWindow([], today),
+        }
+    if (existing.projectId !== PROJECT_ID)
+      console.log(`[build-progress] project changed ${existing.projectId} -> ${PROJECT_ID}; reset historical chart data`)
     if (noFetch) {
-      data = existing
+      data = currentProject
       // eslint-disable-next-line no-console
       console.log('[build-progress] --no-fetch: re-rendering SVG only')
     }
     else if (isSettle) {
       const stats = await fetchTodayStats()
-      const history = applySettle(existing.history, today, stats)
-      data = { ...existing, updatedAt: new Date().toISOString(), history }
+      const history = applySettle(currentProject.history, today, stats)
+      data = { ...currentProject, updatedAt: new Date().toISOString(), history }
       const yesterday = history[history.length - 2]
       // eslint-disable-next-line no-console
       console.log(`[build-progress] settle ${yesterday?.date} translated=${yesterday?.settled?.translated} total=${yesterday?.settled?.total} percent=${yesterday?.settled?.percent}`)
     }
     else {
       const stats = await fetchTodayStats()
-      const history = applyUpdate(existing.history, today, stats)
-      data = { ...existing, updatedAt: new Date().toISOString(), history }
+      const history = applyUpdate(currentProject.history, today, stats)
+      data = { ...currentProject, updatedAt: new Date().toISOString(), history }
       const last = history[history.length - 1]
       // eslint-disable-next-line no-console
       console.log(`[build-progress] update ${today} translated=${last.updated?.translated} total=${last.updated?.total} percent=${last.updated?.percent}`)

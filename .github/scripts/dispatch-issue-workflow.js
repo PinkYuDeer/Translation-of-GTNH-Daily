@@ -54,7 +54,7 @@ export function resolveDispatchRequest(issue) {
       workflowName: 'Export PT Lang Package',
       inputs: {},
       summary: [
-        ['source_project', sourceProject || 'PT 18818 - Daily 项目当前全部 lang 文件'],
+        ['source_project', sourceProject || 'PT 20315 - Daily 项目当前全部 lang 文件'],
         ['release_target', releaseTarget || 'latest - 覆盖 pt-lang-package-latest Release 和 pt-lang-package.zip'],
       ],
     }

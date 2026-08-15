@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: '强制模式：将所有合并/换行规范化后的文件重新推送到 PT 18818'
+        description: '强制模式：将所有合并/换行规范化后的文件重新推送到 PT 20315'
         type: boolean
         default: false
       skip_gt5u:
@@ -20,7 +20,7 @@ permissions:
   contents: write
 
 env:
-  # PT 主站凭据（读 4964、读写 18818）
+  # PT 主站凭据（读 4964、读写 20315）
   PARATRANZ_TOKEN: ${{ secrets.PARATRANZ_TOKEN }}
   PT_4964_ID: ${{ secrets.PARATRANZ_PROJECT_ID }}
   PT_18818_ID: ${{ secrets.PARATRANZ_DAILY_PROJECT_ID }}
@@ -128,7 +128,7 @@ jobs:
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/fetch-en.ts
 
-      - name: Pull Current PT 18818 State
+      - name: Pull Current PT 20315 State
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/pull-current-18818.ts
 
@@ -136,17 +136,17 @@ jobs:
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/pull-zh-4964.ts
 
-      - name: Sync ParaTranz Terms (4964 -> 18818)
+      - name: Sync ParaTranz Terms (4964 -> 20315)
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/sync-terms.ts
 
-      - name: Merge English + PT 18818 + PT 4964 Locally
+      - name: Merge English + PT 20315 + PT 4964 Locally
         shell: bash
         env:
           FORCE: ${{ inputs.force == true && '1' || '' }}
         run: stdbuf -oL -eL bun .github/scripts/daily/merge-final.ts
 
-      # Pre-push snapshot: PT 18818 still holds yesterday's pushed state here,
+      # Pre-push snapshot: PT 20315 still holds yesterday's pushed state here,
       # so this records YESTERDAY's settled value before today's push changes it.
       # Progress tracks the 01:00 daily cadence, so only scheduled runs (and their
       # re-runs) may write it — a manual workflow_dispatch would otherwise stamp a
@@ -156,11 +156,11 @@ jobs:
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/build-progress.ts --settle
 
-      - name: Push Merged Final Files to PT 18818
+      - name: Push Merged Final Files to PT 20315
         shell: bash
         run: stdbuf -oL -eL bun .github/scripts/daily/push-final.ts
 
-      # Post-push snapshot: PT 18818 now reflects today's push, so this records
+      # Post-push snapshot: PT 20315 now reflects today's push, so this records
       # today's updated value and renders the SVG + README tooltip. Scheduled-only
       # for the same reason as the settle step above.
       - name: Update Translation Progress Chart (post-push)
@@ -186,63 +186,6 @@ jobs:
         run: stdbuf -oL -eL bun .github/scripts/daily/restore-and-pack.ts
         env:
           ARCHIVE_NAME: daily-${{ env.NB_LOCAL_DATE }}.7z
-
-      # When tips are 100% translated, restore-and-pack stages the finished file at
-      # .build/upstream-tips/<rel>. Publish it to a dedicated `up/master` branch that
-      # is force-synced from upstream master each run, so the maintainer gets a clean
-      # single-file diff to PR upstream. Nothing here touches our own master.
-      #
-      # A byte-cache of the last published file (persisted in the daily .cache) gates
-      # the push: when our staged tips are identical to what we last published, the
-      # step no-ops. That stops the daily force-push churn while upstream is unchanged,
-      # and keeps any review fixes pushed onto up/master from being clobbered next run.
-      - name: Publish Upstream-Ready Tips to up/master
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          UPSTREAM_REPO: Kiwi233/Translation-of-GTNH
-          REL: config/Betterloadingscreen/tips/zh_CN.txt
-          FORCE: ${{ inputs.force == true && '1' || '' }}
-        run: |
-          # Absolute paths: we cd into the temp clone later, so relative paths break.
-          SRC="${GITHUB_WORKSPACE}/.build/upstream-tips/$REL"
-          # Exact bytes we last force-pushed to up/master. Lives in the daily .cache,
-          # so it survives across runs and is the authority on "what WE published"
-          # (independent of any review fixes a maintainer pushes onto the branch).
-          CACHE_FILE="${GITHUB_WORKSPACE}/.cache/up-master/tips-last-pushed.txt"
-
-          if [ ! -f "$SRC" ]; then
-            echo "[up/master] tips not 100% translated this run; skipping"
-            exit 0
-          fi
-
-          # No-op when our output is unchanged: avoids dirty history and preserves
-          # review fixes on up/master. `force=true` bypasses this to re-publish.
-          if [ -z "$FORCE" ] && [ -f "$CACHE_FILE" ] && cmp -s "$SRC" "$CACHE_FILE"; then
-            echo "[up/master] tips unchanged since last publish; skipping push"
-            exit 0
-          fi
-
-          TMP="$(mktemp -d)"
-          # Force-sync up/master from upstream master (full clone avoids shallow-push rejection).
-          git clone --no-tags --branch master "https://github.com/${UPSTREAM_REPO}.git" "$TMP"
-          install -D "$SRC" "$TMP/$REL"
-          cd "$TMP"
-          if [ -z "$(git status --porcelain -- "$REL")" ]; then
-            echo "[up/master] tips already match upstream; not ahead, skipping"
-            # Re-seed the cache so a later eviction/cold start won't re-push.
-            install -D "$SRC" "$CACHE_FILE"
-            exit 0
-          fi
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git checkout -B up/master
-          git add "$REL"
-          git commit -m "Update loading-screen tips zh_CN.txt (GTNH Daily ahead-of-upstream)"
-          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" up/master
-          # Record exactly what we just published so tomorrow can no-op if unchanged.
-          install -D "$SRC" "$CACHE_FILE"
-          echo "[up/master] published; open a PR from ${GITHUB_REPOSITORY}:up/master -> ${UPSTREAM_REPO}:master"
 
       - name: Save Daily Cache
         if: steps.restore-daily-cache.outputs.cache-hit != 'true'

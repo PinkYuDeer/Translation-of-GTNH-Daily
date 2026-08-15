@@ -1,837 +1,277 @@
 {
-  "updatedAt": "2026-06-15T18:46:01.356Z",
-  "projectId": 18818,
-  "projectUrl": "https://paratranz.cn/projects/18818",
+  "updatedAt": "2026-08-15T09:19:59.840Z",
+  "projectId": 20315,
+  "projectUrl": "https://paratranz.cn/projects/20315",
   "history": [
     {
-      "date": "2026-03-19"
+      "date": "2026-05-18"
     },
     {
-      "date": "2026-03-20"
+      "date": "2026-05-19"
     },
     {
-      "date": "2026-03-21"
+      "date": "2026-05-20"
     },
     {
-      "date": "2026-03-22"
+      "date": "2026-05-21"
     },
     {
-      "date": "2026-03-23"
+      "date": "2026-05-22"
     },
     {
-      "date": "2026-03-24"
+      "date": "2026-05-23"
     },
     {
-      "date": "2026-03-25"
+      "date": "2026-05-24"
     },
     {
-      "date": "2026-03-26"
+      "date": "2026-05-25"
     },
     {
-      "date": "2026-03-27"
+      "date": "2026-05-26"
     },
     {
-      "date": "2026-03-28"
+      "date": "2026-05-27"
     },
     {
-      "date": "2026-03-29"
+      "date": "2026-05-28"
     },
     {
-      "date": "2026-03-30"
+      "date": "2026-05-29"
     },
     {
-      "date": "2026-03-31"
+      "date": "2026-05-30"
     },
     {
-      "date": "2026-04-01"
+      "date": "2026-05-31"
     },
     {
-      "date": "2026-04-02"
+      "date": "2026-06-01"
     },
     {
-      "date": "2026-04-03"
+      "date": "2026-06-02"
     },
     {
-      "date": "2026-04-04"
+      "date": "2026-06-03"
     },
     {
-      "date": "2026-04-05"
+      "date": "2026-06-04"
     },
     {
-      "date": "2026-04-06"
+      "date": "2026-06-05"
     },
     {
-      "date": "2026-04-07"
+      "date": "2026-06-06"
     },
     {
-      "date": "2026-04-08"
+      "date": "2026-06-07"
     },
     {
-      "date": "2026-04-09"
-    },
-    {
-      "date": "2026-04-10"
-    },
-    {
-      "date": "2026-04-11"
-    },
-    {
-      "date": "2026-04-12"
-    },
-    {
-      "date": "2026-04-13"
-    },
-    {
-      "date": "2026-04-14"
-    },
-    {
-      "date": "2026-04-15"
-    },
-    {
-      "date": "2026-04-16"
-    },
-    {
-      "date": "2026-04-17"
-    },
-    {
-      "date": "2026-04-18"
-    },
-    {
-      "date": "2026-04-19"
-    },
-    {
-      "date": "2026-04-20",
-      "updated": {
-        "translated": 73028,
-        "total": 82155,
-        "percent": 88.89
-      },
-      "settled": {
-        "translated": 73028,
-        "total": 82155,
-        "percent": 88.89
-      }
-    },
-    {
-      "date": "2026-04-21",
-      "updated": {
-        "translated": 73470,
-        "total": 82172,
-        "percent": 89.41
-      },
-      "settled": {
-        "translated": 73470,
-        "total": 82172,
-        "percent": 89.41
-      }
-    },
-    {
-      "date": "2026-04-22",
-      "updated": {
-        "translated": 73855,
-        "total": 82187,
-        "percent": 89.86
-      },
-      "settled": {
-        "translated": 73855,
-        "total": 82187,
-        "percent": 89.86
-      }
-    },
-    {
-      "date": "2026-04-23",
-      "updated": {
-        "translated": 74243,
-        "total": 82205,
-        "percent": 90.31
-      },
-      "settled": {
-        "translated": 74243,
-        "total": 82205,
-        "percent": 90.31
-      }
-    },
-    {
-      "date": "2026-04-24",
-      "updated": {
-        "translated": 74631,
-        "total": 82223,
-        "percent": 90.77
-      },
-      "settled": {
-        "translated": 74631,
-        "total": 82223,
-        "percent": 90.77
-      }
-    },
-    {
-      "date": "2026-04-25",
-      "updated": {
-        "translated": 75012,
-        "total": 82233,
-        "percent": 91.22
-      },
-      "settled": {
-        "translated": 75012,
-        "total": 82233,
-        "percent": 91.22
-      }
-    },
-    {
-      "date": "2026-04-26",
-      "updated": {
-        "translated": 75392,
-        "total": 82242,
-        "percent": 91.67
-      },
-      "settled": {
-        "translated": 75392,
-        "total": 82242,
-        "percent": 91.67
-      }
-    },
-    {
-      "date": "2026-04-27",
-      "updated": {
-        "translated": 75770,
-        "total": 82249,
-        "percent": 92.12
-      },
-      "settled": {
-        "translated": 75770,
-        "total": 82249,
-        "percent": 92.12
-      }
-    },
-    {
-      "date": "2026-04-28",
-      "updated": {
-        "translated": 76159,
-        "total": 82268,
-        "percent": 92.57
-      },
-      "settled": {
-        "translated": 76159,
-        "total": 82268,
-        "percent": 92.57
-      }
-    },
-    {
-      "date": "2026-04-29",
-      "updated": {
-        "translated": 76541,
-        "total": 82278,
-        "percent": 93.03
-      },
-      "settled": {
-        "translated": 76541,
-        "total": 82278,
-        "percent": 93.03
-      }
-    },
-    {
-      "date": "2026-04-30",
-      "updated": {
-        "translated": 76922,
-        "total": 82288,
-        "percent": 93.48
-      },
-      "settled": {
-        "translated": 76922,
-        "total": 82288,
-        "percent": 93.48
-      }
-    },
-    {
-      "date": "2026-05-01",
-      "updated": {
-        "translated": 77311,
-        "total": 82306,
-        "percent": 93.93
-      },
-      "settled": {
-        "translated": 77311,
-        "total": 82306,
-        "percent": 93.93
-      }
-    },
-    {
-      "date": "2026-05-02",
-      "updated": {
-        "translated": 77689,
-        "total": 82312,
-        "percent": 94.38
-      },
-      "settled": {
-        "translated": 77689,
-        "total": 82312,
-        "percent": 94.38
-      }
-    },
-    {
-      "date": "2026-05-03",
-      "updated": {
-        "translated": 78085,
-        "total": 82337,
-        "percent": 94.84
-      },
-      "settled": {
-        "translated": 78085,
-        "total": 82337,
-        "percent": 94.84
-      }
-    },
-    {
-      "date": "2026-05-04",
-      "updated": {
-        "translated": 78473,
-        "total": 82354,
-        "percent": 95.29
-      },
-      "settled": {
-        "translated": 78473,
-        "total": 82354,
-        "percent": 95.29
-      }
-    },
-    {
-      "date": "2026-05-05",
-      "updated": {
-        "translated": 78858,
-        "total": 82367,
-        "percent": 95.74
-      },
-      "settled": {
-        "translated": 78858,
-        "total": 82367,
-        "percent": 95.74
-      }
-    },
-    {
-      "date": "2026-05-06",
-      "updated": {
-        "translated": 79250,
-        "total": 82388,
-        "percent": 96.19
-      },
-      "settled": {
-        "translated": 79250,
-        "total": 82388,
-        "percent": 96.19
-      }
-    },
-    {
-      "date": "2026-05-07",
-      "updated": {
-        "translated": 79638,
-        "total": 82404,
-        "percent": 96.64
-      },
-      "settled": {
-        "translated": 79638,
-        "total": 82404,
-        "percent": 96.64
-      }
-    },
-    {
-      "date": "2026-05-08",
-      "updated": {
-        "translated": 80023,
-        "total": 82417,
-        "percent": 97.1
-      },
-      "settled": {
-        "translated": 80023,
-        "total": 82417,
-        "percent": 97.1
-      }
-    },
-    {
-      "date": "2026-05-09",
-      "updated": {
-        "translated": 80406,
-        "total": 82427,
-        "percent": 97.55
-      },
-      "settled": {
-        "translated": 80406,
-        "total": 82427,
-        "percent": 97.55
-      }
-    },
-    {
-      "date": "2026-05-10",
-      "updated": {
-        "translated": 80799,
-        "total": 82448,
-        "percent": 98
-      },
-      "settled": {
-        "translated": 80799,
-        "total": 82448,
-        "percent": 98
-      }
-    },
-    {
-      "date": "2026-05-11",
-      "updated": {
-        "translated": 80941,
-        "total": 82463,
-        "percent": 98.15
-      },
-      "settled": {
-        "translated": 80941,
-        "total": 82463,
-        "percent": 98.15
-      }
-    },
-    {
-      "date": "2026-05-12",
-      "updated": {
-        "translated": 81079,
-        "total": 82475,
-        "percent": 98.31
-      },
-      "settled": {
-        "translated": 81079,
-        "total": 82475,
-        "percent": 98.31
-      }
-    },
-    {
-      "date": "2026-05-13",
-      "updated": {
-        "translated": 81215,
-        "total": 82484,
-        "percent": 98.46
-      },
-      "settled": {
-        "translated": 81215,
-        "total": 82484,
-        "percent": 98.46
-      }
-    },
-    {
-      "date": "2026-05-14",
-      "updated": {
-        "translated": 81358,
-        "total": 82500,
-        "percent": 98.62
-      },
-      "settled": {
-        "translated": 81358,
-        "total": 82500,
-        "percent": 98.62
-      }
-    },
-    {
-      "date": "2026-05-15",
-      "updated": {
-        "translated": 81506,
-        "total": 82522,
-        "percent": 98.77
-      },
-      "settled": {
-        "translated": 81506,
-        "total": 82522,
-        "percent": 98.77
-      }
-    },
-    {
-      "date": "2026-05-16",
-      "updated": {
-        "translated": 81639,
-        "total": 82528,
-        "percent": 98.92
-      },
-      "settled": {
-        "translated": 81639,
-        "total": 82528,
-        "percent": 98.92
-      }
-    },
-    {
-      "date": "2026-05-17",
-      "updated": {
-        "translated": 81779,
-        "total": 82541,
-        "percent": 99.08
-      },
-      "settled": {
-        "translated": 81779,
-        "total": 82541,
-        "percent": 99.08
-      }
-    },
-    {
-      "date": "2026-05-18",
-      "updated": {
-        "translated": 81917,
-        "total": 82552,
-        "percent": 99.23
-      },
-      "settled": {
-        "translated": 81917,
-        "total": 82552,
-        "percent": 99.23
-      }
-    },
-    {
-      "date": "2026-05-19",
-      "updated": {
-        "translated": 82065,
-        "total": 82573,
-        "percent": 99.38
-      },
-      "settled": {
-        "translated": 82065,
-        "total": 82573,
-        "percent": 99.38
-      }
-    },
-    {
-      "date": "2026-05-20",
-      "updated": {
-        "translated": 82204,
-        "total": 82585,
-        "percent": 99.54
-      },
-      "settled": {
-        "translated": 82204,
-        "total": 82585,
-        "percent": 99.54
-      }
-    },
-    {
-      "date": "2026-05-21",
-      "updated": {
-        "translated": 82339,
-        "total": 82593,
-        "percent": 99.69
-      },
-      "settled": {
-        "translated": 82339,
-        "total": 82593,
-        "percent": 99.69
-      }
-    },
-    {
-      "date": "2026-05-22",
-      "updated": {
-        "translated": 82481,
-        "total": 82608,
-        "percent": 99.85
-      },
-      "settled": {
-        "translated": 82481,
-        "total": 82608,
-        "percent": 99.85
-      }
-    },
-    {
-      "date": "2026-05-23",
-      "updated": {
-        "translated": 82615,
-        "total": 82615,
-        "percent": 100
-      },
-      "settled": {
-        "translated": 82615,
-        "total": 82615,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-05-24",
-      "updated": {
-        "translated": 82635,
-        "total": 82635,
-        "percent": 100
-      },
-      "settled": {
-        "translated": 82635,
-        "total": 82635,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-05-25",
-      "updated": {
-        "translated": 82656,
-        "total": 82656,
-        "percent": 100
-      },
-      "settled": {
-        "translated": 82656,
-        "total": 82656,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-05-26",
-      "updated": {
-        "translated": 82674,
-        "total": 82674,
-        "percent": 100
-      },
-      "settled": {
-        "translated": 82674,
-        "total": 82674,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-05-27",
-      "updated": {
-        "translated": 82679,
-        "total": 82679,
-        "percent": 100
-      },
-      "settled": {
-        "translated": 82746,
-        "total": 82746,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-05-28",
-      "updated": {
-        "translated": 82744,
-        "total": 82771,
-        "percent": 99.97
-      },
-      "settled": {
-        "translated": 82771,
-        "total": 82771,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-05-29",
-      "updated": {
-        "translated": 82770,
-        "total": 82773,
-        "percent": 100
-      },
-      "settled": {
-        "translated": 82800,
-        "total": 82800,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-05-30",
-      "updated": {
-        "translated": 82800,
-        "total": 82800,
-        "percent": 100
-      },
-      "settled": {
-        "translated": 82800,
-        "total": 82800,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-05-31",
-      "updated": {
-        "translated": 75242,
-        "total": 75245,
-        "percent": 100
-      },
-      "settled": {
-        "translated": 75245,
-        "total": 75245,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-06-01",
-      "updated": {
-        "translated": 75202,
-        "total": 75249,
-        "percent": 99.94
-      },
-      "settled": {
-        "translated": 75249,
-        "total": 75249,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-06-02",
-      "updated": {
-        "translated": 75202,
-        "total": 75323,
-        "percent": 99.84
-      },
-      "settled": {
-        "translated": 75323,
-        "total": 75323,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-06-03",
-      "updated": {
-        "translated": 74906,
-        "total": 75332,
-        "percent": 99.43
-      },
-      "settled": {
-        "translated": 75332,
-        "total": 75332,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-06-04",
-      "updated": {
-        "translated": 75312,
-        "total": 75335,
-        "percent": 99.97
-      },
-      "settled": {
-        "translated": 75335,
-        "total": 75335,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-06-05",
-      "updated": {
-        "translated": 75297,
-        "total": 75389,
-        "percent": 99.88
-      },
-      "settled": {
-        "translated": 75389,
-        "total": 75389,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-06-06",
-      "updated": {
-        "translated": 75382,
-        "total": 75394,
-        "percent": 99.98
-      },
-      "settled": {
-        "translated": 75394,
-        "total": 75394,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-06-07",
-      "updated": {
-        "translated": 75373,
-        "total": 76012,
-        "percent": 99.16
-      },
-      "settled": {
-        "translated": 76012,
-        "total": 76012,
-        "percent": 100
-      }
-    },
-    {
-      "date": "2026-06-08",
-      "updated": {
-        "translated": 75980,
-        "total": 76019,
-        "percent": 99.95
-      }
+      "date": "2026-06-08"
     },
     {
       "date": "2026-06-09"
     },
     {
-      "date": "2026-06-10",
-      "settled": {
-        "translated": 83707,
-        "total": 83707,
-        "percent": 100
-      },
-      "updated": {
-        "translated": 83707,
-        "total": 83707,
-        "percent": 100
-      }
+      "date": "2026-06-10"
     },
     {
-      "date": "2026-06-11",
-      "updated": {
-        "translated": 83706,
-        "total": 83707,
-        "percent": 100
-      },
-      "settled": {
-        "translated": 83707,
-        "total": 83707,
-        "percent": 100
-      }
+      "date": "2026-06-11"
     },
     {
-      "date": "2026-06-12",
-      "updated": {
-        "translated": 83647,
-        "total": 83860,
-        "percent": 99.75
-      },
-      "settled": {
-        "translated": 83860,
-        "total": 83860,
-        "percent": 100
-      }
+      "date": "2026-06-12"
     },
     {
-      "date": "2026-06-13",
-      "updated": {
-        "translated": 83709,
-        "total": 83919,
-        "percent": 99.75
-      },
-      "settled": {
-        "translated": 83919,
-        "total": 83919,
-        "percent": 100
-      }
+      "date": "2026-06-13"
     },
     {
-      "date": "2026-06-14",
-      "updated": {
-        "translated": 83880,
-        "total": 83908,
-        "percent": 99.97
-      },
-      "settled": {
-        "translated": 83908,
-        "total": 83908,
-        "percent": 100
-      }
+      "date": "2026-06-14"
     },
     {
-      "date": "2026-06-15",
-      "updated": {
-        "translated": 83832,
-        "total": 83944,
-        "percent": 99.87
-      },
-      "settled": {
-        "translated": 83944,
-        "total": 83944,
-        "percent": 100
-      }
+      "date": "2026-06-15"
     },
     {
-      "date": "2026-06-16",
-      "updated": {
-        "translated": 83928,
-        "total": 83943,
-        "percent": 99.98
-      }
+      "date": "2026-06-16"
+    },
+    {
+      "date": "2026-06-17"
+    },
+    {
+      "date": "2026-06-18"
+    },
+    {
+      "date": "2026-06-19"
+    },
+    {
+      "date": "2026-06-20"
+    },
+    {
+      "date": "2026-06-21"
+    },
+    {
+      "date": "2026-06-22"
+    },
+    {
+      "date": "2026-06-23"
+    },
+    {
+      "date": "2026-06-24"
+    },
+    {
+      "date": "2026-06-25"
+    },
+    {
+      "date": "2026-06-26"
+    },
+    {
+      "date": "2026-06-27"
+    },
+    {
+      "date": "2026-06-28"
+    },
+    {
+      "date": "2026-06-29"
+    },
+    {
+      "date": "2026-06-30"
+    },
+    {
+      "date": "2026-07-01"
+    },
+    {
+      "date": "2026-07-02"
+    },
+    {
+      "date": "2026-07-03"
+    },
+    {
+      "date": "2026-07-04"
+    },
+    {
+      "date": "2026-07-05"
+    },
+    {
+      "date": "2026-07-06"
+    },
+    {
+      "date": "2026-07-07"
+    },
+    {
+      "date": "2026-07-08"
+    },
+    {
+      "date": "2026-07-09"
+    },
+    {
+      "date": "2026-07-10"
+    },
+    {
+      "date": "2026-07-11"
+    },
+    {
+      "date": "2026-07-12"
+    },
+    {
+      "date": "2026-07-13"
+    },
+    {
+      "date": "2026-07-14"
+    },
+    {
+      "date": "2026-07-15"
+    },
+    {
+      "date": "2026-07-16"
+    },
+    {
+      "date": "2026-07-17"
+    },
+    {
+      "date": "2026-07-18"
+    },
+    {
+      "date": "2026-07-19"
+    },
+    {
+      "date": "2026-07-20"
+    },
+    {
+      "date": "2026-07-21"
+    },
+    {
+      "date": "2026-07-22"
+    },
+    {
+      "date": "2026-07-23"
+    },
+    {
+      "date": "2026-07-24"
+    },
+    {
+      "date": "2026-07-25"
+    },
+    {
+      "date": "2026-07-26"
+    },
+    {
+      "date": "2026-07-27"
+    },
+    {
+      "date": "2026-07-28"
+    },
+    {
+      "date": "2026-07-29"
+    },
+    {
+      "date": "2026-07-30"
+    },
+    {
+      "date": "2026-07-31"
+    },
+    {
+      "date": "2026-08-01"
+    },
+    {
+      "date": "2026-08-02"
+    },
+    {
+      "date": "2026-08-03"
+    },
+    {
+      "date": "2026-08-04"
+    },
+    {
+      "date": "2026-08-05"
+    },
+    {
+      "date": "2026-08-06"
+    },
+    {
+      "date": "2026-08-07"
+    },
+    {
+      "date": "2026-08-08"
+    },
+    {
+      "date": "2026-08-09"
+    },
+    {
+      "date": "2026-08-10"
+    },
+    {
+      "date": "2026-08-11"
+    },
+    {
+      "date": "2026-08-12"
+    },
+    {
+      "date": "2026-08-13"
+    },
+    {
+      "date": "2026-08-14"
+    },
+    {
+      "date": "2026-08-15"
     }
   ]
 }

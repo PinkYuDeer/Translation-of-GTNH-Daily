@@ -8,7 +8,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        提交后会触发 `0. Daily Sync & Build`, 用于同步 PT 18818 并发布每日构建 Release.
+        提交后会触发 `0. Daily Sync & Build`, 用于同步 PT 20315 并发布每日构建 Release.
 
   - type: dropdown
     id: target
@@ -16,7 +16,7 @@ body:
       label: 触发目标 target
       description: 选择要触发的固定工作流.
       options:
-        - Daily Sync & Build - 运行每日同步, 回推 PT 18818 并发布每日构建
+        - Daily Sync & Build - 运行每日同步, 回推 PT 20315 并发布每日构建
       default: 0
     validations:
       required: true
@@ -25,10 +25,10 @@ body:
     id: force
     attributes:
       label: 强制同步 force
-      description: 控制是否把所有合并后的文件重新推送到 PT 18818.
+      description: 控制是否把所有合并后的文件重新推送到 PT 20315.
       options:
         - "false - 普通同步, 只推送本轮检测到的差异"
-        - "true - 强制同步, 将合并和换行规范化后的所有文件重新推送到 PT 18818"
+        - "true - 强制同步, 将合并和换行规范化后的所有文件重新推送到 PT 20315"
       default: 0
     validations:
       required: true
@@ -50,7 +50,7 @@ body:
     attributes:
       label: 触发原因
       description: 简单说明为什么需要手动运行.
-      placeholder: "例如: PT 18818 刚完成一批翻译, 需要立即打包测试."
+      placeholder: "例如: PT 20315 刚完成一批翻译, 需要立即打包测试."
     validations:
       required: false
 
@@ -59,5 +59,5 @@ body:
     attributes:
       label: 确认
       options:
-        - label: 我了解该 issue 会触发 GitHub Actions, 可能更新 PT 18818 并发布每日构建 Release.
+        - label: 我了解该 issue 会触发 GitHub Actions, 可能更新 PT 20315 并发布每日构建 Release.
           required: true

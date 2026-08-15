@@ -54,7 +54,6 @@ import {
   REPO_CACHE_DIR,
   TIPS_KEYMAP_FILE,
   TIPS_OUTPUT_REL,
-  TIPS_UPSTREAM_STAGE,
 } from './lib/config.ts'
 import { readJson, readNewlines, resolveNewlineForm, type NewlineFileForms } from './lib/cache.ts'
 import { parseTipsLines } from './lib/tips-parser.ts'
@@ -206,17 +205,10 @@ async function loadTipsLang(absPath: string): Promise<Map<string, string>> {
 }
 
 /**
- * Tips are merged for packing: our PT 18818 translation wins, Kiwi233 only fills
+ * Tips are merged for packing: our Daily PT translation wins, Kiwi233 only fills
  * keys we have no translation for (the daily project owns tips and can be ahead).
  * Lines are emitted in the English file order (`registry.order`), with Kiwi233's
  * 8-line preamble (7 comments + the PT feedback notice) preserved.
- *
- * When the merged result covers every active tip (100% translated), the full
- * file is staged to `BUILD_DIR/upstream-tips/<TIPS_OUTPUT_REL>` (NOT committed to
- * our master). A later workflow step force-syncs the `up/master` branch from
- * upstream master and drops this file on top, so the maintainer gets a clean
- * single-file diff to PR upstream. The "ahead of upstream" gate is the workflow's
- * diff against freshly-fetched upstream master, not this script.
  *
  * Falls back to copying Kiwi233's file verbatim if the key registry is missing.
  */
@@ -245,7 +237,7 @@ async function rebuildTipsTxt(zhLangRoot: string): Promise<string | undefined> {
       kiwiByKey.set(key, kiwiContent[i])
   })
 
-  // Our merged 18818 translation wins; Kiwi233 only fills keys we have no
+  // Our merged Daily translation wins; Kiwi233 only fills keys we have no
   // translation for. Mirrors pull-zh-4964's "daily owns tips" rule so a fix made
   // on PT actually ships, instead of being masked by Kiwi233's stale line.
   const ourByKey = await loadTipsLang(join(zhLangRoot, TIPS_PT_PATH))
@@ -255,21 +247,6 @@ async function rebuildTipsTxt(zhLangRoot: string): Promise<string | undefined> {
   const packBody = chosen.filter(v => v.length > 0).join('\n')
   await writeFile(outPath, `${preamble}\n${packBody}\n`, 'utf8')
 
-  // Stage the full file for the up/master publish step only when 100% covered.
-  // "Ahead of upstream" is decided there (diff vs freshly-fetched upstream master).
-  const complete = chosen.every(v => v.length > 0)
-  if (complete) {
-    const stagePath = join(BUILD_DIR, TIPS_UPSTREAM_STAGE, TIPS_OUTPUT_REL)
-    await mkdir(dirname(stagePath), { recursive: true })
-    await writeFile(stagePath, `${preamble}\n${chosen.join('\n')}\n`, 'utf8')
-    // eslint-disable-next-line no-console
-    console.log(`[restore] tips 100% translated → staged ${stagePath} for up/master`)
-  }
-  else {
-    const missing = chosen.filter(v => v.length === 0).length
-    // eslint-disable-next-line no-console
-    console.log(`[restore] tips not fully translated (${missing} missing); no up/master candidate`)
-  }
   return outPath
 }
 

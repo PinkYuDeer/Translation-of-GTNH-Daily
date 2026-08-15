@@ -3,16 +3,16 @@
 <!-- progress-chart:start -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="progress/progress-dark.svg">
-  <img alt="GTNH Daily 汉化进度（最近 90 天）" src="progress/progress.svg" title="GTNH Daily 汉化进度 · 近3天 06-14 100.00% → 06-15 100.00% → 06-16 99.98% · 最新 83,928/83,943 词条">
+  <img alt="GTNH Daily 汉化进度（最近 90 天）" src="progress/progress.svg" title="GTNH Daily 汉化进度 · 暂无数据">
 </picture>
 <!-- progress-chart:end -->
 
 ## GT New Horizons 整合包汉化（每日构建版）
 
-本仓库 Fork 自 [Kiwi233/Translation-of-GTNH](https://github.com/Kiwi233/Translation-of-GTNH)，提供基于 **每日自动同步** 的最新汉化版本。
+本仓库是独立维护的 **每日自动同步** 汉化项目，不是任何原汉化仓库的 Fork。流水线只读地采集公开英文源和可复用译文，所有 Daily 修改都在本项目内独立管理。
 
 - 📝 **主翻译项目（人工校对）**：[ParaTranz 项目 4964](https://paratranz.cn/projects/4964) — 由 Kiwi233 团队维护，欢迎参与校对翻译
-- 🔄 **每日汉化项目（自动同步）**：[ParaTranz 项目 18818](https://paratranz.cn/projects/18818) — 本仓库每日从上游拉取最新英文原文，把 4964 的校对译文整合进来后整文件同步；在此处新增的汉化不会直接同步到官方仓库，但官方仓库下方建议处会直接检索到相似汉化并一键应用，减轻后续大版本更新的汉化压力。因此也欢迎 Daily 玩家参与超前翻译，想要实时看到变化的可以提交 issue 来打包最新版本汉化。
+- 🔄 **每日汉化项目（自动同步）**：[ParaTranz 项目 20315](https://paratranz.cn/projects/20315) — 本仓库每日拉取最新英文原文，整合可复用译文后整文件同步。Daily 玩家可在此独立修改格式问题和参与超前翻译；想立即看到变化时，可提交 issue 触发最新同步与打包。
 
 面向贡献者 / 想了解管道内部实现的读者：请阅读 [PIPELINE.md](PIPELINE.md)（脚本分工、缓存布局、换行符处理、直通文件、Secrets、本地开发等）。
 
@@ -37,18 +37,18 @@
   上游（只读）                       本仓库每日流水线                       产物
  ┌──────────────────────┐          ┌──────────────────────────┐       ┌─────────────────┐
  │ GTNH-Translations    │─英文──┐  │ 1. fetch-en              │       │                 │
- │ GT-New-Horizons-...  │─英文──┼▶│ 2. pull-current-18818    │       │ PT 18818        │
+ │ GT-New-Horizons-...  │─英文──┼▶│ 2. pull-current-18818    │       │ PT 20315        │
  │ Kiwi233/Translation  │─直通──┘  │ 3. pull-zh-4964          │──合并▶│ （整文件回推）  │
  └──────────────────────┘          │ 3.5 sync-terms           │       │                 │
                                    │ 4. merge-final           │       └────────┬────────┘
  ┌──────────────────────┐          │ 5. push-final            │                │
  │ ParaTranz 4964       │─译文──┐  │ 6. restore-and-pack      │                ▼
- │ ParaTranz 18818      │─超前──┴▶│  （还原换行、打包）       │       ┌─────────────────┐
+ │ ParaTranz 20315      │─超前──┴▶│  （还原换行、打包）       │       ┌─────────────────┐
  └──────────────────────┘          └──────────────────────────┘       │   每日 Release  │
                                                                       └─────────────────┘
 ```
 
-核心思路：**以上游英文原文为主轴**、**4964 校对译文优先于 18818 存量**、**换行符逐词条原样还原**、**最终打包结构对齐线下参考包**。退役 PT 文件会按打包路径归档到仓库 `archive/` 后从 PT 删除。每日中国时间凌晨 1 点自动触发。
+核心思路：**以公开英文原文为主轴**、**4964 校对译文优先于 20315 存量**、**换行符逐词条原样还原**、**最终打包结构对齐线下参考包**。退役 PT 文件会按打包路径归档到仓库 `archive/` 后从 PT 删除。每日中国时间凌晨 1 点自动触发。
 
 ---
 
@@ -76,7 +76,7 @@
 
 - `Kiwi` — 剩下的所有工作
 - `MuXiu1997` — 版本更新自动化比对、PT 推送、自动化打包、每日构建框架
-- `PinkYuDeer` — Fork 维护、每日流水线重写（2026/04）、换行符逐词条与文件级缓存、路径映射、打包结构对齐
+- `PinkYuDeer` — 独立仓库维护、每日流水线重写（2026/04）、换行符逐词条与文件级缓存、路径映射、打包结构对齐
 - `ChromicRedBrick` — 任务书校对、汉化
 - `Sky_Cat` — 任务书初步汉化
 - `huajijam` — 校对 GregTech.lang、汉化 GT++、汉化魔法蜜蜂魔导手册
@@ -88,7 +88,7 @@
 - `iouter` — 添加并汉化未能本地化的流体词条
 - `wumingzhiren` — igi 血魔法逗号分割
 
-所有在 PT 上参与汉化的 [上游贡献者](https://paratranz.cn/projects/4964/members)、[Daily贡献者](https://paratranz.cn/projects/18818/members)。
+所有在 PT 上参与汉化的 [原项目贡献者](https://paratranz.cn/projects/4964/members)、[Daily 贡献者](https://paratranz.cn/projects/20315/members)。
 
 老版本翻译主要贡献者：`anti`（GregTech.lang）、`Yesterday`（任务书及构建框架）、`TOCN`、`doctormdk`（早期任务书汉化）。
 

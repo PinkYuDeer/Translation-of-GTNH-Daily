@@ -13,7 +13,7 @@ export const API_BASE = 'https://paratranz.cn/api'
 export const PT_4964_ID: string = process.env.PT_4964_ID ?? '4964'
 export const PT_18818_ID: string = process.env.PT_18818_ID
   ?? process.env.PARATRANZ_DAILY_PROJECT_ID
-  ?? '18818'
+  ?? '20315'
 
 export const PARATRANZ_TOKEN: string = process.env.PARATRANZ_TOKEN ?? ''
 
@@ -26,16 +26,8 @@ export const REPO_ARCHIVE_DIR: string = process.env.REPO_ARCHIVE_DIR ?? 'archive
 
 /** Loading-screen tips paths. */
 export const TIPS_PT_PATH = 'config/Betterloadingscreen/tips/zh_CN.lang'
-/**
- * In-repo (and in-upstream-clone) relative path of the finished tips .txt. When
- * tips are 100% translated, restore-and-pack stages it under
- * `BUILD_DIR/upstream-tips/<this>`; the workflow then force-syncs the `up/master`
- * branch from upstream master and drops this file on top for a manual PR. It is
- * intentionally NOT committed to our own master.
- */
+/** Relative path of the finished tips file in the packaged Minecraft tree. */
 export const TIPS_OUTPUT_REL = 'config/Betterloadingscreen/tips/zh_CN.txt'
-/** Build-dir staging root for the upstream-ready tips file (gitignored). */
-export const TIPS_UPSTREAM_STAGE = 'upstream-tips'
 /** Stable key registry, relative to REPO_ARCHIVE_DIR. */
 export const TIPS_KEYMAP_FILE = 'tips/keymap.json'
 /** Human-readable add/retire/reword/revive log, relative to REPO_ARCHIVE_DIR. */

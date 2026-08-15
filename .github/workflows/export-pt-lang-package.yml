@@ -70,5 +70,5 @@ jobs:
 
           gh release create "$RELEASE_TAG" "$ASSETS_PATH/$PACKAGE_ZIP" \
             --title "PT Lang Package Latest" \
-            --notes "从 PT 18818 导出的最新纯 lang 原文/译文包；zip 根目录直接是 lang 文件结构，供 ParaTranz 辅助脚本导入。" \
+            --notes "从 PT 20315 导出的最新纯 lang 原文/译文包；zip 根目录直接是 lang 文件结构，供 ParaTranz 辅助脚本导入。" \
             --latest
