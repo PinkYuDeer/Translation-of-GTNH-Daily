@@ -54,7 +54,7 @@ jobs:
 
       # newlines.json（占位还原）与 file-ids 等可复用状态在 daily 缓存里；恢复它能让
       # 打出的 .lang 与 daily 字节一致。PT 状态下面都会重新拉取，缓存冷只会让换行退化。
-      # tag ref 取不到自身缓存，靠 `daily-` 前缀回退到默认分支（dev）当天的缓存。
+      # tag ref 取不到自身缓存，靠 `daily-` 前缀回退到默认分支（master）当天的缓存。
       - name: Restore Daily Cache
         uses: actions/cache/restore@v4
         with:
