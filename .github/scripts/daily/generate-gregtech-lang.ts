@@ -79,16 +79,16 @@ const LANG_RUNTIME_DEPENDENCIES = [
     declaration: 'runtimeOnlyNonPublishable("com.github.GTNewHorizons:bdlib:1.11.0-GTNH:dev") { transitive = false }',
   },
   {
-    name: 'com.github.GTNewHorizons:ForestryMC:4.11.15:dev',
-    declaration: 'runtimeOnlyNonPublishable("com.github.GTNewHorizons:ForestryMC:4.11.15:dev") { transitive = false }',
+    name: 'com.github.GTNewHorizons:ForestryMC:4.11.32:dev',
+    declaration: 'runtimeOnlyNonPublishable("com.github.GTNewHorizons:ForestryMC:4.11.32:dev") { transitive = false }',
   },
   {
     name: 'com.github.GTNewHorizons:gendustry:1.9.9-GTNH:dev',
     declaration: 'runtimeOnlyNonPublishable("com.github.GTNewHorizons:gendustry:1.9.9-GTNH:dev") { transitive = false }',
   },
   {
-    name: 'com.github.GTNewHorizons:MatterManipulator:0.1.31-GTNH:dev',
-    declaration: 'runtimeOnlyNonPublishable("com.github.GTNewHorizons:MatterManipulator:0.1.31-GTNH:dev") { transitive = false }',
+    name: 'com.github.GTNewHorizons:MatterManipulator:0.1.52-GTNH',
+    declaration: 'runtimeOnlyNonPublishable("com.github.GTNewHorizons:MatterManipulator:0.1.52-GTNH") { transitive = false }',
   },
   {
     name: 'com.cubefury.vendingmachine:VendingMachine:0.4.65:dev',
