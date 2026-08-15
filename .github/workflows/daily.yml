@@ -1,5 +1,7 @@
 name: 0. Daily Sync & Build
 
+# Standalone repository workflow.
+
 on:
   workflow_dispatch:
     inputs:

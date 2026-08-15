@@ -1,5 +1,7 @@
 name: 0. Export PT Lang Package
 
+# Standalone repository workflow.
+
 on:
   workflow_dispatch:
 
