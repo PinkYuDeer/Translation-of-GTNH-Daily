@@ -75,7 +75,7 @@ export async function dispatchIssueWorkflow({ github, context, core }) {
   const owner = context.repo.owner
   const repo = context.repo.repo
   const issueNumber = issue.number
-  const ref = context.payload.repository?.default_branch ?? 'master'
+  const ref = context.payload.repository?.default_branch ?? 'dev'
   const workflowUrl = `https://github.com/${owner}/${repo}/actions/workflows/${request.workflowId}`
 
   await github.rest.actions.createWorkflowDispatch({
