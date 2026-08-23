@@ -7,3 +7,6 @@
 - － 退役 tip.0157: "STILL DOWNLOADING MANUALLY? - curseforge"
 - ＋ 新增 tip.0164: "Ben knows best."
 
+## 2026-08-23
+- ＋ 新增 tip.0165: "Somewhere in GregTech, a machine makes ice creams."
+
