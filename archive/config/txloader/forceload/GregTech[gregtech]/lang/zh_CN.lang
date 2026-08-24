@@ -216,3 +216,4 @@ gt.item.food.sorbet_raspberry.name=Raspberry Sorbet
 gt.item.food.sorbet_raspberry.tooltip=A refreshing scoop of raspberry sorbet
 gt.item.food.sorbet_rainbowstellar.name=Rainbow Stellar Sorbet
 gt.item.food.sorbet_rainbowstellar.tooltip=A sorbet made from compressed rainbow light and stardust. Do not question it
+GT5U.waila.machine_facing=机器朝向：%s
