@@ -232,3 +232,6 @@ gt.multiblock.ExtremeHeatExchanger.plasma1=无论输入速率如何,§c等离子
 gt.multiblock.ExtremeHeatExchanger.plasma2=最大输入和输出速率取决于等离子体的能量密度 (EU/L)
 gt.multiblock.ExtremeHeatExchanger.throttle1=控制器中的编程电路号码会降低超临界阈值，但会额外消耗蒸汽。
 gt.multiblock.ExtremeHeatExchanger.throttle2=编程电路号码每增加1，超临界阈值§d降低§d-150 %s/s§7 ，蒸汽输出§r降低1.5%§7
+abbrev.entangled_neutronium.name=中子
+abbrev.entangled_cosmicneutronium.name=宇宙中子态素
+abbrev.entangled_bedrockium.name=基岩

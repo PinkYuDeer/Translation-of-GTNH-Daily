@@ -8,7 +8,7 @@
       "en": "Infinite water sources are disabled",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 2,
@@ -16,7 +16,7 @@
       "en": "Don't feed your machines after midnight!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 3,
@@ -24,7 +24,7 @@
       "en": "Don't worry, ServerUtilities takes care of backups",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 4,
@@ -32,7 +32,7 @@
       "en": "Material tiers play a role when breaking pipes",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 5,
@@ -40,7 +40,7 @@
       "en": "If a machine catches fire, it can explode",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 6,
@@ -48,7 +48,7 @@
       "en": "Adding water to an empty but hot Boiler will make a loud bang!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 7,
@@ -56,7 +56,7 @@
       "en": "Avoid Eldritch Obelisks!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 8,
@@ -64,7 +64,7 @@
       "en": "You can bind the questbook to a key to save you from using a slot",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 9,
@@ -72,7 +72,7 @@
       "en": "Pam's Gardens can be picked up with right-click",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 10,
@@ -80,7 +80,7 @@
       "en": "Don't make the LV Extruder without checking the recipes' voltage!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 11,
@@ -88,7 +88,7 @@
       "en": "Placing a Garden makes it spread",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 12,
@@ -96,7 +96,7 @@
       "en": "Water Gardens grow on water",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 13,
@@ -104,7 +104,7 @@
       "en": "Press [F] to swap with your offhand",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 14,
@@ -112,7 +112,7 @@
       "en": "Handling Lava without gloves hurts!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 15,
@@ -120,7 +120,7 @@
       "en": "Watch out, food loses saturation",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 16,
@@ -128,7 +128,7 @@
       "en": "Loot Games give helpful rewards",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 17,
@@ -136,7 +136,7 @@
       "en": "Using too many Translocators can cause TPS lag",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 18,
@@ -144,7 +144,7 @@
       "en": "Be sure to check out what you can do with Mouse Tweaks",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 19,
@@ -152,7 +152,7 @@
       "en": "Protect your machines from rain on all sides!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 20,
@@ -160,7 +160,7 @@
       "en": "Building multiblocks across chunk boundaries? Be sure they are chunk loaded!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 21,
@@ -168,7 +168,7 @@
       "en": "You will lose your first piece of Aluminium dust in the EBF",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 22,
@@ -176,7 +176,7 @@
       "en": "Shift-right-clicking with a wrench on a fluid pipe makes it output-only",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 23,
@@ -184,7 +184,7 @@
       "en": "The Bending Machine makes plates more efficiently",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 24,
@@ -192,7 +192,7 @@
       "en": "Multiblocks can share walls",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 25,
@@ -200,7 +200,7 @@
       "en": "You can't use the front face of machines for input and output",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 26,
@@ -208,7 +208,7 @@
       "en": "Disable a machine with a Soft Mallet if it cannot finish a recipe",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 27,
@@ -216,7 +216,7 @@
       "en": "Villagers periodically \"shed\" emeralds",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 28,
@@ -224,7 +224,7 @@
       "en": "Forestry Worktables are your friends",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 29,
@@ -232,7 +232,7 @@
       "en": "Try the Midnight Theme for the questbook",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 30,
@@ -240,7 +240,7 @@
       "en": "Try the Realistic Sky resourcepack (it's already included)",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 31,
@@ -248,7 +248,7 @@
       "en": "Literally flint and steel!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 32,
@@ -256,7 +256,7 @@
       "en": "To go faster without sprinting, walk diagonally for about a 40% increase",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 33,
@@ -264,7 +264,7 @@
       "en": "Tinker's Tools can level up: more modifiers and mining level bonus!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 34,
@@ -272,7 +272,7 @@
       "en": "Farm Glowflowers for Glowstone",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 35,
@@ -280,7 +280,7 @@
       "en": "Making Steel armor? Check out the Composite Chestplate",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 36,
@@ -288,7 +288,7 @@
       "en": "Adventurer's Backpack: integrated crafting grid, bed and fluid storage",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 37,
@@ -296,7 +296,7 @@
       "en": "Beware of cable power loss!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 38,
@@ -304,7 +304,7 @@
       "en": "Machines that get a higher Voltage than they can handle go BOOM!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 39,
@@ -312,7 +312,7 @@
       "en": "Loss on uninsulated cables is twice as big as on insulated ones",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 40,
@@ -320,7 +320,7 @@
       "en": "Power requirements are based solely on the recipes",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 41,
@@ -328,7 +328,7 @@
       "en": "A machine draws electricity from its internal buffer first",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 42,
@@ -336,7 +336,7 @@
       "en": "Tinker's Faucets can pour fluids and also gasses(!) into containers",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 43,
@@ -344,7 +344,7 @@
       "en": "Peaceful mode doesn't restore hunger",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 44,
@@ -352,7 +352,7 @@
       "en": "Beware of pollution!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 45,
@@ -360,7 +360,7 @@
       "en": "Found a crash or bug? Please report it on GitHub",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 46,
@@ -368,7 +368,7 @@
       "en": "Tinker's Smeltery does not double ores",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 47,
@@ -376,7 +376,7 @@
       "en": "Be sure to check out our wiki: wiki.gtnewhorizons.com",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 48,
@@ -384,7 +384,7 @@
       "en": "Perditio and Vanadiumsteel Pickaxes and Hammers are really fast",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 49,
@@ -392,7 +392,7 @@
       "en": "Look for ore chunks by pressing F9 three times",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 50,
@@ -400,7 +400,7 @@
       "en": "Nerfs incoming!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 51,
@@ -408,7 +408,7 @@
       "en": "You can plant Oreberries on crop sticks, but mind the light level",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 52,
@@ -416,7 +416,7 @@
       "en": "Crops can receive bonus nutrient points from biome tags and high humidity",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 53,
@@ -424,7 +424,7 @@
       "en": "Weeds will spread more weeds and diseases to nearby crop sticks",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 54,
@@ -432,7 +432,7 @@
       "en": "Crop resistance increases the seed drop chance and prevents diseases",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 55,
@@ -440,7 +440,7 @@
       "en": "Crop gain increases the number of drops per harvest",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 56,
@@ -448,7 +448,7 @@
       "en": "Crop growth increases the speed at which crops grow",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 57,
@@ -456,7 +456,7 @@
       "en": "Use Machine Hulls or Transvector Interfaces to ease machine access",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 58,
@@ -464,7 +464,7 @@
       "en": "Steam flowing through pipes or coming out of machines hurts!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 59,
@@ -472,7 +472,7 @@
       "en": "Fortune is useless on Brittle Charcoal",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 60,
@@ -480,7 +480,7 @@
       "en": "Pay attention to Voltage and Amperage of cables and machines!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 61,
@@ -488,7 +488,7 @@
       "en": "Warp is no fun, got a wither in your base already?",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 62,
@@ -496,7 +496,7 @@
       "en": "There are fourteen Voltage tiers: from LV(32V) to MAX(2147483640V)",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 63,
@@ -504,7 +504,7 @@
       "en": "Going one Voltage tier up, means quadrupling Voltage requirements",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 64,
@@ -512,7 +512,7 @@
       "en": "Shift-click with a GT-Block on a cable/pipe/etc to auto-connect it",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 65,
@@ -520,7 +520,7 @@
       "en": "Read the fine questbook, it explains many mechanics",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 66,
@@ -528,7 +528,7 @@
       "en": "You can bookmark items with NEI (\"A\" by default)",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 67,
@@ -536,7 +536,7 @@
       "en": "It's NEI, not JEI. Use it frequently",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 68,
@@ -544,7 +544,7 @@
       "en": "Your pick is not ready",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 69,
@@ -552,7 +552,7 @@
       "en": "1.7.10's Life Support!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 70,
@@ -560,7 +560,7 @@
       "en": "Put the \"Mine\" back in Minecraft",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 71,
@@ -568,7 +568,7 @@
       "en": "This pack is pushing my mental capacity - thcv",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 72,
@@ -576,7 +576,7 @@
       "en": "Noooooooooooooooo! (after cleanroom explosion) - moronwmachinegun",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 73,
@@ -584,7 +584,7 @@
       "en": "If it's not too costly - tsutaaja",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 74,
@@ -592,7 +592,7 @@
       "en": "Idiots! Do not upgrade your backpack with important stuff inside! - DreamMasterXXL",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 75,
@@ -600,7 +600,7 @@
       "en": "It's already quite the list of errands - Chaotick",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 76,
@@ -608,7 +608,7 @@
       "en": "[Rats!] this mod is complicated - LogicFalls",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 77,
@@ -616,7 +616,7 @@
       "en": "Blood, sweat, and tiers - Codewarrior0",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 78,
@@ -624,7 +624,7 @@
       "en": "No more making any of this irritating [stuff] - Chewy",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 79,
@@ -632,7 +632,7 @@
       "en": "It's never enough - moronwmachinegun",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 80,
@@ -640,7 +640,7 @@
       "en": "this game wants so much stuff... - Mondfaust",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 81,
@@ -648,7 +648,7 @@
       "en": "GTNH is basically pain for win - K1ngMX",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 82,
@@ -656,7 +656,7 @@
       "en": "RNGesus hates you. - Pao",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 83,
@@ -664,7 +664,7 @@
       "en": "This modpack makes me unhappy. But it's the good kind of unhappy. - LogicFalls",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 84,
@@ -672,7 +672,7 @@
       "en": "GTNH you never fail to frustrate, but i love you all the same - Elusive Ent",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 85,
@@ -680,7 +680,7 @@
       "en": "I've jabbed my screwdriver and my fist into it every way I can think of. - Axiflare",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 86,
@@ -688,7 +688,7 @@
       "en": "Useless coins that are actually useful. - Scribit",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 87,
@@ -696,7 +696,7 @@
       "en": "If a fluid cell doesn't work, try using a Fluid Canner",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 88,
@@ -704,7 +704,7 @@
       "en": "Use /xu_tps to see if the server's lagging. 20 TPS is normal",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 89,
@@ -712,7 +712,7 @@
       "en": "Use an Elevator to get into your Cleanroom, so you won't lose cleanliness!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 90,
@@ -720,7 +720,7 @@
       "en": "Only getting bad drops? Try enchanting your Lootbags with Fortune III!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 91,
@@ -728,7 +728,7 @@
       "en": "You can't enter the Twilight Forest without a Quick And Dirty Portal Generator",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 92,
@@ -736,7 +736,7 @@
       "en": "Press T while hovering on an item to see where it is in nearby inventories",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 93,
@@ -744,7 +744,7 @@
       "en": "Press Y while hovering on a machine in NEI to see where you placed it",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 94,
@@ -752,7 +752,7 @@
       "en": "Using a Circuit Assembler will make circuits cheaper!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 95,
@@ -760,7 +760,7 @@
       "en": "Using a Cleanroom will make circuits even cheaper!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 96,
@@ -768,7 +768,7 @@
       "en": "GT stands for Grind and Tedium",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 97,
@@ -776,7 +776,7 @@
       "en": "Don't go out at night! Mobs can have up to 300 HP",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 98,
@@ -784,7 +784,7 @@
       "en": "Steam is hot! It will burn Wooden Fluid Pipes",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 99,
@@ -792,7 +792,7 @@
       "en": "Don't break Rubber Trees without a Treetap",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 100,
@@ -800,7 +800,7 @@
       "en": "Eating too many of the same food will make you hate it!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 101,
@@ -808,7 +808,7 @@
       "en": "Abandon all vanilla knowledge all ye who enter here",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 102,
@@ -816,7 +816,7 @@
       "en": "With the power of Duct Tape, I solved all of your maintenance problems!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 103,
@@ -824,7 +824,7 @@
       "en": "When you open a Twilight Portal, you'll get hit by lightning",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 104,
@@ -832,7 +832,7 @@
       "en": "Sometimes the best combat strategy is \"Run away!\"",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 105,
@@ -840,7 +840,7 @@
       "en": "You can power machines by putting batteries in their energy slots",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 106,
@@ -848,7 +848,7 @@
       "en": "You can power machines by putting Redstone in their energy slots",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 107,
@@ -856,7 +856,7 @@
       "en": "You can charge your Jetpack by putting it in the energy slot of LV machines",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 108,
@@ -864,7 +864,7 @@
       "en": "Be prepared to take hours to craft a single machine!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 109,
@@ -872,7 +872,7 @@
       "en": "Oil + Thunder = Fire. Remember to put cobblestone over your oil wells!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 110,
@@ -880,7 +880,7 @@
       "en": "Nuclear Reactors give 10x the energy they give in IC2!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 111,
@@ -888,7 +888,7 @@
       "en": "Remember to plant Cotton - you'll need a ton of it",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 112,
@@ -896,7 +896,7 @@
       "en": "It's AluminIum, not Aluminum",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 113,
@@ -904,7 +904,7 @@
       "en": "Many ingots can only be smelted in the Electric Blast Furnace",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 114,
@@ -912,7 +912,7 @@
       "en": "Use F7 to see spots where mobs can spawn!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 115,
@@ -920,7 +920,7 @@
       "en": "Use F9 to see chunk borders!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 116,
@@ -928,7 +928,7 @@
       "en": "Need seed oil for Forestry? Plant some peanuts",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 117,
@@ -936,7 +936,7 @@
       "en": "Microcrafting is love, microcrafting is life",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 118,
@@ -944,7 +944,7 @@
       "en": "Hahahaha, coins in a vending machine go brrrrrrr",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 119,
@@ -952,7 +952,7 @@
       "en": "If you're making a Project Red system, make sure to use a wall of drawers!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 120,
@@ -960,7 +960,7 @@
       "en": "How many circuits have you crafted in your life?",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 121,
@@ -968,7 +968,7 @@
       "en": "JourneyMap: Press [J]",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 122,
@@ -976,7 +976,7 @@
       "en": "Not a modpack by Vazkii",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 123,
@@ -984,7 +984,7 @@
       "en": "sqrt(-1) loves you!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 124,
@@ -992,7 +992,7 @@
       "en": "((MultiMC | Prism) > Curse) && (Technic > Curse) == true",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 125,
@@ -1000,7 +1000,7 @@
       "en": "All you had to do was follow the damn quest line, CJ!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 126,
@@ -1008,7 +1008,7 @@
       "en": "Click on an item in the questbook to show its recipe in NEI",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 127,
@@ -1016,7 +1016,7 @@
       "en": "Come to the GregTech side? We have... microcrafting",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 128,
@@ -1024,7 +1024,7 @@
       "en": "Come to the GregTech side! We have NEI autocrafting!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 129,
@@ -1032,7 +1032,7 @@
       "en": "Cables are | || || |_ y",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 130,
@@ -1040,7 +1040,7 @@
       "en": "Varying foods gives hearts!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 131,
@@ -1048,7 +1048,7 @@
       "en": "You can change InGame Info XML scale in ingame configs",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 132,
@@ -1056,7 +1056,7 @@
       "en": "Look for Sulfur in the Nether",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 133,
@@ -1064,7 +1064,7 @@
       "en": "Game mechanics datasheet: www.gtnewhorizons.com/spreadsheet",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 134,
@@ -1072,7 +1072,7 @@
       "en": "If it's too tedious you're doing it wrong",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 135,
@@ -1080,7 +1080,7 @@
       "en": "Do you also watch your oven while baking food?",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 136,
@@ -1088,7 +1088,7 @@
       "en": "There's always something else you can do while waiting",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 137,
@@ -1096,7 +1096,7 @@
       "en": "You can press the \"Refresh sounds\" button in sound settings if they're gone",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 138,
@@ -1104,7 +1104,7 @@
       "en": "Batteries can be charged and discharged in the same slot",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 139,
@@ -1112,7 +1112,7 @@
       "en": "3D-printed Lave 12 is the future - Sampsa",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 140,
@@ -1120,7 +1120,7 @@
       "en": "Don't hold machines in your hotbar when playing with cables",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 141,
@@ -1128,7 +1128,7 @@
       "en": "Was making HV connection. Missclicked and placed MV engraver - LewisSaber",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 142,
@@ -1136,7 +1136,7 @@
       "en": "Destroyed once a Tier 1 rocket by accidentally pressing shift - Regian",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 143,
@@ -1144,7 +1144,7 @@
       "en": "Visit r/feedthememes!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 144,
@@ -1152,7 +1152,7 @@
       "en": "I WANT ROCKET I WANT MOON - St4o",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 145,
@@ -1160,7 +1160,7 @@
       "en": "Shift-right click on a GregTech Cover to open the menu",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 146,
@@ -1168,7 +1168,7 @@
       "en": "Looking for Infused Stones? Try putting Amber in an Ore Finder Wand",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 147,
@@ -1176,7 +1176,7 @@
       "en": "Remove plates and covers from machines using a Crowbar",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 148,
@@ -1184,7 +1184,7 @@
       "en": "To divide items with a ratio, use the Distributor. Configure with a screwdriver",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 149,
@@ -1192,7 +1192,7 @@
       "en": "Stay one tier ahead of DreamMasterXXL!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 150,
@@ -1200,7 +1200,7 @@
       "en": "What's a \"Fabric Loader\"?",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 151,
@@ -1208,7 +1208,7 @@
       "en": "UwU",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 152,
@@ -1216,7 +1216,7 @@
       "en": "HV to MV, yes - Threefold",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 153,
@@ -1224,7 +1224,7 @@
       "en": "Daddy Kitten has no power over staff - boubou_19",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 154,
@@ -1232,7 +1232,7 @@
       "en": "Try downloading more RAM",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 155,
@@ -1240,7 +1240,7 @@
       "en": "Try downloading more WAM",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 156,
@@ -1248,7 +1248,7 @@
       "en": "Your 2 week Minecraft phase will be 2 years.",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 157,
@@ -1264,7 +1264,7 @@
       "en": "We had the name before nintendo",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 159,
@@ -1272,7 +1272,7 @@
       "en": "has polished andesite, 10/10 modpack - S_hach23",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 160,
@@ -1280,7 +1280,7 @@
       "en": "The Item Dislocator is available sooner than you might think!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 161,
@@ -1288,7 +1288,7 @@
       "en": "Please, refrain from eating optical fiber cable",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 162,
@@ -1296,7 +1296,7 @@
       "en": "Natgas is the fuel of speedrunners! Try it :) ~ Pxx500",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 163,
@@ -1304,7 +1304,7 @@
       "en": "O(n^2) down to O(n)?! Toggle bus meta begins NOW!",
       "status": "active",
       "firstSeen": "2026-05-30",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 164,
@@ -1312,7 +1312,7 @@
       "en": "Ben knows best.",
       "status": "active",
       "firstSeen": "2026-08-15",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     },
     {
       "id": 165,
@@ -1320,7 +1320,7 @@
       "en": "Somewhere in GregTech, a machine makes ice creams.",
       "status": "active",
       "firstSeen": "2026-08-23",
-      "lastSeen": "2026-08-28"
+      "lastSeen": "2026-08-29"
     }
   ],
   "order": [
