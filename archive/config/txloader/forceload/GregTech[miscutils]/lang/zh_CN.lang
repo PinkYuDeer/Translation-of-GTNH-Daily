@@ -36,3 +36,7 @@ gtplusplus.blockcasings.pipesgears.4.name=塞龙-100齿轮箱机械方块
 gtplusplus.blockcasings.pipesgears.5.name=皮卡优合金齿轮箱机械方块
 gtplusplus.blockcasings.pipesgears.6.name=泰坦精钢齿轮箱机械方块
 gtplusplus.blockcasings.pipesgears.7.name=深渊合金齿轮箱机械方块
+item.itemBlueprint.name=蓝图[无用]
+item.itemBlueprint.tooltip.0=%d号技术文档
+item.itemBlueprint.tooltip.1=当前为%s的蓝图
+item.itemBlueprint.tooltip.2=当前蓝图并未对应任意一种结构
