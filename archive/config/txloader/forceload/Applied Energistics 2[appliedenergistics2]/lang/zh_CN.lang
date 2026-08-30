@@ -15,3 +15,4 @@ gui.color.appliedenergistics2.InterfaceTerminalMatch=2A00FF00
 gui.color.appliedenergistics2.ProcessBarStartColor=FFE60A00
 gui.color.appliedenergistics2.ProcessBarMiddleColor=FFE6E600
 gui.color.appliedenergistics2.ProcessBarEndColor=FF0AE600
+item.appliedenergistics2.WirelessMessages.Network=网络 %s （位于 %s）
