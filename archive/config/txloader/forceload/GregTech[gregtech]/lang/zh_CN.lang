@@ -237,3 +237,5 @@ abbrev.entangled_cosmicneutronium.name=宇宙中子态素
 abbrev.entangled_bedrockium.name=基岩
 GT5U.waila.machine.recipe_inputs=§6Recipe Inputs:
 GT5U.waila.machine.recipe_outputs=§bRecipe Outputs: §e%s
+GT5U.gui.text.not_enough_parallels=并行不足（最低并行过高）
+gt.coilunittooltip= K
