@@ -239,3 +239,5 @@ GT5U.waila.machine.recipe_inputs=§6Recipe Inputs:
 GT5U.waila.machine.recipe_outputs=§bRecipe Outputs: §e%s
 GT5U.gui.text.not_enough_parallels=并行不足（最低并行过高）
 gt.coilunittooltip= K
+gt.blockmachines.basicmachine.rockbreaker.tier.05.name=低温岩浆固化者R-8200
+gt.loading.progress.post_init.loading_gt=后初始化：正在加载格雷科技

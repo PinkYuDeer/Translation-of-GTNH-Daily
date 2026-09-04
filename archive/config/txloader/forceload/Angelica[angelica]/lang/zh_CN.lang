@@ -1,0 +1,2 @@
+sodium.options.buttons.donate=给JellySquid买杯咖啡！
+options.dynamiclights.entity.tooltip=切换%s实体的动态光照。如果该实体类型产生不需要的光照，可禁用此选项以提升性能。
