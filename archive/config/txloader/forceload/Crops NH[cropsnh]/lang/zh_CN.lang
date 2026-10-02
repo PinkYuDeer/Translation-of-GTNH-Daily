@@ -17,3 +17,5 @@ GT5U.gui.text.cropsnh.industrialFarm.cannotGrow=这个种子不能在当前的�
 GT5U.gui.text.cropsnh.industrialFarm.notEnoughWater=水量不足
 GT5U.gui.text.cropsnh.industrialFarm.notEnoughEnrichedFertilizer=富集肥料不足
 cropsnh_tooltip.NaNCertificate=已接受挑战！
+cropsnh_tooltip.genericSeed.mustUseSeedSynthesizerToReplicate=该种子只能使用合成器复制
+cropsnh_crops.migrated=旧版作物

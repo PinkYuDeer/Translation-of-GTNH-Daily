@@ -1,1 +1,8 @@
 nei.debug.RecipeHandler.UseCustomScroll=使用自定义滚动
+nei.bookmark.crafting_chain.missing=缺失物品
+nei.bookmark.crafting_chain.output=产物
+nei.bookmark.crafting_chain.remainder=剩余物品
+nei.bookmark.crafting_chain.available=可用物品
+nei.options.inventory.bookmarks.recipeChainDir=合成链信息方向
+nei.options.inventory.bookmarks.recipeChainDir.0=输入优先
+nei.options.inventory.bookmarks.recipeChainDir.1=输出优先
