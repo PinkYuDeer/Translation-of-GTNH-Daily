@@ -20,12 +20,13 @@ permissions:
   contents: write
 
 env:
-  # PT 主站凭据（读 4964、读 20315）；发版只读取，不回推。
+  # PT 主站凭据（4964 为可选校对源，20315 必须读取成功）；发版只读，不回推。
   PARATRANZ_TOKEN: ${{ secrets.PARATRANZ_TOKEN }}
   PT_4964_ID: ${{ secrets.PARATRANZ_PROJECT_ID }}
   PT_18818_ID: ${{ secrets.PARATRANZ_DAILY_PROJECT_ID }}
   # 兼容旧命名；脚本会自动读取其中之一
   PARATRANZ_DAILY_PROJECT_ID: ${{ secrets.PARATRANZ_DAILY_PROJECT_ID }}
+  PT_4964_REQUIRED: ${{ vars.PT_4964_REQUIRED || '0' }}
 
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -51,6 +52,14 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Test ParaTranz Access and Translation Preservation
+        shell: bash
+        env:
+          PARATRANZ_TOKEN: test-token
+          PT_4964_ID: '4964'
+          PT_18818_ID: '20315'
+        run: bun test ./.github/scripts/daily/tests
 
       # newlines.json（占位还原）与 file-ids 等可复用状态在 daily 缓存里；恢复它能让
       # 打出的 .lang 与 daily 字节一致。PT 状态下面都会重新拉取，缓存冷只会让换行退化。

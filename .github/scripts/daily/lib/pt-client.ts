@@ -18,6 +18,14 @@ const MAX_RATE_LIMIT_RETRIES = 100
 const MAX_TRANSIENT_RETRIES = 8
 const DEFAULT_STRINGS_PAGE_SIZE = 1000
 
+/** Preserve HTTP status so optional sources can distinguish denied access from outages. */
+export class PtHttpError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message)
+    this.name = 'PtHttpError'
+  }
+}
+
 export interface PtFileSummary {
   id: number
   name: string
@@ -156,7 +164,7 @@ async function apiRequestRaw(
 
     if (!res.ok) {
       const text = await readResponseTextSafe(res)
-      throw new Error(`${method} ${path} → ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`)
+      throw new PtHttpError(res.status, `${method} ${path} → ${res.status} ${res.statusText}${text ? `: ${text}` : ''}`)
     }
 
     return res
@@ -351,7 +359,9 @@ export async function fetchAllPages<T>(
       all.push(...data)
       break
     }
-    all.push(...(data.results ?? []))
+    if (data == null || !Array.isArray(data.results))
+      throw new Error(`Invalid ParaTranz paginated response on page ${page}: expected results array`)
+    all.push(...data.results)
     if (page >= (data.pageCount ?? 1))
       break
     page++
@@ -368,7 +378,10 @@ export async function listProjectFiles(projectId: string): Promise<PtFileSummary
   const data = await apiGet<unknown>(`/projects/${projectId}/files`)
   if (Array.isArray(data))
     return data as PtFileSummary[]
-  return (((data as { results?: PtFileSummary[] }).results) ?? [])
+  const results = (data as { results?: PtFileSummary[] } | null)?.results
+  if (!Array.isArray(results))
+    throw new Error(`Invalid file list for project ${projectId}: expected array or results array`)
+  return results
 }
 
 export function indexFilesByLowerName<T extends { name: string }>(files: readonly T[]): Map<string, T> {
@@ -393,7 +406,9 @@ export async function listFileTranslations(
   fileId: number,
 ): Promise<PtStringRow[]> {
   const data = await apiGet<unknown>(`/projects/${projectId}/files/${fileId}/translation`)
-  return Array.isArray(data) ? data as PtStringRow[] : []
+  if (!Array.isArray(data))
+    throw new Error(`Invalid translations for project ${projectId}, file ${fileId}: expected array`)
+  return data as PtStringRow[]
 }
 
 export async function listProjectHistory(
@@ -425,9 +440,9 @@ export async function listProjectTerms(projectId: string, pageSize = DEFAULT_STR
   if (Array.isArray(first))
     return first as PtTermRow[]
 
-  const pageLike = first as { pageCount?: number, results?: PtTermRow[] }
-  if (!Array.isArray(pageLike.results))
-    return []
+  const pageLike = first as { pageCount?: number, results?: PtTermRow[] } | null
+  if (!Array.isArray(pageLike?.results))
+    throw new Error(`Invalid term list for project ${projectId}: expected array or results array`)
   if ((pageLike.pageCount ?? 1) <= 1)
     return pageLike.results
 

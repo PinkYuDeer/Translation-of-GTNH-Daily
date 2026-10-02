@@ -126,8 +126,10 @@ async function loadPtItems(abs: string): Promise<PtStringItem[]> {
   const data: unknown = JSON.parse(await readFile(abs, 'utf8'))
   if (Array.isArray(data))
     return dedupePtItemsByKey(data as PtStringItem[]).items
-  const results = (data as { results?: PtStringItem[] }).results
-  return Array.isArray(results) ? dedupePtItemsByKey(results).items : []
+  const results = (data as { results?: PtStringItem[] } | null)?.results
+  if (!Array.isArray(results))
+    throw new Error(`Invalid translation snapshot ${abs}: expected array or results array`)
+  return dedupePtItemsByKey(results).items
 }
 
 function normalizeItem(item: PtStringItem): PtStringItem {

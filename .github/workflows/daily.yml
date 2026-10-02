@@ -22,12 +22,14 @@ permissions:
   contents: write
 
 env:
-  # PT 主站凭据（读 4964、读写 20315）
+  # PT 主站凭据（4964 为可选校对源，20315 必须读写成功）
   PARATRANZ_TOKEN: ${{ secrets.PARATRANZ_TOKEN }}
   PT_4964_ID: ${{ secrets.PARATRANZ_PROJECT_ID }}
   PT_18818_ID: ${{ secrets.PARATRANZ_DAILY_PROJECT_ID }}
   # 兼容旧命名；脚本会自动读取其中之一
   PARATRANZ_DAILY_PROJECT_ID: ${{ secrets.PARATRANZ_DAILY_PROJECT_ID }}
+  # 默认在 4964 权限被拒绝时保留我方译文并报告降级；设仓库变量为 1 可强制要求它。
+  PT_4964_REQUIRED: ${{ vars.PT_4964_REQUIRED || '0' }}
 
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -61,6 +63,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+
+      - name: Test ParaTranz Access and Translation Preservation
+        shell: bash
+        env:
+          PARATRANZ_TOKEN: test-token
+          PT_4964_ID: '4964'
+          PT_18818_ID: '20315'
+        run: bun test ./.github/scripts/daily/tests
 
       - name: Setup Headless Client Tools
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_gt5u != true }}

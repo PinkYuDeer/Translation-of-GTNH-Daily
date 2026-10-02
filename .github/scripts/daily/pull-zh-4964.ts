@@ -22,12 +22,13 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { copyFile, cp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { appendFile, copyFile, cp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import {
   BUILD_DIR,
   CONCURRENCY,
+  PT_18818_ID,
   PT_4964_ID,
   REPO_CACHE_DIR,
   assertToken,
@@ -47,6 +48,7 @@ import { REPO_ARCHIVE_DIR, TIPS_KEYMAP_FILE, TIPS_KIWI_SEEN_FILE } from './lib/c
 import type { TipsRegistry } from './lib/tips-registry.ts'
 import { stripPtJsonSuffix } from './lib/path-map.ts'
 import type { PtStringItem } from './lib/lang-parser.ts'
+import { isSourceAccessDenied, pullReviewedSource } from './lib/source-access.ts'
 
 const POLL_INTERVAL_MS = 15_000
 const POLL_MAX = 20
@@ -95,8 +97,10 @@ async function* walkJson(dir: string): AsyncGenerator<string> {
 function loadItemsFromJson(data: unknown): PtStringItem[] {
   if (Array.isArray(data))
     return data as PtStringItem[]
-  const results = (data as { results?: PtStringItem[] }).results
-  return Array.isArray(results) ? results : []
+  const results = (data as { results?: PtStringItem[] } | null)?.results
+  if (!Array.isArray(results))
+    throw new Error('Invalid source artifact JSON: expected array or results array')
+  return results
 }
 
 function normalize4964Items(items: PtStringItem[]): PtStringItem[] {
@@ -129,12 +133,24 @@ async function tryArtifactFlow(outRoot: string): Promise<boolean> {
   try {
     const before = await apiGet<ArtifactInfo>(`/projects/${PT_4964_ID}/artifacts`).catch(() => ({} as ArtifactInfo))
     const beforeTs = before.createdAt ?? ''
-    await apiPostJson(`/projects/${PT_4964_ID}/artifacts`, {})
+    let triggered = false
+    try {
+      await apiPostJson(`/projects/${PT_4964_ID}/artifacts`, {})
+      triggered = true
+    }
+    catch (error) {
+      // Triggering an export requires admin permission; an existing download
+      // can still be readable. Try it before falling back to file endpoints.
+      if (!isSourceAccessDenied(error))
+        throw error
+    }
     // eslint-disable-next-line no-console
-    console.log('[pull-zh-4964] artifact build triggered; polling...')
+    console.log(triggered
+      ? '[pull-zh-4964] artifact build triggered; polling...'
+      : '[pull-zh-4964] export trigger denied; trying existing artifact')
 
     let ready = false
-    for (let i = 0; i < POLL_MAX; i++) {
+    for (let i = 0; triggered && i < POLL_MAX; i++) {
       await sleep(POLL_INTERVAL_MS)
       const info = await apiGet<ArtifactInfo>(`/projects/${PT_4964_ID}/artifacts`).catch(() => ({} as ArtifactInfo))
       if (info.createdAt && info.createdAt !== beforeTs) {
@@ -144,7 +160,7 @@ async function tryArtifactFlow(outRoot: string): Promise<boolean> {
         break
       }
     }
-    if (!ready)
+    if (triggered && !ready)
       // eslint-disable-next-line no-console
       console.warn('[pull-zh-4964] artifact poll timed out; attempting download anyway')
 
@@ -162,8 +178,8 @@ async function tryArtifactFlow(outRoot: string): Promise<boolean> {
 
     await flattenIfSingleDir(outRoot)
     const stats = await normalizeArtifactFiles(outRoot)
-    if (stats.files === 0)
-      throw new Error('artifact contained no JSON files')
+    if (stats.files === 0 || stats.rows === 0)
+      throw new Error('artifact contained no translation rows')
     // eslint-disable-next-line no-console
     console.log(`[pull-zh-4964] artifact: ${stats.files} files / ${stats.rows} rows normalized`)
     return true
@@ -309,11 +325,15 @@ async function copyExtras(): Promise<void> {
 
 async function fallbackFileByFile(outRoot: string): Promise<void> {
   const files = await listProjectFiles(PT_4964_ID)
+  if (files.length === 0)
+    throw new Error(`Source project ${PT_4964_ID} returned no files`)
+  // Check download access once before launching hundreds of doomed requests.
+  const firstRows = await listFileTranslations(PT_4964_ID, files[0].id)
   // eslint-disable-next-line no-console
   console.log(`[pull-zh-4964] fallback: pulling ${files.length} files in project ${PT_4964_ID}`)
   await rm(outRoot, { recursive: true, force: true })
-  const tasks = files.map(f => async () => {
-    const rows = await listFileTranslations(PT_4964_ID, f.id)
+  const tasks = files.map((f, index) => async () => {
+    const rows = index === 0 ? firstRows : await listFileTranslations(PT_4964_ID, f.id)
     // Convert rows into the same PtStringItem shape used elsewhere, dropping
     // only unrelated server fields; `id` / timestamps are useful for manual
     // conflict investigation when the artifact path does not expose them.
@@ -351,7 +371,9 @@ async function fallbackFileByFile(outRoot: string): Promise<void> {
         // eslint-disable-next-line no-console
         console.error(`  fail ${files[i].name}: ${r.message}`)
     }
-    process.exit(1)
+    // Outages/invalid responses stay fatal even when another file was denied.
+    const errors = results.filter((r): r is Error => r instanceof Error)
+    throw errors.find(error => !isSourceAccessDenied(error)) ?? errors[0]
   }
 }
 
@@ -359,9 +381,24 @@ async function main(): Promise<void> {
   assertToken()
 
   const outRoot = join(BUILD_DIR, 'zh-4964')
-  const ok = await tryArtifactFlow(outRoot)
-  if (!ok)
-    await fallbackFileByFile(outRoot)
+  const available = await pullReviewedSource(outRoot, async (stagingRoot) => {
+    const ok = await tryArtifactFlow(stagingRoot)
+    if (!ok)
+      await fallbackFileByFile(stagingRoot)
+  }, {
+    required: /^(1|true)$/i.test(process.env.PT_4964_REQUIRED ?? ''),
+    onUnavailable: async (error) => {
+      const message = `PT ${PT_4964_ID} translation access is denied (403). `
+        + `Continuing with current PT ${PT_18818_ID} translations and Kiwi extras; `
+        + 'reviewed-source translation updates are unavailable for this run. '
+        + 'Set PT_4964_REQUIRED=1 to require this source.'
+      console.warn(`::warning::${message}`)
+      console.warn(`[pull-zh-4964] ${error.message}`)
+      if (process.env.GITHUB_STEP_SUMMARY)
+        await appendFile(process.env.GITHUB_STEP_SUMMARY, `\n### Reviewed translation source unavailable\n\n${message}\n`)
+    },
+  })
+  await writeJson(join(BUILD_DIR, 'source-4964-status.json'), { project: PT_4964_ID, available })
 
   // Synthetic tips file — lives under zh-4964 so diff-zh finds it via the
   // same path-map logic. Slot: 4964-style `config/Betterloadingscreen/tips/zh_CN.lang.json`

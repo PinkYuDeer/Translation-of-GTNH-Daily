@@ -14,6 +14,8 @@
  */
 
 import { CONCURRENCY, PT_18818_ID, PT_4964_ID, assertToken } from './lib/config.ts'
+import { appendFile } from 'node:fs/promises'
+import { isSourceAccessDenied } from './lib/source-access.ts'
 import {
   apiDeleteJson,
   apiPostJson,
@@ -82,13 +84,26 @@ function termPayload(t: CanonicalTerm): Record<string, unknown> {
   }
 }
 
-async function main(): Promise<void> {
+export async function syncTerms(): Promise<void> {
   assertToken()
 
-  const [sourceRaw, targetRaw] = await Promise.all([
-    listProjectTerms(PT_4964_ID),
-    listProjectTerms(PT_18818_ID),
-  ])
+  // Our project is required. Denied optional-source access must never be
+  // converted into an empty source list (which would delete every target term).
+  const targetRaw = await listProjectTerms(PT_18818_ID)
+  let sourceRaw: PtTermRow[]
+  try {
+    sourceRaw = await listProjectTerms(PT_4964_ID)
+  }
+  catch (error) {
+    if (!isSourceAccessDenied(error) || /^(1|true)$/i.test(process.env.PT_4964_REQUIRED ?? ''))
+      throw error
+    const message = `PT ${PT_4964_ID} term access is denied (403); `
+      + `keeping PT ${PT_18818_ID} terms unchanged for this run.`
+    console.warn(`::warning::${message}`)
+    if (process.env.GITHUB_STEP_SUMMARY)
+      await appendFile(process.env.GITHUB_STEP_SUMMARY, `\n${message}\n`)
+    return
+  }
 
   // Source keyed by term text (first occurrence wins, mirroring old dedupe).
   const source = new Map<string, CanonicalTerm>()
@@ -158,7 +173,7 @@ async function main(): Promise<void> {
   }
 }
 
-void main().catch((err) => {
+if (import.meta.main) void syncTerms().catch((err) => {
   // eslint-disable-next-line no-console
   console.error('[sync-terms] failed:', err)
   process.exit(1)
