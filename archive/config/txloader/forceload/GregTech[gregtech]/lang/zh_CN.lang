@@ -289,3 +289,5 @@ gt.blockmachines.multimachine.nanochipmodule.smdprocessor.name=元件预处理�
 gt.blockmachines.hatch.output.me.tooltip=Fluid Output for Multiblocks\nCapacity: 0 L\nRight click with screwdriver to restrict output\nCan be restricted to put out Items and/or Steam/No Steam/1 specific Fluid\nRestricted Output Hatches are given priority for Multiblock Fluid output
 gt.blockmachines.hatch.output_bus.me.tooltip=Item Output for Multiblocks\nCapacity: 25 stacks\nLeft click with data stick to save filter config\nRight click with data stick to load filter config
 gt.blockmachines.hatch.splitter.redstone.name=Splitter Redstone Input
+gt.metaitem.02.32765.with.ItSFreePlaceLavaOnSide.name=IT'S FREE! Place Lava on Side
+gt.metaitem.02.32765.with.ItSFreePlaceLavaOnTop.name=IT'S FREE! Place Lava on Top
