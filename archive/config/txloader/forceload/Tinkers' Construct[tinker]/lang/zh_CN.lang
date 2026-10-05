@@ -1,0 +1,6 @@
+item.tconstruct.Materials.ExpanderHorizontal.name=Expander (Horizontal)
+item.tconstruct.Materials.ExpanderVertical.name=Expander (Vertical)
+modifier.tool.width=Width++
+modifier.tool.height=Height++
+modifier.tooltip.expander.horizontal=Don't skip leg day!
+modifier.tooltip.expander.vertical=Do you even lift?

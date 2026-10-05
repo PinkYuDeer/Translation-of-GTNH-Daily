@@ -1,0 +1,2 @@
+options.zoom_cinematic=Cinematic Camera Zoom
+options.zoom_cinematic.tooltip=Whether or not to use the Cinematic Camera smooth movement. Off is standard Minecraft mouse camera movement where camera snaps to mouse position. On is floating uninterrupted movement after initial mouse movement, where the camera continues to shift after halting mouse movement.

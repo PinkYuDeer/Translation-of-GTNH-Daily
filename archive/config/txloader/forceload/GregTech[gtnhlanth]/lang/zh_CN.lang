@@ -12,3 +12,4 @@ gtnhlanth.tt.tc.info8=§f处理时间 = 5 秒 * §6所需最低通量§f / §e�
 gtnhlanth.tt.tc.info9=每tick最多可处理的总量，取决于聚焦输入总线中所有同种§a掩模§7的耐久度之和
 gtnhlanth.tt.tc.focusinputbus=聚焦输入总线
 gtnhlanth.tt.tc.beamlineinputhatch=束流输入仓
+GT5U.gui.text.shutdown_reason.gtnhlanth.boostinterrupt=助推流体供应不足！

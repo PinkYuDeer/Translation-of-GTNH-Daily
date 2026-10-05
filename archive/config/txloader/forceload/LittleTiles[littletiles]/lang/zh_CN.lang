@@ -1,0 +1,15 @@
+key.littletiles.undo_placement=Undo Placement
+key.littletiles.redo_placement=Redo Placement
+key.littletiles.deformed_box=Deformed Box
+littletiles.command.dumpmesh.culled.success=Culled mesh dumped to %s
+littletiles.command.dumpmesh.culled.hidden=Selected tile is fully culled, which should not happen - check culling.
+littletiles.command.dumpmesh.plainbox=Selected tile is a plain box, dump skipped.
+littletiles.command.dumpmesh.invalid=Invalid mesh under cursor. Metadata dumped to %s
+littletiles.history.undo_failed=Cannot undo: Change doesn't apply anymore, world changed.
+littletiles.history.redo_failed=Cannot redo: Change doesn't apply anymore, world changed.
+item.LTLittleBag.name=Little Bag
+item.LTPartialTiles.name=Tiles
+littletiles.little_bag.fill=%d%% full
+littletiles.little_bag.materials=%d / %d materials
+littletiles.little_bag.hint=Little tiles are converted back into materials
+littletiles.partial_tiles.amount=%d / %d tiles
