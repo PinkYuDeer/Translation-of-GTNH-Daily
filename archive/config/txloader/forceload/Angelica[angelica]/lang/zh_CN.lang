@@ -1,6 +1,6 @@
 sodium.options.buttons.donate=给JellySquid买杯咖啡！
 options.dynamiclights.entity.tooltip=切换%s实体的动态光照。如果该实体类型产生不需要的光照，可禁用此选项以提升性能。
-sodium.options.async_occlusion_mode.none=无
+sodium.options.async_occlusion_mode.none=None
 sodium.options.texture_filtering.rgss_anisotropic=RGSS & Anisotropic
 sodium.options.texel_sampling.name=Texel Blending
 sodium.options.texel_sampling.tooltip=Sets how the boundary between two texels of a block texture is drawn. Nearest is sharp, Linear blends.
@@ -56,3 +56,5 @@ options.angelica.verbosef3=Verbose F3
 options.angelica.verbosef3.tooltip=Shows developer counters (fixed-function shaders, streaming, TESR batching, GPU transfer) on the F3 screen. Toggle in game with F3+V.
 angelica.debug.verbose.on=Verbose F3: shown
 angelica.debug.verbose.off=Verbose F3: hidden
+sodium.options.use_chunk_multidraw.name=区块多重绘制
+sodium.options.use_chunk_multidraw.tooltip=多重绘制允许用更少的绘制调用来渲染多个区块，大大减少了渲染世界时的CPU开销，同时也可能有更高的GPU利用率。此项优化可能会让一些图形驱动程序出现问题，因此如果你遇到相关故障，应尝试禁用它。
