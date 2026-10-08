@@ -565,3 +565,4 @@ GT5U.gui.text.recipe_no_conn_1=§7无连接
 GT5U.gui.text.recipe_no_conn_2=§7将准星对准
 GT5U.gui.text.recipe_no_conn_3=§7一台机器来看
 GT5U.gui.text.recipe_no_conn_4=§7配方详情。
+GT5U.MBTT.Structure.GlassEnergyLimit=§fEnergy Hatch§7 limited by §fGlass§7 Tier\n旧译：\n§f玻璃§7等级限制了能源仓等级
