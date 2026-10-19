@@ -3,7 +3,7 @@
 <!-- progress-chart:start -->
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="progress/progress-dark.svg">
-  <img alt="GTNH Daily 汉化进度（最近 90 天）" src="progress/progress.svg" title="GTNH Daily 汉化进度 · 近3天 10-17 98.16% → 10-18 98.15% → 10-19 98.14% · 最新 83,077/84,654 词条">
+  <img alt="GTNH Daily 汉化进度（最近 90 天）" src="progress/progress.svg" title="GTNH Daily 汉化进度 · 近3天 10-18 98.15% → 10-19 98.14% → 10-20 98.13% · 最新 83,052/84,631 词条">
 </picture>
 <!-- progress-chart:end -->
 
