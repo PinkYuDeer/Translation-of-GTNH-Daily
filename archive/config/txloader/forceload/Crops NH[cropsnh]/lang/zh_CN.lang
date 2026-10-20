@@ -63,3 +63,4 @@ cropsnh_soilList.slimyDirt.tooltip=Grows on dirt, grass or slimy dirt or slimy g
 cropsnh_soilList.slimyDirt.wrongSoil=This seed can only be planted on dirt, grass or slimy dirt or slimy grass!
 cropsnh_soilList.oil.tooltip=Grows on sand, gravel, soul sand, or oil sands
 cropsnh_soilList.oil.wrongSoil=This seed can only be planted on sand, gravel, soul sand, or oil sands!
+cropsnh_tooltip.seedBed.name=苗床（%1$s）

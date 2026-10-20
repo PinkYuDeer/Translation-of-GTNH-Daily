@@ -48,3 +48,4 @@ gtplusplus.item.dustNeptunium238.decay_result=Result: Plutonium 238 (%s)
 gtplusplus.item.dustNeptunium239.decay_result=Result: Plutonium 239 (%s)
 gtplusplus.item.dustProtactinium233.decay_result=Result: Uranium 233 (%s)
 gtplusplus.item.dustRadium226.decay_result=Result: Radon (%s)
+GTPP.core.GT_Tooltip_Builder=%s §7- §c[GT++]
