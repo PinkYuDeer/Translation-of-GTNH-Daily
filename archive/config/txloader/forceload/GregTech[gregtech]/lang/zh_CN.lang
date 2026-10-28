@@ -661,3 +661,5 @@ gt.blockmachines.multimachine.beamcrafting.ttanycasing=任意对撞机机械方�
 gt.blockmachines.multimachine.beamcrafting.ttbeaminhatch=束流输入仓
 gt.blockmachines.multimachine.beamcrafting.ttbeamouthatch=束流输出仓
 gt.blockmachines.multimachine.beamcrafting.ttbeamouthatchfiltered=过滤式束流输出仓
+gt.mbtt.flavor.exothermic_hearth=Never one...
+gt.mbtt.flavor.endothermic_fridge=... without the other!
