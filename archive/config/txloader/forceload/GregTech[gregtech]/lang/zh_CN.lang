@@ -684,3 +684,4 @@ gt.blockmachines.basicmachine.seismicprospector.07.name=进阶地震勘探者 LV
 gt.blockmachines.electricboiler.1.tier.single.name=进阶锅炉［LV］
 gt.blockmachines.electricboiler.2.tier.single.name=进阶锅炉［MV］
 gt.blockmachines.electricboiler.3.tier.single.name=进阶锅炉［HV］
+gt.mbtt.structure.no_air_gaps_fluid_cells_different_tiers=不允许留空，但允许混合不同等级的存储库方块
