@@ -315,3 +315,4 @@ gt.blockmachines.machine.tt.buck.10.name=UEV降压变压器
 gt.blockmachines.machine.tt.buck.11.name=UIV降压变压器
 gt.blockmachines.machine.tt.buck.12.name=UMV降压变压器
 gt.blockmachines.machine.tt.buck.13.name=UXV降压变压器
+EOH.Recipe.Warning=§4§l警告§r：未显示所有物品。
