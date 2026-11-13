@@ -28,3 +28,6 @@ nei.options.tools.handler_load_from_config.false=JAR
 nei.options.tools.catalyst_load_from_config=从配置文件载入同类型机器（Catalyst）
 nei.options.tools.catalyst_load_from_config.true=配置文件
 nei.options.tools.catalyst_load_from_config.false=JAR
+nei.options.inventory.optimize_gui_overlap_computation=优化GUI重叠时的计算方式
+nei.options.inventory.optimize_gui_overlap_computation.true=是
+nei.options.inventory.optimize_gui_overlap_computation.false=否
