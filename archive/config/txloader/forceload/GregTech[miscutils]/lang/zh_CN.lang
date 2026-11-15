@@ -50,3 +50,7 @@ gtplusplus.item.dustProtactinium233.decay_result=Result: Uranium 233 (%s)
 gtplusplus.item.dustRadium226.decay_result=Result: Radon (%s)
 GTPP.core.GT_Tooltip_Builder=%s §7- §c[GT++]
 tile.blockInhibitorObelisk.name=传送抑制方尖碑
+gt.blockmachines.cyclotron.tier.single.name=COMET - 紧凑式回旋加速器
+gt.blockmachines.industrialplatepress.controller.tier.single.name=工业辊压机
+gt.blockmachines.industrialwashplant.controller.tier.single.name=工业洗矿厂
+gt.blockmachines.hatch.dynamo.buffer.name=%s动力仓[缓冲]

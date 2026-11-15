@@ -61,3 +61,5 @@ tooltip.bw.mb_via.name=%s§7 via §2BartWorks
 tooltip.windmeter.8.name=这里的风似乎...
 tile.diode.name=线缆二极管
 tile.energydistributor.name=能量分配器
+tile.bw.mbf.name=巨型工业高炉
+tile.bw.mvf.name=巨型真空冷冻机
