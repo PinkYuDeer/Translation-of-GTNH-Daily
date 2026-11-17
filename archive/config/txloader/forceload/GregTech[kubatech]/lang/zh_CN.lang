@@ -11,3 +11,4 @@ GT5U.gui.text.no_electrode=未插入电极！
 GT5U.gui.text.electrode_changed=电极在运行中发生了变化！
 item.arc_furnace_electrode.tip.oc=超频系数：%s%s
 item.arc_furnace_electrode.tip.eu_modifier=EU修正：%s
+kubatech.infodata.running_mode.fmt=运行模式：§a%s§r
