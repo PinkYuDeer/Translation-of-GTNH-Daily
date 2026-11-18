@@ -63,3 +63,5 @@ tile.diode.name=线缆二极管
 tile.energydistributor.name=能量分配器
 tile.bw.mbf.name=巨型工业高炉
 tile.bw.mvf.name=巨型真空冷冻机
+chat.cal.mode.0=Circuit Assembly Line\n旧译：\n电路装配线模式
+chat.cal.mode.1=Circuit Assembler\n旧译：\n电路组装机模式
