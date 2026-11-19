@@ -330,3 +330,5 @@ gt.blockmachines.multimachine.tm.teslaCoil.cfgo.6=已存储能量显示
 gt.blockmachines.multimachine.tm.teslaCoil.cfgo.7=充能进度显示
 gt.blockmachines.multimachine.tm.teslaCoil.cfgo.8=扫描时间显示
 gt.blockmachines.multimachine.tm.teslaCoil.cfgo.9=最大输出显示
+GT5U.gui.text.recipe_result.invalid_timer=§7计时器无效
+tt.keyword.Destination=输出仓 ID
