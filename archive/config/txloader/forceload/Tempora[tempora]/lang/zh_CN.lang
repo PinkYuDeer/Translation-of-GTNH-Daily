@@ -1,0 +1,2 @@
+tile.rendering_error_block.name=Tempora Rendering Error
+tempora.tooltip.rendering_error=If you are seeing this, something has likely gone wrong with Tempora's event rendering. Please report it, thanks!
