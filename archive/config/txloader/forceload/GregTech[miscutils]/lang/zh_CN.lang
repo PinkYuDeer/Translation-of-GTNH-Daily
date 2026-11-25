@@ -54,3 +54,6 @@ gt.blockmachines.cyclotron.tier.single.name=COMET - 紧凑式回旋加速器
 gt.blockmachines.industrialplatepress.controller.tier.single.name=工业辊压机
 gt.blockmachines.industrialwashplant.controller.tier.single.name=工业洗矿厂
 gt.blockmachines.hatch.dynamo.buffer.name=%s动力仓[缓冲]
+item.BasicAgrichemItem.22.name=模头（颗粒）
+MU-metaitem.01.32040.name=模头（转轴）
+MU-metaitem.01.32040.tooltip=用于制作风车转轴的模头

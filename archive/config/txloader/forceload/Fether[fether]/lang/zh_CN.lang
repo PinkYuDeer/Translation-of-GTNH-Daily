@@ -1,2 +1,6 @@
 for.circuit.managedInfernalArboreal=Infernal Arboretum
 for.logic.managedInfernalArboreal=Managed Infernal Arboretum
+item.fether.nether_bed.name=下界床
+tile.fether.nether_leaves.name=地狱树叶
+tile.fether.nether_planks.name=地狱木板
+tile.fether.nether_sapling.name=地狱树苗
