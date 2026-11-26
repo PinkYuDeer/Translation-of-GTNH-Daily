@@ -4,3 +4,17 @@ betterquesting.quest.65KbJVn1T1CSpCdnGfBSqQ.name=§9§l§n更好的超导体冷�
 betterquesting.quest.65KbJVn1T1CSpCdnGfBSqQ.desc=时空的零下温度使它成为您所有超导体工艺的理想替代品。%n%n您再也不需要数以亿计的液氦了！%n%n[note]使用它制作较低电压等级的超导体的速度也更快。[/note]
 betterquesting.quest.AAAAAAAAAAAAAAAAAAABuQ.name=§c§l基础时代/石器时代战利品袋 -> 蒸汽时代战利品袋
 betterquesting.quest.AAAAAAAAAAAAAAAAAAABuQ.desc=三袋基础时代/石器时代战利品袋 = 一袋蒸汽时代战利品袋%n%n当你完成蒸汽章节并进入LV时，你将解锁在组装机中升级战利品袋的配方，但现在这个任务可以做到同样的事！（可重复任务）
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHHA.name=兰波顿能量存储矩阵（LESU）
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHHA.desc=兰波顿能量存储矩阵（LESU）是目前GT能使用的机器中最古老的机器之一。它出现于Minecraft 1.3.X版本时期，但为了适应这个整合包，它被重做了。你可以添加几乎无限多的LESU机械方块，然后你就会有巨量的能量存储。你甚至可以住在你的电池里。%n%n[note]PS：这玩意是辣鸡，别做。或许某天有人会重做或者增强它吧。[/note]
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHIQ.name=LESU升级-LV等级
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHIQ.desc=将这么多LESU机械方块添加到你的LESU，即可将其从ULV升级至LV等级。
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHIg.name=LESU升级-MV等级
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHIg.desc=添加更多LESU机械方块不只会提升LESU的储能量，还会使其升级到MV等级。
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHIw.name=LESU升级-HV等级
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHIw.desc=升级到HV等级需要一组以上的LESU机械方块。更多方块，更多能量，更强能耐。
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHJA.name=LESU升级-EV等级
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHJA.desc=接近8组LESU机械方块，能使你的LESU达到EV电压。到目前为止都不难。
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHJQ.name=LESU升级-IV等级
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHJQ.desc=24组LESU机械方块。你的物品栏确实能装下它们，但把它们合成出来就是另一个问题了。%n%n[note]如果你不想事先清空背包的话，做出足够的数量后勾选复选框即可。[/note]
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHJg.name=LESU升级-LuV等级
+betterquesting.quest.AAAAAAAAAAAAAAAAAAAHJg.desc=想要到达LESU所能承载的最高电压，你需要添加更多的LESU机械方块。用8193个LESU机械方块（已计入此前的所有升级所需）能使LESU接受LuV电压输入。%n%n[note]我是说，你可以那么做，但只要在自动合成完成后勾选复选框就好了。[/note]

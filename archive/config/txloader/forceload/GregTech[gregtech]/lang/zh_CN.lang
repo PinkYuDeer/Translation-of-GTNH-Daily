@@ -798,3 +798,4 @@ gt.item.shape_extruder.turbine_blade.name=模头（涡轮扇叶）
 gt.item.shape_extruder.turbine_blade.tooltip=用来制作涡轮扇叶的模头
 gt.item.shape_extruder.tool_head_drill.name=模头（钻头）
 gt.item.shape_extruder.tool_head_drill.tooltip=用来制作钻头的模头
+GT5U.scanner.debug.meta_id=Meta-ID: §b%s %s

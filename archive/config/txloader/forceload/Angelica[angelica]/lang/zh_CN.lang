@@ -60,3 +60,5 @@ sodium.options.use_chunk_multidraw.name=区块多重绘制
 sodium.options.use_chunk_multidraw.tooltip=多重绘制允许用更少的绘制调用来渲染多个区块，大大减少了渲染世界时的CPU开销，同时也可能有更高的GPU利用率。此项优化可能会让一些图形驱动程序出现问题，因此如果你遇到相关故障，应尝试禁用它。
 options.angelica.disablef3=禁用 F3 附加信息
 options.angelica.disablef3.tooltip=禁用Angelica对F3调试屏幕的附加功能。
+sodium.options.translucency_sorting.name=半透明排序
+sodium.options.translucency_sorting.tooltip=启用后，半透明地形（水、染色玻璃、冰）和半透明方块实体将从后向前排序，以便正确绘制重叠层。禁用可提升包含大量半透明方块的场景性能，但会导致分层伪影。更改此项会重新加载区块。
